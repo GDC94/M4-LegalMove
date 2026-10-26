@@ -54,6 +54,8 @@ src/
 ├── models.py              *        ContractChangeOutput + modelos internos + enums
 ├── checks.py                       checks deterministas: consistencia, grounding, diff, heurística delta
 ├── errors.py                       jerarquía LegalMoveError
+├── budget.py                       presupuesto de la corrida: timeout y reintentos por intento (sección 5.1)
+├── budgeted_model.py               adaptador: construye el chat model de cada intento con los límites del presupuesto
 ├── prompt_blocks.py                serialización segura de todos los bloques dinámicos (sección 4.3)
 ├── config.py                       Settings (pydantic-settings) + constante APP_VERSION
 ├── observability.py                puerto PipelineTracer + adaptador Langfuse + masking
@@ -82,10 +84,10 @@ README.md                  *
 
 | Capa | Módulos | Regla |
 |---|---|---|
-| Dominio | `models.py`, `checks.py`, `errors.py`, `prompt_blocks.py` | Pydantic y lógica determinista. No importan LangChain, OpenAI, Langfuse ni `config.py` |
+| Dominio | `models.py`, `checks.py`, `errors.py`, `prompt_blocks.py`, `budget.py` | Pydantic y lógica determinista. No importan LangChain, OpenAI, Langfuse ni `config.py` |
 | Aplicación | `pipeline.py` (`run_analysis()`) | Orquesta las etapas a través de los puertos. No conoce Langfuse ni la configuración |
 | Puertos | `PipelineTracer` y `StageSpan` (Protocol, sección 5.2); el `chat_model` que recibe cada `build_*` | Los módulos de negocio dependen de la abstracción, nunca del proveedor |
-| Adaptadores | `observability.py` (Langfuse), `image_parser.py` y `agents/` (OpenAI vía LangChain) | Únicos módulos que tocan infraestructura externa |
+| Adaptadores | `observability.py` (Langfuse), `image_parser.py`, `budgeted_model.py` y `agents/` (OpenAI vía LangChain) | Únicos módulos que tocan infraestructura externa |
 | Raíz de composición | `main.py` | Único que llama a `load_settings()`, construye el contenedor `@dataclass(frozen=True)` y cablea adaptadores con puertos |
 
 Regla de dependencias: dominio ← aplicación ← adaptadores ← `main.py`. Las flechas solo apuntan hacia adentro; un módulo nunca importa a uno de una capa más externa. Los tests de arquitectura por AST (sección 6.2) hacen cumplir estas reglas en CI, de modo que la arquitectura es declarada y verificada, no inferida. `CLAUDE.md` repite esta tabla para que cada ticket se implemente contra ella.
@@ -613,6 +615,7 @@ Si una etapa falla, su span queda con `level="ERROR"` y el mensaje de error, y e
 - **Éxito fail-closed:** el JSON se bufferiza, `flush()` debe completar y recién después se escribe stdout. Una falla produce `ObservabilityError`.
 - **Error de negocio:** `flush()` corre en un `finally`; si también falla, se preserva el error original y se registra la falla de observabilidad.
 - `run_id` sale siempre; `trace_id` puede ser `null` si la inicialización de Langfuse falló (sección 4.7).
+- **Alcance de la confirmación:** al inicializar el tracer, `auth_check()` confirma que Langfuse acepta las claves antes de gastar en OpenAI; si falla, `ObservabilityError`. Después, `flush()` solo falla ante excepciones: el SDK registra pero no propaga los errores de exportación OTLP, así que la entrega de la traza es best-effort.
 
 ## 6. Testing y evaluación
 
@@ -1084,6 +1087,8 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 67 | `render_plain.py` usa DejaVu Sans o Arial en lugar de la fuente por defecto de Pillow; corrige la decisión 34 | La fuente por defecto no tiene glifos para tildes, ñ, raya y ¿¡, y el parsing no podría leer "Cláusula Séptima" | 6.5 | 2026-10-26 |
 | 68 | Los tests de integración leen trazas con la API v2 de observaciones (`observations.get_many`) | Langfuse Cloud v4 retiró `trace.get` (responde 410) y devuelve input y metadata como JSON en texto | 6.3 | 2026-10-26 |
 | 69 | El "host aprobado" de producción se implementa como rechazo de `cloud.langfuse.com` y `*.cloud.langfuse.com`; concreta la decisión 49 | El plan no define una variable de hosts aprobados; una regla por sufijo cubre las regiones nuevas del cloud público | 5.1, 5.6 | 2026-10-26 |
+| 70 | `budget.py` (dominio) y `budgeted_model.py` (adaptador) se suman al layout; el presupuesto fija timeout y reintentos del SDK por intento | Los reintentos de transporte del SDK reusan el mismo timeout y podían exceder los 300 s | 1, 5.1 | 2026-10-26 |
+| 71 | `auth_check()` al inicializar el tracer; la entrega posterior al `flush()` es best-effort; acota la decisión 53 | Langfuse no propaga los errores de exportación OTLP, así que `flush()` no puede confirmar la entrega | 5.7 | 2026-10-26 |
 
 ## 9. Diagrama de LegalMove pipeline
 

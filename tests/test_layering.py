@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 SRC = Path(__file__).resolve().parent.parent / "src"
-DOMAIN_MODULES = ["models.py", "errors.py", "checks.py", "prompt_blocks.py"]
+DOMAIN_MODULES = ["models.py", "errors.py", "checks.py", "prompt_blocks.py", "budget.py"]
 INFRASTRUCTURE = {"langchain", "langchain_core", "langchain_openai", "openai", "langfuse"}
 LANGFUSE_FREE = ["image_parser.py", "models.py", "checks.py", "pipeline.py", "errors.py"]
 
@@ -65,7 +65,11 @@ def test_domain_modules_import_no_infrastructure_or_config(module: str) -> None:
 
 
 def adapter_modules() -> list[Path]:
-    return [SRC / "image_parser.py", *sorted((SRC / "agents").glob("*.py"))]
+    return [
+        SRC / "image_parser.py",
+        SRC / "budgeted_model.py",
+        *sorted((SRC / "agents").glob("*.py")),
+    ]
 
 
 @pytest.mark.parametrize("path", adapter_modules(), ids=lambda path: path.name)
@@ -98,3 +102,57 @@ def test_runtime_imports_ignores_type_checking_blocks(tmp_path: Path) -> None:
     )
 
     assert runtime_imports(module) == {"typing", "os", "openai"}
+
+
+ADAPTERS_AND_ROOT = {"agents", "image_parser", "budgeted_model", "observability", "config", "main"}
+
+
+def test_pipeline_depends_only_on_domain_and_ports() -> None:
+    imported = runtime_imports(SRC / "pipeline.py")
+
+    assert imported.isdisjoint(INFRASTRUCTURE | ADAPTERS_AND_ROOT)
+
+
+def test_pipeline_never_flushes_or_owns_the_trace_lifecycle() -> None:
+    tree = ast.parse((SRC / "pipeline.py").read_text(encoding="utf-8"))
+    attributes = {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
+
+    assert attributes.isdisjoint({"flush", "open_root", "shutdown"})
+
+
+ROOT = SRC.parent
+# Deliverables of the assignment (plan §1 layout, marked *); the README arrives in T6.
+DELIVERABLES = [
+    "src/main.py",
+    "src/image_parser.py",
+    "src/models.py",
+    "src/agents/contextualization_agent.py",
+    "src/agents/extraction_agent.py",
+    "requirements.txt",
+    ".env.example",
+    "data/test_contracts/README.md",
+]
+
+
+@pytest.mark.parametrize("relative_path", DELIVERABLES)
+def test_deliverable_exists_at_its_path(relative_path: str) -> None:
+    assert (ROOT / relative_path).is_file()
+
+
+def test_test_contracts_hold_at_least_two_complete_pairs() -> None:
+    pairs = [
+        pair
+        for pair in sorted((ROOT / "data/test_contracts").iterdir())
+        if pair.is_dir()
+        and all(
+            (pair / name).is_file()
+            for name in (
+                "original.png",
+                "amendment.png",
+                "source_original.txt",
+                "source_amendment.txt",
+            )
+        )
+    ]
+
+    assert len(pairs) >= 2

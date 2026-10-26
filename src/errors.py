@@ -13,6 +13,13 @@ class LegalMoveError(Exception):
     exit_code: ClassVar[int] = 1
 
 
+class UsageError(LegalMoveError):
+    """The command line arguments are invalid."""
+
+    stage = "cli"
+    exit_code = 2
+
+
 class ConfigurationError(LegalMoveError):
     """Settings are missing or out of range."""
 

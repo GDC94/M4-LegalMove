@@ -12,12 +12,14 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
 
 from langchain_core.callbacks import BaseCallbackHandler
-from langfuse import Langfuse, LangfuseSpan
+from langfuse import Langfuse, LangfuseSpan, propagate_attributes
 from langfuse.langchain import CallbackHandler
 from PIL import Image
 from pydantic_core import PydanticSerializationError, to_jsonable_python
 
-from errors import LegalMoveError
+from errors import LegalMoveError, ObservabilityError
+
+TRACE_NAME = "contract-analysis"
 
 # Read by langfuse 4.17.0 when a client is built; tests run the real SDK to catch a rename.
 LANGFUSE_MEDIA_UPLOAD_ENABLED = "LANGFUSE_MEDIA_UPLOAD_ENABLED"
@@ -136,6 +138,29 @@ class PipelineTracer(Protocol):
     def callbacks(self) -> Sequence[BaseCallbackHandler]: ...
 
 
+@dataclass(frozen=True)
+class TraceAttributes:
+    """Trace-level attributes the root span propagates to every Stage (plan §5.3)."""
+
+    session_id: str | None
+    version: str
+    environment: str
+    tags: tuple[str, ...] = ("legalmove",)
+
+
+class TraceLifecycle(PipelineTracer, Protocol):
+    """What only main.py may use: the root span of a run and the confirmed flush (plan §5.7)."""
+
+    def open_root(
+        self,
+        input_data: Mapping[str, object],
+        metadata: Mapping[str, object],
+        attributes: TraceAttributes,
+    ) -> AbstractContextManager[StageSpan]: ...
+
+    def flush(self) -> None: ...
+
+
 def describe_error(error: BaseException) -> str:
     """Domain messages are sanitised; foreign ones may quote documents, so only the type goes."""
     if isinstance(error, LegalMoveError):
@@ -237,8 +262,39 @@ class LangfuseTracer:
                 span.set_error(error)
                 raise
 
+    @contextmanager
+    def open_root(
+        self,
+        input_data: Mapping[str, object],
+        metadata: Mapping[str, object],
+        attributes: TraceAttributes,
+    ) -> Iterator[StageSpan]:
+        """The root is an ordinary span; propagation inside it reaches every later Stage."""
+        with (
+            self.stage(TRACE_NAME, input_data, metadata) as root,
+            propagate_attributes(
+                trace_name=TRACE_NAME,
+                session_id=attributes.session_id,
+                version=attributes.version,
+                environment=attributes.environment,
+                tags=list(attributes.tags),
+            ),
+        ):
+            yield root
+
+    def flush(self) -> None:
+        """Fail closed: a success may only be printed once the trace was handed over."""
+        try:
+            self._client.flush()
+        # The SDK documents no error type for flush; any failure leaves delivery unconfirmed.
+        except Exception as error:
+            raise ObservabilityError(f"trace flush failed: {type(error).__name__}") from None
+
     def score(self, name: str, value: float | str) -> None:
-        self._client.score_current_trace(name=name, value=value)
+        if isinstance(value, str):
+            self._client.score_current_trace(name=name, value=value, data_type="CATEGORICAL")
+        else:
+            self._client.score_current_trace(name=name, value=value)
 
     @property
     def trace_id(self) -> str | None:
@@ -254,6 +310,9 @@ def build_langfuse_tracer(
 ) -> LangfuseTracer:
     """Masking is wired here, unconditionally, so no caller can forget or disable it.
 
+    The auth check runs before any model call: a run whose trace cannot be delivered must fail
+    before it spends anything (plan §5.7).
+
     This must be the first Langfuse client created for `public_key` in the process: the SDK
     keeps one resource manager per key, and mask and media settings are fixed when it is built.
     """
@@ -261,19 +320,29 @@ def build_langfuse_tracer(
     # see a media reference while the image bytes leave the process. The only switch is this
     # variable, read when the client is built; assign it so a user environment cannot re-enable it.
     os.environ[LANGFUSE_MEDIA_UPLOAD_ENABLED] = "false"
-    client = Langfuse(
-        public_key=public_key,
-        secret_key=secret_key,
-        base_url=host,
-        environment=environment,
-        mask=mask_personal_data,
-    )
-    return LangfuseTracer(client, callback_handler=CallbackHandler(public_key=public_key))
+    try:
+        client = Langfuse(
+            public_key=public_key,
+            secret_key=secret_key,
+            base_url=host,
+            environment=environment,
+            mask=mask_personal_data,
+        )
+        callback_handler = CallbackHandler(public_key=public_key)
+        reachable = client.auth_check()
+    # The SDK documents no error type for start-up; its messages may echo keys, hosts or response
+    # bodies, so only the type goes out.
+    except Exception as error:
+        raise ObservabilityError(f"tracer initialisation failed: {type(error).__name__}") from None
+    if not reachable:
+        raise ObservabilityError("tracer initialisation failed: auth check rejected")
+    return LangfuseTracer(client, callback_handler=callback_handler)
 
 
 if TYPE_CHECKING:
     # Static Liskov check: mypy proves the double and the adapter satisfy the same ports.
     _RECORDING_TRACER: type[PipelineTracer] = RecordingTracer
     _LANGFUSE_TRACER: type[PipelineTracer] = LangfuseTracer
+    _LANGFUSE_LIFECYCLE: type[TraceLifecycle] = LangfuseTracer
     _RECORDED_STAGE: type[StageSpan] = RecordedStage
     _LANGFUSE_STAGE_SPAN: type[StageSpan] = LangfuseStageSpan

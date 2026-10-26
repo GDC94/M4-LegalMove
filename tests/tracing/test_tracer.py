@@ -83,6 +83,9 @@ class FakeLangfuseClient:
     def get_current_trace_id(self) -> str:
         return "trace-123"
 
+    def auth_check(self) -> bool:
+        return True
+
 
 def make_langfuse_tracer() -> tuple[LangfuseTracer, FakeLangfuseClient]:
     client = FakeLangfuseClient()
@@ -223,8 +226,11 @@ def build_in_memory_tracer(
     clients: list[Langfuse] = []
 
     def in_memory_client(**kwargs: Any) -> Langfuse:
-        clients.append(Langfuse(**kwargs, span_exporter=exporter, flush_at=1))
-        return clients[-1]
+        client = Langfuse(**kwargs, span_exporter=exporter, flush_at=1)
+        # The host is dead on purpose; the real auth check would need the network.
+        client.auth_check = lambda: True  # type: ignore[method-assign]
+        clients.append(client)
+        return client
 
     monkeypatch.setattr(observability, "Langfuse", in_memory_client)
     tracer = build_langfuse_tracer(

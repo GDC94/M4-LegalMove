@@ -248,16 +248,31 @@ class VisionConfig:
     limits: ImageLimits
 
 
-def build_vision_chat_model(
-    *, model: str, temperature: float, timeout_seconds: int, max_retries: int, api_key: SecretStr
-) -> ChatModel:
-    """ChatOpenAI with bounded transport retries and a per-call timeout (plan §5.1)."""
+def build_openai_chat_model(
+    *, model: str, temperature: float, timeout_seconds: float, max_retries: int, api_key: SecretStr
+) -> ChatOpenAI:
+    """ChatOpenAI with bounded transport retries and a per-call timeout (plan §5.1).
+
+    The single factory for every model call: vision here, both agents through main.py.
+    """
     return ChatOpenAI(
         model_name=model,
         temperature=temperature,
         request_timeout=timeout_seconds,
         max_retries=max_retries,
         openai_api_key=api_key,
+    )
+
+
+def build_vision_chat_model(
+    *, model: str, temperature: float, timeout_seconds: float, max_retries: int, api_key: SecretStr
+) -> ChatModel:
+    return build_openai_chat_model(
+        model=model,
+        temperature=temperature,
+        timeout_seconds=timeout_seconds,
+        max_retries=max_retries,
+        api_key=api_key,
     )
 
 

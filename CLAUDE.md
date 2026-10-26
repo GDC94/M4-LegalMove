@@ -26,10 +26,10 @@ CLI that reads two scanned contract images (original and amendment) and returns 
 
 | Layer | Modules | Rule |
 |---|---|---|
-| Domain | `models.py`, `checks.py`, `errors.py`, `prompt_blocks.py` | Pydantic and deterministic logic. Never import LangChain, OpenAI, Langfuse or `config.py` |
+| Domain | `models.py`, `checks.py`, `errors.py`, `prompt_blocks.py`, `budget.py` | Pydantic and deterministic logic. Never import LangChain, OpenAI, Langfuse or `config.py` |
 | Application | `pipeline.py` (`run_analysis()`) | Orchestrates the stages through the ports. Knows nothing about Langfuse or settings |
 | Ports | `PipelineTracer` and `StageSpan` (`Protocol`, plan §5.2); the `chat_model` each `build_*` factory receives | Business modules depend on the abstraction, never on the provider |
-| Adapters | `observability.py` (Langfuse), `image_parser.py` and `agents/` (OpenAI via LangChain) | The only modules that touch external infrastructure |
+| Adapters | `observability.py` (Langfuse), `image_parser.py`, `budgeted_model.py` and `agents/` (OpenAI via LangChain) | The only modules that touch external infrastructure |
 | Composition root | `main.py` | The only module that calls `load_settings()`, builds the frozen dataclass container and wires adapters to ports |
 
 Dependency rule: domain ← application ← adapters ← `main.py`. Arrows only point inward; a module never imports from a more outer layer. AST-based architecture tests (plan §6.2) enforce these rules in CI.

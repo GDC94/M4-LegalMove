@@ -36,6 +36,7 @@ Decisiones del registro §8.4: 20, 45, 47
 - [ ] El valor es N/A sin segmentables o en `delta`.
 - [ ] Los agregados nunca convierten N/A en cero.
 - [ ] Ninguna señal blanda reintenta ni bloquea.
+- [ ] `AnalysisResult` incluye `context_retries` y `extraction_retries` (plan §3.3); T4 los dejó solo como scores de Langfuse emitidos por los agentes.
 
 ## Tests requeridos (TDD estricto)
 

@@ -10,6 +10,7 @@ from errors import (
     RetryFeedback,
     UnclassifiableAmendmentError,
     UpstreamError,
+    UsageError,
     ValidationIssue,
 )
 
@@ -93,3 +94,9 @@ def test_invalid_extraction_names_its_stage_and_carries_sanitised_issues() -> No
         "extraction is still invalid after one retry: "
         "ungrounded_quote, unresolved_section_reference"
     )
+
+
+def test_cli_usage_error_has_exit_code_two_and_the_cli_stage() -> None:
+    assert issubclass(UsageError, LegalMoveError)
+    assert UsageError.exit_code == 2
+    assert UsageError("missing amendment").stage == "cli"
