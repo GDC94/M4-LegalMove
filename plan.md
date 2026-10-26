@@ -604,7 +604,7 @@ Si una etapa falla, su span queda con `level="ERROR"` y el mensaje de error, y e
 - Alcance: el masking cubre **identificadores** (DNI/CUIT/CUIL, CBU/IBAN, emails y teléfonos). Los montos **no** se enmascaran: el resumen los contiene legítimamente y no son datos personales.
 - Los nombres propios no se pueden detectar con regex con confiabilidad. Queda documentado como limitación conocida.
 - Un unit test verifica que cada patrón se enmascare.
-- El masking no reemplaza gobernanza: el cloud público se usa solo con datos sintéticos. Producción exige un host, región, retención y acuerdo de procesamiento aprobados.
+- El masking no reemplaza gobernanza: el cloud público se usa solo con datos sintéticos. Producción exige un host, región, retención y acuerdo de procesamiento aprobados. En el código, `APP_ENV=production` rechaza `cloud.langfuse.com` y cualquier subdominio `*.cloud.langfuse.com`; aprobar el host propio es responsabilidad de quien despliega.
 
 ### 5.7 Ciclo de vida
 
@@ -667,7 +667,7 @@ Marcados con `@pytest.mark.integration` y salteados si faltan las claves (`requi
 - visión real sobre una imagen limpia;
 - cada agente con salida estructurada real;
 - una corrida punta a punta sobre un par `restated` y otro `delta`, que verifica el contrato del JSON y la traza en Langfuse;
-- **masking a través del `CallbackHandler`**: se envía un DNI falso por el `CallbackHandler`, se hace `flush()` y se consulta `langfuse.api.trace.get(trace_id)` durante hasta 30 s. El test afirma que el DNI falso no aparece en el input, el output ni la metadata de ninguna observación. Está marcado `integration` y se saltea si faltan las claves.
+- **masking a través del `CallbackHandler`**: se envía un DNI falso por el `CallbackHandler`, se hace `flush()` y se consulta `langfuse.api.observations.get_many(trace_id=…)` (API v2) durante hasta 90 s. El endpoint v1 `trace.get` responde 410 en Langfuse Cloud v4. El test afirma que el DNI falso no aparece en el input, el output ni la metadata de ninguna observación. Está marcado `integration` y se saltea si faltan las claves.
 - una falla controlada del adaptador de observabilidad, para demostrar que stdout permanece vacío y la CLI devuelve `ObservabilityError`.
 
 ### 6.4 Golden set: generación
@@ -734,7 +734,7 @@ Al final se completan `reviewed_by` y `reviewed_at`.
 
 El texto lo redactó un LLM a pedido del autor y el autor lo revisó (como los datos de `orchestration`). Se guarda como `source_original.txt` y `source_amendment.txt` junto a cada PNG en `data/test_contracts/`.
 
-**`evals/render_plain.py`** (commiteado): usa la fuente por defecto de Pillow (`ImageFont.load_default(size=…)`), un lienzo de 1240×1754 px (A4 a 150 dpi), texto negro sobre fondo blanco, salida PNG. Más adelante es la plantilla "plain" del generador de golden.
+**`evals/render_plain.py`** (commiteado): usa una fuente TrueType del sistema con glifos del español: DejaVu Sans y, si falta, Arial; falla si no hay ninguna. La fuente por defecto de Pillow no sirve porque dibuja cuadrados en lugar de tildes, ñ, raya y ¿¡. Usa un lienzo de 1240×1754 px (A4 a 150 dpi), texto negro sobre fondo blanco, salida PNG. Más adelante es la plantilla "plain" del generador de golden.
 
 ### 6.6 Métricas y umbrales
 
@@ -1048,7 +1048,7 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 31 | `ILLEGIBLE_MAX_MARKS` es un conteo absoluto por página | Cada imagen es una página | 5.1 | 2026-10-24 |
 | 32 | `JUDGE_MODEL` vive en `EvalSettings`, no en `Settings` | No es configuración de runtime | 5.1 | 2026-10-24 |
 | 33 | `src/` plano sin `[build-system]`, imports absolutos, `pythonpath = ["src"]`, `APP_VERSION` en `config.py` | Coincide con `uv run python src/main.py` | 1 | 2026-10-24 |
-| 34 | `evals/render_plain.py` (Pillow, 1240×1754, negro sobre blanco) | Imágenes mínimas desde T1 y plantilla "plain" posterior | 6.5 | 2026-10-24 |
+| 34 | `evals/render_plain.py` (Pillow con DejaVu Sans o Arial, 1240×1754, negro sobre blanco) | Imágenes mínimas desde T1 y plantilla "plain" posterior | 6.5 | 2026-10-24 |
 | 35 | Tracker local de tickets y orden de implementación; `git init` en T0 con commits convencionales | Un ticket en verde por commit; documentación primero y README al final | 6.8, 6.9 | 2026-10-24 |
 | 36 | Prompts, heurísticas y umbrales se ajustan solo con `calibration`; `validation` es ciega | Evitar leakage y métricas optimistas | 6.4–6.7 | 2026-10-25 |
 | 37 | `ContextMap` tiene checks semánticos, un retry y `InvalidContextMapError`; `unknown` no consume retry | El mapa gobierna toda la extracción y no puede fallar silenciosamente | 3.3, 4.4–4.5 | 2026-10-25 |
@@ -1081,6 +1081,9 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 64 | CI mínimo en GitHub Actions desde T4: estilo, tipos y unit tests en cada push; sin integración ni evals | El plan ya nombraba "CI" sin definirlo; CI no tiene secretos y las imágenes están commiteadas | 1, 6.9 | 2026-10-25 |
 | 65 | Forma de trabajo por ticket escrita en el plan y en `CLAUDE.md`; las llamadas a API reales (integración, evals) solo con pedido explícito del autor en ese turno | Las reglas estaban dispersas; el gasto de API es una decisión del autor, no del agente | 6.9, 8.3 | 2026-10-25 |
 | 66 | El remoto `GDC94/M4-LegalMove` ya existe; `origin` en T0, push al cerrar cada ticket, siempre con la cuenta GDC94 | El autor lo creó antes de T0; la máquina tiene dos cuentas de `gh` y pushear con la equivocada sería un incidente. Supera la parte "remoto en T4" de 6.9 | 6.9 | 2026-10-25 |
+| 67 | `render_plain.py` usa DejaVu Sans o Arial en lugar de la fuente por defecto de Pillow; corrige la decisión 34 | La fuente por defecto no tiene glifos para tildes, ñ, raya y ¿¡, y el parsing no podría leer "Cláusula Séptima" | 6.5 | 2026-10-26 |
+| 68 | Los tests de integración leen trazas con la API v2 de observaciones (`observations.get_many`) | Langfuse Cloud v4 retiró `trace.get` (responde 410) y devuelve input y metadata como JSON en texto | 6.3 | 2026-10-26 |
+| 69 | El "host aprobado" de producción se implementa como rechazo de `cloud.langfuse.com` y `*.cloud.langfuse.com`; concreta la decisión 49 | El plan no define una variable de hosts aprobados; una regla por sufijo cubre las regiones nuevas del cloud público | 5.1, 5.6 | 2026-10-26 |
 
 ## 9. Diagrama de LegalMove pipeline
 

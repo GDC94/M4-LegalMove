@@ -1,0 +1,29 @@
+# Contratos de prueba (fase 1)
+
+Dos pares mínimos, uno por cada formato de adenda que acepta LegalMove (plan §2 y §6.5). Los documentos son **sintéticos**: las partes, CUIT, domicilios y correos son ficticios. El texto lo redactó un LLM a pedido del autor y el autor lo revisa antes de cerrar T1.
+
+| Par | Formato de adenda | Cambios introducidos por la adenda |
+|---|---|---|
+| `pair_a` | `restated` (texto ordenado completo) | Cláusula Tercera: el precio mensual pasa de $ 1.500.000 a $ 1.850.000. Se agrega la Cláusula Octava, de confidencialidad. |
+| `pair_b` | `delta` (solo instrucciones de cambio) | Cláusula Segunda: el plazo pasa de 12 a 24 meses. Se deja sin efecto la Cláusula Quinta (penalidades). |
+
+Los dos pares comparten el mismo contrato original: un contrato de servicios de una página con siete cláusulas, de "Cláusula Primera" a "Cláusula Séptima".
+
+## Archivos por par
+
+| Archivo | Contenido |
+|---|---|
+| `original.png` | Contrato original renderizado |
+| `amendment.png` | Adenda renderizada |
+| `source_original.txt` | Texto fuente del contrato original (referencia para medir la fidelidad del parsing) |
+| `source_amendment.txt` | Texto fuente de la adenda |
+
+## Cómo se generan las imágenes
+
+```bash
+uv run python evals/render_plain.py
+```
+
+`evals/render_plain.py` renderiza cada `source_<nombre>.txt` como `<nombre>.png` en la misma carpeta: lienzo de 1240×1754 px (A4 a 150 dpi), texto negro sobre fondo blanco y sin degradaciones. Usa una fuente TrueType del sistema (DejaVu Sans en Linux, Arial en macOS o Windows) porque la fuente por defecto de Pillow no tiene glifos para tildes, eñes ni la raya (—). Si el texto no entra en una página, el script falla en lugar de cortar el documento.
+
+Las imágenes se commitean porque el render de fuentes puede variar entre sistemas operativos. En la fase 2, los golden cases Standard reemplazan a estos pares.
