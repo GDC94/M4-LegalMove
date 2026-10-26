@@ -1195,7 +1195,7 @@ LegalMove todavía no tiene lockfile. Las versiones de referencia salen del `uv.
 
 | Tema | Convención |
 |---|---|
-| Runtime y paquetes | Python 3.14 + uv. `src/` plano sin `[build-system]`, imports absolutos desde `src/` (`from models import ...`) y `pythonpath = ["src"]` para pytest. `requirements.txt` se exporta con `uv export --format requirements-txt --no-hashes --no-emit-project`, y un test verifica los pins. Nunca `pip install` directo. |
+| Runtime y paquetes | Python 3.14 + uv. `src/` plano sin `[build-system]`, imports absolutos desde `src/` (`from models import ...`) y `pythonpath = ["src"]` para pytest. `requirements.txt` se exporta con `uv export --format requirements-txt --no-hashes --no-emit-project --no-dev`, y un test verifica los pins. Nunca `pip install` directo. |
 | Configuración | `Settings(BaseSettings)` con `env_file=".env"`, secretos como `SecretStr` y rangos con `Field(ge=, le=)`. `.env.example` como template. Solo `main.py` llama a `load_settings()`. |
 | Inyección de dependencias | Cada módulo expone un factory `build_*(chat_model, ...)`. `main.py` es el único punto de cableado y arma un contenedor `@dataclass(frozen=True)`. |
 | Prompts | Viven junto a su builder (cada agente tiene su system prompt). Son `ChatPromptTemplate` en inglés. |

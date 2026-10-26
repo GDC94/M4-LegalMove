@@ -52,7 +52,7 @@ Decisiones del registro §8.4: 1, 27, 33, 35, 61, 62, 63, 66
 
 **RED (se escriben primero y fallan):** `tests/test_requirements.py` (cada dependencia declarada fijada con `==`, `requirements.txt` existe), `tests/test_gitignore.py` (`.env`, `.cache/` ignorados).
 
-**GREEN (lo mínimo que los hace pasar):** `uv add` + `uv export --format requirements-txt --no-hashes --no-emit-project`.
+**GREEN (lo mínimo que los hace pasar):** `uv add` + `uv export --format requirements-txt --no-hashes --no-emit-project --no-dev`.
 
 ## Fuera de alcance
 
