@@ -142,6 +142,7 @@ def check_extraction(
     kind = context_map.amendment_kind
     return [
         *check_section_references(result.changes, rows),
+        *check_delta_targets(result.changes, context_map),
         *check_change_types(result.changes, rows, kind),
         *check_removed_quotes(result.changes, kind),
         *check_structural_changes(result.changes, context_map),
@@ -160,6 +161,30 @@ def check_section_references(
                 f"changes[{index}].section_id",
                 f"section {change.section_id} is not in the context map",
             )
+
+
+def check_delta_targets(
+    changes: Sequence[Change], context_map: ContextMap
+) -> Iterator[RetryFeedback]:
+    """In delta, only a Section an instruction targets can change.
+
+    Delta Quotes are grounded against the whole Amendment, so a Change on an untargeted Section
+    could borrow another Section's instruction and still pass grounding.
+    """
+    if context_map.amendment_kind is not AmendmentKind.DELTA:
+        return
+    untargeted = {s.section_id for s in context_map.sections if s.amendment_ref is None}
+    targeted = [s.section_id for s in context_map.sections if s.amendment_ref is not None]
+    # Canonical IDs only: they passed the map's grammar, so they hold no document text.
+    hint = f"; the amendment targets only section_ids: {', '.join(targeted) or 'none'}"
+    for index, change in enumerate(changes):
+        if change.section_id in untargeted:
+            message = (
+                f"section {change.section_id} is not targeted by any instruction "
+                "of the delta amendment"
+            )
+            path = f"changes[{index}].section_id"
+            yield build_feedback("untargeted_delta_change", path, message, message + hint)
 
 
 def check_change_types(

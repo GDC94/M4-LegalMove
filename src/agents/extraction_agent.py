@@ -1,6 +1,6 @@
 """ExtractionAgent: reports the grounded Changes of the Amendment as an ExtractionResult."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 import openai
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     # Type-only: importing observability at runtime would load the Langfuse adapter here.
     from observability import PipelineTracer, StageSpan
 
-EXTRACTION_PROMPT_VERSION = "1"
+EXTRACTION_PROMPT_VERSION = "3"
 TOPIC_LINES = "\n".join(
     f"     - {topic.value}: {description}" for topic, description in TOPIC_DESCRIPTIONS.items()
 )
@@ -50,11 +50,13 @@ Fill the fields in this order:
 
 1. reasoning: first compare, in Spanish, each Section of the context map across both documents.
 2. changes: one entry per Change, in context map order. A Section may have several Changes.
-   - section_id: a section_id from the context map, copied exactly. Never invent one.
+   - section_id: a section_id from the context map: only the canonical ID shown inside the \
+square brackets at the start of its line, such as "2" or "new:8", without the brackets or the \
+title. Never invent one. The same applies to sections_changed.
    - change_type: the unit is the whole Section.
      - added: a whole Section that exists only in the Amendment (a new: section_id).
      - removed: a whole Section of the Original Contract that the Amendment leaves without \
-effect or no longer contains.
+effect or, only when amendment_kind is restated, no longer contains.
      - modified: any other change to a Section of the Original Contract, including a \
 paragraph, item or sentence added or removed inside it.
      A renumbered Section whose content is unchanged is not a Change.
@@ -76,6 +78,8 @@ the text. Never paraphrase, translate, complete or fix a quote. Quote the specif
 differ, not a whole Section.
 - When amendment_kind is restated, every Section that appears only in the amendment needs an \
 added Change, and every Section that appears only in the original contract needs a removed Change.
+- When amendment_kind is delta, a Section whose amendment entry in the context map is none is \
+unchanged: no instruction targets it, so never report a Change for it.
 - sections_changed and topics_touched must match the changes exactly.
 - With no Changes, return empty lists and exactly "{NO_CHANGES}" as summary_of_the_change.
 
@@ -102,6 +106,7 @@ EXTRACTION_RESPONSE_FORMAT: dict[str, object] = {
 INCONSISTENT_EXTRACTION = "inconsistent_extraction"
 QUOTE_RULE_VIOLATION = "quote_rule_violation"
 SEMANTIC_ERROR_TYPES = frozenset({INCONSISTENT_EXTRACTION, QUOTE_RULE_VIOLATION})
+SECTION_ID_CODES = frozenset({"schema_violation", "unresolved_section_reference"})
 UNPARSEABLE_OUTPUT = build_feedback(
     "unparseable_output", "$", "the output is not valid JSON for the extraction result schema"
 )
@@ -183,7 +188,7 @@ class ExtractionAgent:
             raise UpstreamError(
                 f"extraction call failed: {type(error).__name__}", stage="extraction"
             ) from error
-        return evaluate_reply(reply, request)
+        return add_section_id_hints(evaluate_reply(reply, request), request.context_map)
 
     def _record_validation(
         self, attempt: ExtractionAttempt, request: ExtractionInput, span: StageSpan
@@ -235,6 +240,27 @@ def evaluate_reply(reply: StructuredReply, request: ExtractionInput) -> Extracti
         result, request.context_map, request.original.text, request.amendment.text
     )
     return ExtractionAttempt(raw_output, result, tuple(issues), True, True)
+
+
+def add_section_id_hints(attempt: ExtractionAttempt, context_map: ContextMap) -> ExtractionAttempt:
+    """Name the valid canonical IDs in the retry detail only; the public issue is unchanged.
+
+    A real run copied the "[2] Plazo" label of a map line, and without the valid IDs the
+    temperature-0 retry repeated it. IDs passed the map's grammar, so they hold no document text.
+    """
+    valid_ids = ", ".join(section.section_id for section in context_map.sections)
+    hint = f"; valid section_ids: {valid_ids}"
+    feedback = tuple(
+        replace(item, detail=item.detail + hint) if concerns_section_id(item) else item
+        for item in attempt.feedback
+    )
+    return replace(attempt, feedback=feedback)
+
+
+def concerns_section_id(item: RetryFeedback) -> bool:
+    path = item.issue.path
+    targets_id = path.endswith(".section_id") or path.startswith("sections_changed")
+    return targets_id and item.issue.code in SECTION_ID_CODES
 
 
 def rejected_attempt(raw_output: str, errors: list[ErrorDetails]) -> ExtractionAttempt:

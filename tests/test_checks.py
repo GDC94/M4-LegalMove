@@ -461,6 +461,62 @@ def test_structural_issue_messages_never_quote_documents() -> None:
             assert not [word for word in document_words if word in text]
 
 
+def untargeted_delta_map() -> ContextMap:
+    return context_map(
+        mapping("1", amendment_ref=None),
+        mapping("2", amendment_ref="Déjase sin efecto la Cláusula Segunda"),
+        mapping("3", amendment_ref=None),
+        kind=AmendmentKind.DELTA,
+    )
+
+
+def untargeted_removal() -> Change:
+    # The real pair B failure: an untouched Section reported as removed, quoting another
+    # Section's instruction, which is grounded because delta quotes match the whole amendment.
+    return change(
+        "1", ChangeType.REMOVED, "Objeto. Servicios.", "Déjase sin efecto", Topic.OBJECT_SCOPE
+    )
+
+
+def targeted_removal() -> Change:
+    return change("2", ChangeType.REMOVED, "Plazo. Doce meses.", "Déjase sin efecto")
+
+
+def test_a_delta_change_on_a_section_the_amendment_does_not_target_fails() -> None:
+    result = extraction(untargeted_removal(), targeted_removal())
+
+    assert extraction_issues(result, untargeted_delta_map(), DELTA_AMENDMENT) == [
+        ("untargeted_delta_change", "changes[0].section_id")
+    ]
+
+
+def test_a_delta_change_on_a_targeted_section_passes() -> None:
+    result = extraction(targeted_removal())
+
+    assert extraction_issues(result, untargeted_delta_map(), DELTA_AMENDMENT) == []
+
+
+def test_restated_changes_are_not_subject_to_the_delta_target_rule() -> None:
+    context = context_map(mapping("1"), mapping("2", amendment_ref=None), mapping("3"))
+    removal = change("2", ChangeType.REMOVED, "Plazo. Doce meses.", None)
+
+    assert extraction_issues(extraction(removal), context) == []
+
+
+def test_untargeted_delta_feedback_names_canonical_ids_only() -> None:
+    result = extraction(untargeted_removal(), targeted_removal())
+
+    [feedback] = check_extraction(result, untargeted_delta_map(), ORIGINAL, DELTA_AMENDMENT)
+
+    assert feedback.issue.message == (
+        "section 1 is not targeted by any instruction of the delta amendment"
+    )
+    assert feedback.detail.endswith("; the amendment targets only section_ids: 2")
+    document_words = {"Cláusula", "Objeto", "Servicios", "Déjase", "Plazo", "Segunda"}
+    text = f"{feedback.issue.message} {feedback.detail}"
+    assert not [word for word in document_words if word in text]
+
+
 def test_grounding_rate_counts_grounded_quotes_over_all_quotes() -> None:
     half = change("3", ChangeType.MODIFIED, "$ 1.500.000", "$ 9.999.999")
 

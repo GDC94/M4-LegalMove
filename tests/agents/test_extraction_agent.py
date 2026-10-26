@@ -515,3 +515,124 @@ def test_model_calls_carry_the_tracer_callbacks() -> None:
 
     [(_, config)] = model.calls
     assert handler in config["callbacks"].handlers
+
+
+# --- section_id guidance (real run: the model copied "[2] Plazo" from the map line) ---
+
+
+def test_system_prompt_says_section_ids_are_the_bare_bracketed_ids() -> None:
+    assert "inside the square brackets" in EXTRACTION_SYSTEM_PROMPT
+    assert 'such as "2" or "new:8"' in EXTRACTION_SYSTEM_PROMPT
+    assert "without the brackets or the title" in EXTRACTION_SYSTEM_PROMPT
+
+
+def test_prompt_version_was_bumped_for_the_delta_target_rule() -> None:
+    assert EXTRACTION_PROMPT_VERSION == "3"
+
+
+def labelled_payload() -> dict[str, Any]:
+    labelled = extraction_payload()
+    labelled["changes"][0]["section_id"] = "[2] Precio"
+    labelled["sections_changed"] = ["[2] Precio", "new:3"]
+    return labelled
+
+
+def test_a_labelled_section_id_is_retried_with_the_valid_canonical_ids() -> None:
+    result, model, tracer = run(
+        structured_reply(labelled_payload()), structured_reply(extraction_payload())
+    )
+
+    assert result.sections_changed == ["2", "new:3"]
+    assert tracer.stages[0].metadata["extraction_retries"] == 1
+    errors = model.human_text(1).split("<validation_errors>")[1]
+    assert "- schema_violation at changes[0].section_id:" in errors
+    assert "- schema_violation at sections_changed:" in errors
+    assert errors.count("valid section_ids: 1, 2, new:3") == 2
+
+
+def test_an_unresolved_reference_retry_lists_the_valid_canonical_ids() -> None:
+    unresolved = extraction_payload()
+    unresolved["changes"][0]["section_id"] = "7"
+    unresolved["sections_changed"] = ["7", "new:3"]
+
+    _, model, _ = run(structured_reply(unresolved), structured_reply(extraction_payload()))
+
+    errors = model.human_text(1).split("<validation_errors>")[1]
+    assert "- unresolved_section_reference at changes[0].section_id:" in errors
+    assert "valid section_ids: 1, 2, new:3" in errors
+
+
+def test_section_id_hints_never_reach_the_public_issues_or_other_errors() -> None:
+    caught, model, _ = run_failing(
+        InvalidExtractionError,
+        structured_reply(labelled_payload()),
+        structured_reply(labelled_payload()),
+    )
+
+    for issue in caught.value.issues:
+        assert "valid section_ids" not in issue.message
+        assert "Precio" not in issue.message
+    ungrounded = run(structured_reply(ungrounded_payload()), structured_reply(extraction_payload()))
+    assert "valid section_ids" not in ungrounded[1].human_text(1)
+    assert (
+        "Cláusula"
+        not in model.human_text(1).split("<validation_errors>")[1].split("</validation_errors>")[0]
+    )
+
+
+# --- delta: only Sections the amendment targets can change (real pair B rerun) ---
+
+
+def test_system_prompt_limits_delta_changes_to_targeted_sections() -> None:
+    assert "only when amendment_kind is restated, no longer contains" in EXTRACTION_SYSTEM_PROMPT
+    assert (
+        "When amendment_kind is delta, a Section whose amendment entry in the context map is "
+        "none is unchanged" in EXTRACTION_SYSTEM_PROMPT
+    )
+
+
+def test_an_untargeted_delta_removal_is_retried_with_the_targeted_ids() -> None:
+    delta_amendment = "ADENDA\nSEGUNDO. Déjase sin efecto la Cláusula Segunda."
+    delta_map = ContextMap(
+        reasoning="Solo instrucciones.",
+        amendment_kind=AmendmentKind.DELTA,
+        sections=[
+            mapping("1", "Cláusula Primera", None),
+            mapping("2", "Cláusula Segunda", "Déjase sin efecto la Cláusula Segunda"),
+        ],
+    )
+    targeted = change(
+        "2",
+        "removed",
+        "price_payment",
+        original_quote="Precio. $ 1.500.000.",
+        amendment_quote="Déjase sin efecto la Cláusula Segunda",
+    )
+    untargeted = change(
+        "1",
+        "removed",
+        "object_scope",
+        original_quote="Objeto. Servicios.",
+        amendment_quote="Déjase sin efecto",
+    )
+
+    def payload(*changes: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "reasoning": "Instrucciones.",
+            "changes": list(changes),
+            "sections_changed": [c["section_id"] for c in changes],
+            "topics_touched": [c["topic"] for c in changes],
+            "summary_of_the_change": "Cambios.",
+        }
+
+    result, model, tracer = run(
+        structured_reply(payload(untargeted, targeted)),
+        structured_reply(payload(targeted)),
+        inputs=request(amendment=delta_amendment, context_map=delta_map),
+    )
+
+    assert result.sections_changed == ["2"]
+    assert tracer.stages[0].metadata["extraction_retries"] == 1
+    errors = model.human_text(1).split("<validation_errors>")[1]
+    assert "- untargeted_delta_change at changes[0].section_id:" in errors
+    assert "the amendment targets only section_ids: 2" in errors
