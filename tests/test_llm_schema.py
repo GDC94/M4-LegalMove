@@ -1,4 +1,4 @@
-"""Architecture: models the LLM sees stay inside OpenAI's strict json_schema subset (plan §6.2)."""
+"""Architecture: LLM-facing schemas stay strict and ExtractionResult mirrors the output (§6.2)."""
 
 from collections.abc import Iterator
 from typing import Any
@@ -6,9 +6,9 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from models import ContextMap, SectionMapping
+from models import Change, ContextMap, ContractChangeOutput, ExtractionResult, SectionMapping
 
-LLM_FACING_MODELS: list[type[BaseModel]] = [ContextMap, SectionMapping]
+LLM_FACING_MODELS: list[type[BaseModel]] = [ContextMap, SectionMapping, Change, ExtractionResult]
 
 # Keywords strict mode accepts; anything else (minLength, default, uniqueItems…) fails the test.
 STRICT_KEYWORDS = {
@@ -81,3 +81,21 @@ def test_llm_facing_objects_forbid_extra_keys_and_require_every_field(
     for node in objects:
         assert node["additionalProperties"] is False
         assert set(node["required"]) == set(node["properties"])
+
+
+@pytest.mark.parametrize("field", list(ContractChangeOutput.model_fields))
+def test_extraction_result_mirrors_each_public_field(field: str) -> None:
+    public = ContractChangeOutput.model_fields[field]
+    mirrored = ExtractionResult.model_fields[field]
+
+    assert mirrored.annotation == public.annotation
+    assert mirrored.description == public.description
+    assert mirrored.description
+
+
+def test_extraction_result_field_order_keeps_reasoning_first() -> None:
+    assert list(ExtractionResult.model_json_schema()["properties"]) == [
+        "reasoning",
+        "changes",
+        *ContractChangeOutput.model_fields,
+    ]

@@ -1,4 +1,4 @@
-"""Deterministic Checks on the Context Map, grounding normalization and Kind Heuristic."""
+"""Deterministic Checks: Context Map, extraction, grounding normalization and Kind Heuristic."""
 
 from pathlib import Path
 
@@ -7,11 +7,22 @@ import pytest
 from checks import (
     KindHeuristic,
     check_context_map,
+    check_extraction,
+    compute_grounding_rate,
     detect_kind_heuristic,
     is_grounded,
     normalize_for_grounding,
 )
-from models import AmendmentKind, ContextMap, SectionMapping
+from models import (
+    NO_CHANGES,
+    AmendmentKind,
+    Change,
+    ChangeType,
+    ContextMap,
+    ExtractionResult,
+    SectionMapping,
+    Topic,
+)
 
 CONTRACTS = Path(__file__).resolve().parent.parent / "data/test_contracts"
 
@@ -196,6 +207,270 @@ def test_all_issues_are_reported_together_for_the_single_retry() -> None:
         "section_order",
         "ungrounded_reference",
     ]
+
+
+# --- extraction checks (plan §2.5, §3.3, §4.4) ---
+
+DELTA_AMENDMENT = (
+    "ADENDA\n"
+    "PRIMERO. Modifícase la Cláusula Tercera: Precio. $ 1.850.000.\n"
+    "SEGUNDO. Déjase sin efecto la Cláusula Segunda."
+)
+
+
+def change(
+    section_id: str,
+    change_type: ChangeType,
+    original_quote: str | None,
+    amendment_quote: str | None,
+    topic: Topic = Topic.PRICE_PAYMENT,
+) -> Change:
+    return Change(
+        section_id=section_id,
+        change_type=change_type,
+        topic=topic,
+        description="Descripción.",
+        original_quote=original_quote,
+        amendment_quote=amendment_quote,
+    )
+
+
+def price_change() -> Change:
+    return change("3", ChangeType.MODIFIED, "$ 1.500.000", "$ 1.850.000")
+
+
+def confidentiality_change() -> Change:
+    return change(
+        "new:4", ChangeType.ADDED, None, "Confidencialidad. Reserva.", Topic.CONFIDENTIALITY
+    )
+
+
+def extraction(*changes: Change) -> ExtractionResult:
+    sections = list(dict.fromkeys(c.section_id for c in changes))
+    topics = list(dict.fromkeys(c.topic.value for c in changes))
+    return ExtractionResult(
+        reasoning="r",
+        changes=list(changes),
+        sections_changed=sections,
+        topics_touched=topics,
+        summary_of_the_change="Resumen." if changes else NO_CHANGES,
+    )
+
+
+def delta_map() -> ContextMap:
+    return context_map(
+        mapping("2", amendment_ref="Déjase sin efecto la Cláusula Segunda"),
+        mapping("3", amendment_ref="Modifícase la Cláusula Tercera"),
+        kind=AmendmentKind.DELTA,
+    )
+
+
+def extraction_issues(
+    result: ExtractionResult, context: ContextMap | None = None, amendment: str = AMENDMENT
+) -> list[tuple[str, str]]:
+    feedback = check_extraction(result, context or valid_map(), ORIGINAL, amendment)
+    return [(item.issue.code, item.issue.path) for item in feedback]
+
+
+def test_a_grounded_restated_extraction_has_no_issues() -> None:
+    assert extraction_issues(extraction(price_change(), confidentiality_change())) == []
+
+
+def test_a_change_must_reference_a_section_of_the_map() -> None:
+    unknown = change("9", ChangeType.MODIFIED, "Precio", "Precio")
+
+    issues = extraction_issues(extraction(price_change(), unknown, confidentiality_change()))
+
+    assert ("unresolved_section_reference", "changes[1].section_id") in issues
+
+
+def test_an_unresolved_reference_message_names_only_the_canonical_id() -> None:
+    unknown = change("9", ChangeType.MODIFIED, "Precio", "Precio")
+
+    [feedback] = [
+        item
+        for item in check_extraction(extraction(unknown), valid_map(), ORIGINAL, AMENDMENT)
+        if item.issue.code == "unresolved_section_reference"
+    ]
+
+    assert feedback.issue.message == "section 9 is not in the context map"
+
+
+def test_restated_removal_has_no_amendment_quote() -> None:
+    removal = change("2", ChangeType.REMOVED, "Plazo. Doce meses.", "Plazo. Doce meses.")
+    context = context_map(mapping("1"), mapping("2", amendment_ref=None), mapping("3"))
+
+    assert extraction_issues(extraction(removal), context) == [
+        ("removed_quote_mismatch", "changes[0].amendment_quote")
+    ]
+
+
+def test_delta_removal_quotes_the_instruction() -> None:
+    quoted = change("2", ChangeType.REMOVED, "Plazo. Doce meses.", "Déjase sin efecto")
+    unquoted = change("2", ChangeType.REMOVED, "Plazo. Doce meses.", None)
+
+    assert extraction_issues(extraction(quoted), delta_map(), DELTA_AMENDMENT) == []
+    assert extraction_issues(extraction(unquoted), delta_map(), DELTA_AMENDMENT) == [
+        ("removed_quote_mismatch", "changes[0].amendment_quote")
+    ]
+
+
+def test_every_quote_must_be_grounded_in_its_own_document() -> None:
+    invented = change("3", ChangeType.MODIFIED, "$ 1.850.000", "$ 9.999.999")
+
+    assert extraction_issues(extraction(invented, confidentiality_change())) == [
+        ("ungrounded_quote", "changes[0].original_quote"),
+        ("ungrounded_quote", "changes[0].amendment_quote"),
+    ]
+
+
+def test_quotes_are_grounded_after_normalization() -> None:
+    spaced = change("3", ChangeType.MODIFIED, "PRECIO.  $ 1.500.000", "precio. $ 1.850.000")
+
+    assert extraction_issues(extraction(spaced, confidentiality_change())) == []
+
+
+def test_ungrounded_quote_message_never_quotes_but_retry_detail_does() -> None:
+    invented = change("3", ChangeType.MODIFIED, "monto secreto", "$ 1.850.000")
+
+    [feedback] = check_extraction(
+        extraction(invented, confidentiality_change()), valid_map(), ORIGINAL, AMENDMENT
+    )
+
+    assert "secreto" not in feedback.issue.message
+    assert "monto secreto" in feedback.detail
+
+
+def test_an_addition_targets_a_section_absent_from_the_original() -> None:
+    wrong = change("3", ChangeType.ADDED, None, "$ 1.850.000")
+
+    assert extraction_issues(extraction(wrong, confidentiality_change())) == [
+        ("change_type_mismatch", "changes[0].change_type")
+    ]
+
+
+def test_a_new_section_can_only_be_added() -> None:
+    wrong = change("new:4", ChangeType.MODIFIED, "Precio", "Confidencialidad. Reserva.")
+
+    issues = extraction_issues(extraction(price_change(), wrong))
+
+    assert ("change_type_mismatch", "changes[1].change_type") in issues
+
+
+def test_restated_section_only_in_the_amendment_needs_its_addition() -> None:
+    assert extraction_issues(extraction(price_change())) == [
+        ("missing_structural_change", "changes")
+    ]
+
+
+def test_restated_section_only_in_the_original_needs_its_removal() -> None:
+    context = context_map(mapping("1"), mapping("2", amendment_ref=None), mapping("3"))
+
+    assert extraction_issues(extraction(price_change()), context) == [
+        ("missing_structural_change", "changes")
+    ]
+
+
+def test_restated_modification_needs_the_section_on_both_sides() -> None:
+    context = context_map(mapping("1"), mapping("2"), mapping("3", amendment_ref=None))
+    removal = change("3", ChangeType.REMOVED, "$ 1.500.000", None)
+
+    assert extraction_issues(extraction(price_change()), context) == [
+        ("change_type_mismatch", "changes[0].change_type"),
+        ("missing_structural_change", "changes"),
+    ]
+    assert extraction_issues(extraction(removal), context) == []
+
+
+def test_restated_removal_needs_the_section_gone_from_the_amendment() -> None:
+    removal = change("2", ChangeType.REMOVED, "Plazo. Doce meses.", None)
+
+    issues = extraction_issues(extraction(removal, confidentiality_change()))
+
+    assert issues == [("change_type_mismatch", "changes[0].change_type")]
+
+
+def test_delta_has_no_structural_obligation() -> None:
+    context = context_map(
+        mapping("1", amendment_ref=None),
+        mapping("2", amendment_ref="Déjase sin efecto la Cláusula Segunda"),
+        mapping("3", amendment_ref="Modifícase la Cláusula Tercera"),
+        kind=AmendmentKind.DELTA,
+    )
+
+    assert extraction_issues(extraction(price_change()), context, DELTA_AMENDMENT) == []
+
+
+def test_changes_follow_the_context_map_order() -> None:
+    result = ExtractionResult(
+        reasoning="r",
+        changes=[confidentiality_change(), price_change()],
+        sections_changed=["3", "new:4"],
+        topics_touched=["confidentiality", "price_payment"],
+        summary_of_the_change="Resumen.",
+    )
+
+    assert extraction_issues(result) == [("section_order", "changes[1].section_id")]
+
+
+def test_sections_changed_is_a_subsequence_of_the_map_order() -> None:
+    context = context_map(
+        mapping("1"),
+        mapping("§2", original_ref="Objeto", amendment_ref="Objeto"),
+        mapping("3"),
+        mapping("new:4", original_ref=None),
+    )
+    positional = change("§2", ChangeType.MODIFIED, "Objeto", "Objeto", Topic.OBJECT_SCOPE)
+    # Numbered and positional IDs pass the model's shape check in either order; the map decides.
+    result = extraction(price_change(), positional, confidentiality_change())
+
+    assert extraction_issues(result, context) == [
+        ("section_order", "changes[1].section_id"),
+        ("section_order", "sections_changed[1]"),
+    ]
+
+
+def test_all_extraction_issues_are_reported_together_for_the_single_retry() -> None:
+    unknown = change("9", ChangeType.MODIFIED, "Precio", "inventado")
+
+    codes_found = {code for code, _ in extraction_issues(extraction(price_change(), unknown))}
+
+    assert codes_found == {
+        "unresolved_section_reference",
+        "ungrounded_quote",
+        "missing_structural_change",
+    }
+
+
+def test_an_empty_extraction_still_owes_the_structural_changes() -> None:
+    assert extraction_issues(extraction()) == [("missing_structural_change", "changes")]
+
+
+def test_structural_issue_messages_never_quote_documents() -> None:
+    context = context_map(mapping("1"), mapping("2", amendment_ref=None), mapping("3"))
+    wrong = change("3", ChangeType.ADDED, None, "$ 1.850.000")
+
+    feedback = check_extraction(extraction(wrong), context, ORIGINAL, AMENDMENT)
+
+    found = {item.issue.code for item in feedback}
+    assert {"change_type_mismatch", "missing_structural_change"} <= found
+    document_words = {"Cláusula", "Plazo", "Precio", "1.850.000", "Doce", "Segunda"}
+    for item in feedback:
+        if item.issue.code in {"change_type_mismatch", "missing_structural_change"}:
+            text = f"{item.issue.message} {item.detail}"
+            assert not [word for word in document_words if word in text]
+
+
+def test_grounding_rate_counts_grounded_quotes_over_all_quotes() -> None:
+    half = change("3", ChangeType.MODIFIED, "$ 1.500.000", "$ 9.999.999")
+
+    assert compute_grounding_rate(extraction(half), ORIGINAL, AMENDMENT) == 0.5
+    full = extraction(price_change(), confidentiality_change())
+    assert compute_grounding_rate(full, ORIGINAL, AMENDMENT) == 1.0
+
+
+def test_grounding_rate_is_not_applicable_without_changes() -> None:
+    assert compute_grounding_rate(extraction(), ORIGINAL, AMENDMENT) is None
 
 
 # --- Kind Heuristic ---

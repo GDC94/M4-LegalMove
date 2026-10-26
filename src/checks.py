@@ -1,12 +1,21 @@
-"""Deterministic Checks: Context Map rules, grounding normalization and the Kind Heuristic."""
+"""Deterministic Checks: Context Map and extraction rules, grounding and the Kind Heuristic."""
 
 import re
 import unicodedata
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from enum import StrEnum
 
 from errors import RetryFeedback, ValidationIssue
-from models import AmendmentKind, ContextMap, SectionMapping, parse_section_id
+from models import (
+    AmendmentKind,
+    Change,
+    ChangeType,
+    ContextMap,
+    ExtractionResult,
+    SectionMapping,
+    find_order_breaks,
+    parse_section_id,
+)
 
 # NFKC already folds full-width forms; these are the variants it leaves alone: double quotes
 # (curly, low-9, guillemets), single quotes (curly, low-9, prime, accents) and dashes (hyphen,
@@ -59,21 +68,10 @@ def check_map_not_empty(context_map: ContextMap) -> Iterator[RetryFeedback]:
 
 
 def check_canonical_order(sections: Sequence[SectionMapping]) -> Iterator[RetryFeedback]:
-    """Original Sections first in document order, then new: Sections in Amendment order.
-
-    Numbered and positional IDs are compared only among themselves: their relative position
-    cannot be derived from the IDs alone.
-    """
-    seen_new = False
-    highest: dict[tuple[bool, bool], tuple[int, ...]] = {}
-    for index, section in enumerate(sections):
-        parts = parse_section_id(section.section_id)
-        shape = (parts.is_new, parts.is_positional)
-        previous = highest.get(shape)
-        if (seen_new and not parts.is_new) or (previous is not None and parts.numbers < previous):
-            yield order_feedback(index, section.section_id)
-        seen_new = seen_new or parts.is_new
-        highest[shape] = max(previous or parts.numbers, parts.numbers)
+    """Original Sections first in document order, then new: Sections in Amendment order."""
+    section_ids = [section.section_id for section in sections]
+    for index in find_order_breaks(section_ids):
+        yield order_feedback(index, section_ids[index])
 
 
 def order_feedback(index: int, section_id: str) -> RetryFeedback:
@@ -120,14 +118,183 @@ def check_refs_grounded(
         )
         for field, ref, text, document in refs:
             if ref is not None and not is_grounded(ref, text):
-                yield ungrounded_feedback(f"sections[{index}].{field}", field, ref, document)
+                path = f"sections[{index}].{field}"
+                yield ungrounded_feedback("ungrounded_reference", path, field, ref, document)
 
 
-def ungrounded_feedback(path: str, field: str, ref: str, document: str) -> RetryFeedback:
-    """The public message names the field only; the retry detail quotes the ref to correct it."""
+def ungrounded_feedback(
+    code: str, path: str, field: str, fragment: str, document: str
+) -> RetryFeedback:
+    """The public message names the field only; the retry detail quotes the text to correct it."""
     message = f"{field} does not appear verbatim in the {document}"
-    detail = f"{field} {ref!r} does not appear verbatim in the {document}; copy it exactly"
-    return build_feedback("ungrounded_reference", path, message, detail)
+    detail = f"{field} {fragment!r} does not appear verbatim in the {document}; copy it exactly"
+    return build_feedback(code, path, message, detail)
+
+
+SectionRows = Mapping[str, SectionMapping]
+
+
+def check_extraction(
+    result: ExtractionResult, context_map: ContextMap, original_text: str, amendment_text: str
+) -> list[RetryFeedback]:
+    """Every hard rule of the extraction at once, so the single retry can fix all of them."""
+    rows = {section.section_id: section for section in context_map.sections}
+    kind = context_map.amendment_kind
+    return [
+        *check_section_references(result.changes, rows),
+        *check_change_types(result.changes, rows, kind),
+        *check_removed_quotes(result.changes, kind),
+        *check_structural_changes(result.changes, context_map),
+        *check_extraction_order(result, context_map),
+        *check_quotes_grounded(result.changes, original_text, amendment_text),
+    ]
+
+
+def check_section_references(
+    changes: Sequence[Change], rows: SectionRows
+) -> Iterator[RetryFeedback]:
+    for index, change in enumerate(changes):
+        if change.section_id not in rows:
+            yield build_feedback(
+                "unresolved_section_reference",
+                f"changes[{index}].section_id",
+                f"section {change.section_id} is not in the context map",
+            )
+
+
+def check_change_types(
+    changes: Sequence[Change], rows: SectionRows, kind: AmendmentKind
+) -> Iterator[RetryFeedback]:
+    """Added and removed are whole Sections (decision 46); restated presence is unambiguous."""
+    for index, change in enumerate(changes):
+        row = rows.get(change.section_id)
+        if row is not None and not fits_row(change.change_type, row, kind):
+            yield build_feedback(
+                "change_type_mismatch",
+                f"changes[{index}].change_type",
+                f"a {change.change_type} change does not fit section {change.section_id}, "
+                f"which appears {describe_presence(row)}",
+            )
+
+
+def fits_row(change_type: ChangeType, row: SectionMapping, kind: AmendmentKind) -> bool:
+    in_original = row.original_ref is not None
+    if change_type is ChangeType.ADDED or not in_original:
+        return change_type is ChangeType.ADDED and not in_original
+    # A delta instruction may or may not be mapped, so only restated decides by presence.
+    if kind is not AmendmentKind.RESTATED:
+        return True
+    return (row.amendment_ref is not None) == (change_type is ChangeType.MODIFIED)
+
+
+def describe_presence(row: SectionMapping) -> str:
+    if row.original_ref is None:
+        return "only in the amendment"
+    if row.amendment_ref is None:
+        return "only in the original contract"
+    return "in both documents"
+
+
+def check_removed_quotes(changes: Sequence[Change], kind: AmendmentKind) -> Iterator[RetryFeedback]:
+    """The Kind-dependent Quote rule that Change cannot check on its own (decision 16)."""
+    for index, change in enumerate(changes):
+        if change.change_type is not ChangeType.REMOVED:
+            continue
+        has_quote = change.amendment_quote is not None
+        if kind is AmendmentKind.DELTA and not has_quote:
+            message = "a delta removal needs the amendment_quote of its instruction"
+        elif kind is AmendmentKind.RESTATED and has_quote:
+            message = "a restated removal must not have an amendment_quote"
+        else:
+            continue
+        path = f"changes[{index}].amendment_quote"
+        yield build_feedback("removed_quote_mismatch", path, message)
+
+
+def check_structural_changes(
+    changes: Sequence[Change], context_map: ContextMap
+) -> Iterator[RetryFeedback]:
+    """In restated, a row present on one side only demands its added or removed (§2.5)."""
+    if context_map.amendment_kind is not AmendmentKind.RESTATED:
+        return
+    reported = {(change.section_id, change.change_type) for change in changes}
+    for section in context_map.sections:
+        required = required_structural_change(section)
+        if required is not None and (section.section_id, required) not in reported:
+            yield build_feedback(
+                "missing_structural_change",
+                "changes",
+                f"section {section.section_id} appears {describe_presence(section)} "
+                f"and needs a {required} change",
+            )
+
+
+def required_structural_change(section: SectionMapping) -> ChangeType | None:
+    if section.original_ref is None:
+        return ChangeType.ADDED
+    if section.amendment_ref is None:
+        return ChangeType.REMOVED
+    return None
+
+
+def check_extraction_order(
+    result: ExtractionResult, context_map: ContextMap
+) -> Iterator[RetryFeedback]:
+    """Changes and sections_changed follow the map's canonical order (§2.4)."""
+    positions = {section.section_id: i for i, section in enumerate(context_map.sections)}
+    change_ids = [change.section_id for change in result.changes]
+    yield from check_map_order(change_ids, positions, "changes[{}].section_id")
+    yield from check_map_order(result.sections_changed, positions, "sections_changed[{}]")
+
+
+def check_map_order(
+    section_ids: Sequence[str], positions: Mapping[str, int], path_template: str
+) -> Iterator[RetryFeedback]:
+    highest = -1
+    for index, section_id in enumerate(section_ids):
+        position = positions.get(section_id)
+        if position is None:
+            continue  # already reported as an unresolved reference
+        if position < highest:
+            yield build_feedback(
+                "section_order",
+                path_template.format(index),
+                f"section {section_id} breaks the context map order",
+            )
+        highest = max(highest, position)
+
+
+def quote_sources(
+    change: Change, original_text: str, amendment_text: str
+) -> tuple[tuple[str, str | None, str, str], ...]:
+    return (
+        ("original_quote", change.original_quote, original_text, "original contract"),
+        ("amendment_quote", change.amendment_quote, amendment_text, "amendment"),
+    )
+
+
+def check_quotes_grounded(
+    changes: Sequence[Change], original_text: str, amendment_text: str
+) -> Iterator[RetryFeedback]:
+    """Any ungrounded Quote is a hard failure; there is no threshold (decision 28)."""
+    for index, change in enumerate(changes):
+        for field, quote, text, document in quote_sources(change, original_text, amendment_text):
+            if quote is not None and not is_grounded(quote, text):
+                path = f"changes[{index}].{field}"
+                yield ungrounded_feedback("ungrounded_quote", path, field, quote, document)
+
+
+def compute_grounding_rate(
+    result: ExtractionResult, original_text: str, amendment_text: str
+) -> float | None:
+    """Grounded Quotes over all Quotes; None (N/A) without a denominator (decision 47)."""
+    verdicts = [
+        is_grounded(quote, text)
+        for change in result.changes
+        for _, quote, text, _ in quote_sources(change, original_text, amendment_text)
+        if quote is not None
+    ]
+    return sum(verdicts) / len(verdicts) if verdicts else None
 
 
 class KindHeuristic(StrEnum):

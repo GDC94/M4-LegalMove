@@ -1,17 +1,25 @@
 """ContextualizationAgent: classifies the Amendment Kind and maps Sections into a Context Map."""
 
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import openai
-from langchain_core.language_models import BaseChatModel, LanguageModelInput
-from langchain_core.messages import BaseMessage, SystemMessage
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda
 from pydantic import ValidationError
 from pydantic_core import ErrorDetails
 
+from agents.structured_output import (
+    StructuredModel,
+    StructuredModels,
+    StructuredReply,
+    build_structured_models,
+    format_error_path,
+    read_raw_output,
+    render_retry_blocks,
+)
 from checks import build_feedback, check_context_map, detect_kind_heuristic
 from errors import (
     InvalidContextMapError,
@@ -82,16 +90,11 @@ CONTEXTUALIZATION_PROMPT = ChatPromptTemplate.from_messages(
     ]
 )
 
-# A plain JSON schema, not the Pydantic class: given the class, the OpenAI SDK validates inside
-# the call and a validator failure would raise past include_raw instead of feeding the retry.
 CONTEXT_MAP_RESPONSE_FORMAT: dict[str, object] = {
     "name": "context_map",
     "schema": ContextMap.model_json_schema(),
     "strict": True,
 }
-
-StructuredReply = Mapping[str, object]
-StructuredModel = Runnable[LanguageModelInput, StructuredReply]
 
 UNPARSEABLE_OUTPUT = build_feedback(
     "unparseable_output", "$", "the output is not valid JSON for the context map schema"
@@ -115,29 +118,11 @@ class MapAttempt:
     feedback: tuple[RetryFeedback, ...]
 
 
-@dataclass(frozen=True)
-class StructuredContextModels:
-    """The first attempt and the semantic retry, which always runs at temperature 0."""
-
-    attempt: StructuredModel
-    retry: StructuredModel
+StructuredContextModels = StructuredModels
 
 
 def build_structured_context_models(chat_model: BaseChatModel) -> StructuredContextModels:
-    """The injection seam sits above this call: LangChain fakes cannot do structured output."""
-    retry_chat_model = chat_model.model_copy(update={"temperature": 0})
-    return StructuredContextModels(
-        attempt=build_structured_context_model(chat_model),
-        retry=build_structured_context_model(retry_chat_model),
-    )
-
-
-def build_structured_context_model(chat_model: BaseChatModel) -> StructuredModel:
-    structured = chat_model.with_structured_output(
-        CONTEXT_MAP_RESPONSE_FORMAT, method="json_schema", strict=True, include_raw=True
-    )
-    # include_raw=True always yields the raw/parsed/parsing_error mapping; the stub is wider.
-    return cast(StructuredModel, structured)
+    return build_structured_models(chat_model, CONTEXT_MAP_RESPONSE_FORMAT)
 
 
 def build_contextualization_agent(
@@ -173,7 +158,7 @@ class ContextualizationAgent:
         self._tracer.score("context_retries", retries)
         if not retries:
             return attempt
-        return self._attempt(self._models.retry, request, render_retry_blocks(attempt))
+        return self._attempt(self._models.retry, request, render_map_retry(attempt))
 
     def _attempt(
         self, model: StructuredModel, request: ContextualizationInput, retry_blocks: str
@@ -207,15 +192,11 @@ def build_prompt_values(request: ContextualizationInput, retry_blocks: str) -> d
     }
 
 
-def render_retry_blocks(attempt: MapAttempt) -> str:
-    """Same prompt plus the raw previous output and one error per line (plan §4.4)."""
-    errors = "\n".join(
-        f"- {item.issue.code} at {item.issue.path}: {item.detail}" for item in attempt.feedback
-    )
-    return (
-        f"\n\n{serialize_block('previous_attempt', attempt.raw_output)}"
-        f"\n\n{serialize_block('validation_errors', errors)}"
-        "\n\nReturn a corrected context map that fixes every validation error."
+def render_map_retry(attempt: MapAttempt) -> str:
+    return render_retry_blocks(
+        attempt.raw_output,
+        attempt.feedback,
+        "Return a corrected context map that fixes every validation error.",
     )
 
 
@@ -226,11 +207,6 @@ def evaluate_reply(reply: StructuredReply, request: ContextualizationInput) -> M
         return MapAttempt(raw_output, context_map, feedback)
     issues = check_context_map(context_map, request.original.text, request.amendment.text)
     return MapAttempt(raw_output, context_map, tuple(issues))
-
-
-def read_raw_output(reply: StructuredReply) -> str:
-    raw = reply.get("raw")
-    return raw.text if isinstance(raw, BaseMessage) else ""
 
 
 def parse_context_map(
@@ -249,15 +225,6 @@ def parse_context_map(
 def schema_feedback(error: ErrorDetails) -> RetryFeedback:
     # Pydantic's msg never includes the input value, and our validators never echo it.
     return build_feedback("schema_violation", format_error_path(error), error["msg"])
-
-
-def format_error_path(error: ErrorDetails) -> str:
-    """Pydantic loc in the bracket notation of checks.py: sections[0].section_id."""
-    loc = list(error["loc"])
-    if error["type"] == "extra_forbidden":
-        loc = loc[:-1]  # the last part is a key the model invented, so it may be any text
-    path = "".join(f"[{part}]" if isinstance(part, int) else f".{part}" for part in loc)
-    return path.removeprefix(".") or "$"
 
 
 def accept_attempt(attempt: MapAttempt, span: StageSpan) -> ContextMap:

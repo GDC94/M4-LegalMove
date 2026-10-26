@@ -12,7 +12,7 @@ Segundo robot usa el mapa y lista qué cambió. Cada cambio trae la frase exacta
 
 ## Resultado vertical
 
-Del mapa y los textos a un `ExtractionResult` grounded y consistente. El agente 2 real, sobre el par A, devuelve `changes` para `5` (`modified`, `price_payment`) y `new:8` (`added`, `confidentiality`) con citas grounded; sobre el par B, `4` (`modified`, `term_duration`) y la sección de penalidades (`removed`, `penalties`, con `amendment_quote`). El span `extraction_agent` registra `extraction_retries`, `schema_valid`, `consistency`, `grounding_rate` y el `RetryFeedback` enmascarado. `render_summary()` produce el resumen determinista.
+Del mapa y los textos a un `ExtractionResult` grounded y consistente. El agente 2 real, sobre el par A, devuelve `changes` para `3` (`modified`, `price_payment`) y `new:8` (`added`, `confidentiality`) con citas grounded; sobre el par B, `2` (`modified`, `term_duration`) y `5` (`removed`, `penalties`, con `amendment_quote`). El span `extraction_agent` registra `extraction_retries`, `schema_valid`, `consistency`, `grounding_rate` y el `RetryFeedback` enmascarado. `render_summary()` produce el resumen determinista.
 
 ## Cobertura de la consigna
 

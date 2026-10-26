@@ -93,3 +93,14 @@ class InvalidContextMapError(NeedsHumanReviewError):
         issues = tuple(issues)
         codes = ", ".join(sorted({issue.code for issue in issues}))
         super().__init__(f"context map is still invalid after one retry: {codes}", issues)
+
+
+class InvalidExtractionError(NeedsHumanReviewError):
+    """The ExtractionResult failed its hard checks again after the single semantic retry."""
+
+    stage = "extraction"
+
+    def __init__(self, issues: Iterable[ValidationIssue]) -> None:
+        issues = tuple(issues)
+        codes = ", ".join(sorted({issue.code for issue in issues}))
+        super().__init__(f"extraction is still invalid after one retry: {codes}", issues)

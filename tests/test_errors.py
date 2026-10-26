@@ -4,6 +4,7 @@ import pytest
 
 from errors import (
     InvalidContextMapError,
+    InvalidExtractionError,
     LegalMoveError,
     NeedsHumanReviewError,
     RetryFeedback,
@@ -14,7 +15,11 @@ from errors import (
 
 
 def test_human_review_errors_share_exit_code_ten() -> None:
-    for error_type in (UnclassifiableAmendmentError, InvalidContextMapError):
+    for error_type in (
+        UnclassifiableAmendmentError,
+        InvalidContextMapError,
+        InvalidExtractionError,
+    ):
         assert issubclass(error_type, NeedsHumanReviewError)
         assert issubclass(error_type, LegalMoveError)
         assert error_type.exit_code == 10
@@ -70,3 +75,21 @@ def test_upstream_error_names_the_stage_that_called_the_model() -> None:
     assert error.stage == "contextualization"
     assert error.exit_code == 5
     assert UpstreamError("other").stage == "parse"
+
+
+def test_invalid_extraction_names_its_stage_and_carries_sanitised_issues() -> None:
+    issues = [
+        ValidationIssue(code="ungrounded_quote", path="changes[0].original_quote", message="x"),
+        ValidationIssue(
+            code="unresolved_section_reference", path="changes[1].section_id", message="y"
+        ),
+    ]
+
+    error = InvalidExtractionError(issues)
+
+    assert InvalidExtractionError.stage == "extraction"
+    assert error.issues == tuple(issues)
+    assert str(error) == (
+        "extraction is still invalid after one retry: "
+        "ungrounded_quote, unresolved_section_reference"
+    )
