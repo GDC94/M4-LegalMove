@@ -1,0 +1,63 @@
+[project]
+name = "legalmove"
+version = "0.1.0"
+description = "Reads a scanned contract and its amendment and returns the legal changes as validated JSON."
+requires-python = ">=3.14"
+dependencies = [
+    "langchain==1.4.3",
+    "langchain-core==1.6.6",
+    "langchain-openai==1.6.7",
+    "langfuse==4.17.0",
+    "openai==3.22.1",
+    "pillow==13.0.0",
+    "pydantic==2.13.5",
+    "pydantic-settings==2.15.0",
+    "python-dotenv==1.2.3",
+    "pyyaml==6.0.3",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "--strict-markers -m 'not integration'"
+markers = [
+    "integration: calls real OpenAI and Langfuse; run only on explicit request",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "C4", "SIM", "C90", "PL", "RUF", "D100"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.ruff.lint.pylint]
+max-statements = 25
+max-args = 5
+max-branches = 8
+max-returns = 4
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+[dependency-groups]
+dev = [
+    "jiwer==4.0.0",
+    "mypy==2.4.0",
+    "playwright==1.64.1",
+    "pytest==9.1.1",
+    "ruff==0.17.2",
+]
