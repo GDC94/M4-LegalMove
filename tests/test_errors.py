@@ -1,0 +1,72 @@
+"""Human Review errors and the public/internal validation contracts (plan §4.4, §4.5)."""
+
+import pytest
+
+from errors import (
+    InvalidContextMapError,
+    LegalMoveError,
+    NeedsHumanReviewError,
+    RetryFeedback,
+    UnclassifiableAmendmentError,
+    UpstreamError,
+    ValidationIssue,
+)
+
+
+def test_human_review_errors_share_exit_code_ten() -> None:
+    for error_type in (UnclassifiableAmendmentError, InvalidContextMapError):
+        assert issubclass(error_type, NeedsHumanReviewError)
+        assert issubclass(error_type, LegalMoveError)
+        assert error_type.exit_code == 10
+
+
+def test_contextualization_errors_name_their_stage() -> None:
+    assert UnclassifiableAmendmentError.stage == "contextualization"
+    assert InvalidContextMapError.stage == "contextualization"
+
+
+def test_unclassifiable_amendment_carries_no_issues() -> None:
+    assert UnclassifiableAmendmentError("amendment kind is unknown").issues == ()
+
+
+def test_invalid_context_map_carries_its_issues_and_a_sanitised_message() -> None:
+    issues = [
+        ValidationIssue(code="ungrounded_reference", path="sections[0].original_ref", message="x"),
+        ValidationIssue(code="empty_section_mapping", path="sections[1]", message="y"),
+    ]
+
+    error = InvalidContextMapError(issues)
+
+    assert error.issues == tuple(issues)
+    assert str(error) == (
+        "context map is still invalid after one retry: empty_section_mapping, ungrounded_reference"
+    )
+
+
+def test_retry_feedback_exposes_only_its_sanitised_issue_publicly() -> None:
+    issue = ValidationIssue(
+        code="ungrounded_reference", path="sections[0].original_ref", message="m"
+    )
+    feedback = RetryFeedback(issue=issue, detail='original_ref "Cláusula Novena" was not found')
+
+    assert feedback.issue == issue
+    assert "Novena" not in repr(feedback.issue)
+
+
+def test_validation_contracts_are_immutable() -> None:
+    issue = ValidationIssue(code="c", path="p", message="m")
+
+    with pytest.raises(AttributeError):
+        issue.code = "other"  # type: ignore[misc]
+
+
+def test_upstream_error_defaults_to_the_parse_stage() -> None:
+    assert UpstreamError("vision call failed").stage == "parse"
+
+
+def test_upstream_error_names_the_stage_that_called_the_model() -> None:
+    error = UpstreamError("contextualization call failed", stage="contextualization")
+
+    assert error.stage == "contextualization"
+    assert error.exit_code == 5
+    assert UpstreamError("other").stage == "parse"

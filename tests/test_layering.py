@@ -64,8 +64,13 @@ def test_domain_modules_import_no_infrastructure_or_config(module: str) -> None:
     assert runtime_imports(path).isdisjoint(INFRASTRUCTURE | {"config", "observability"})
 
 
-def test_image_parser_does_not_load_the_langfuse_adapter_at_runtime() -> None:
-    assert "observability" not in runtime_imports(SRC / "image_parser.py")
+def adapter_modules() -> list[Path]:
+    return [SRC / "image_parser.py", *sorted((SRC / "agents").glob("*.py"))]
+
+
+@pytest.mark.parametrize("path", adapter_modules(), ids=lambda path: path.name)
+def test_adapters_do_not_load_the_langfuse_adapter_at_runtime(path: Path) -> None:
+    assert "observability" not in runtime_imports(path)
 
 
 def test_only_main_and_observability_import_langfuse() -> None:

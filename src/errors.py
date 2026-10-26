@@ -1,12 +1,15 @@
 """Domain error hierarchy: each error declares its stage and CLI exit code."""
 
+from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import ClassVar
 
 
 class LegalMoveError(Exception):
     """Base of every expected failure; messages never carry document text."""
 
-    stage: ClassVar[str] = "unknown"
+    # Not a ClassVar: UpstreamError sets it per instance, since several stages call models.
+    stage: str = "unknown"
     exit_code: ClassVar[int] = 1
 
 
@@ -27,8 +30,11 @@ class InvalidImageError(LegalMoveError):
 class UpstreamError(LegalMoveError):
     """The model API kept failing after its transport retries, or timed out."""
 
-    stage = "parse"
     exit_code = 5
+
+    def __init__(self, message: str, *, stage: str = "parse") -> None:
+        super().__init__(message)
+        self.stage = stage
 
 
 class ObservabilityError(LegalMoveError):
@@ -43,3 +49,47 @@ class IllegibleDocumentError(LegalMoveError):
 
     stage = "parse"
     exit_code = 6
+
+
+@dataclass(frozen=True)
+class ValidationIssue:
+    """Public reason for a Human Review: code, path and a message that never quotes documents."""
+
+    code: str
+    path: str
+    message: str
+
+
+@dataclass(frozen=True)
+class RetryFeedback:
+    """Internal corrective note for the retry prompt; only `detail` may quote the needed text."""
+
+    issue: ValidationIssue
+    detail: str
+
+
+class NeedsHumanReviewError(LegalMoveError):
+    """The system declines to answer and hands the case to a person (exit code 10)."""
+
+    exit_code = 10
+
+    def __init__(self, message: str, issues: Iterable[ValidationIssue] = ()) -> None:
+        super().__init__(message)
+        self.issues = tuple(issues)
+
+
+class UnclassifiableAmendmentError(NeedsHumanReviewError):
+    """The ContextualizationAgent classified the Amendment as Unknown; it is never retried."""
+
+    stage = "contextualization"
+
+
+class InvalidContextMapError(NeedsHumanReviewError):
+    """The Context Map failed its hard checks again after the single semantic retry."""
+
+    stage = "contextualization"
+
+    def __init__(self, issues: Iterable[ValidationIssue]) -> None:
+        issues = tuple(issues)
+        codes = ", ".join(sorted({issue.code for issue in issues}))
+        super().__init__(f"context map is still invalid after one retry: {codes}", issues)
