@@ -47,6 +47,7 @@ SCORE_NAMES = {
 }
 # Synthetic DNI that must never reach Langfuse through the CallbackHandler.
 FAKE_DNI = "DNI 12.345.678"
+HTTP_NOT_FOUND = 404
 
 
 @pytest.fixture
@@ -83,16 +84,31 @@ def run_cli_process(pair: str, session_id: str) -> subprocess.CompletedProcess[s
     )
 
 
+@pytest.fixture
+def langfuse_client(settings: Settings) -> Langfuse:
+    """get_client only finds a client this process built; without one every read answers 401."""
+    build_langfuse_tracer(
+        public_key=settings.langfuse_public_key.get_secret_value(),
+        secret_key=settings.langfuse_secret_key.get_secret_value(),
+        host=settings.langfuse_host,
+        environment=settings.app_env,
+    )
+    return get_client(public_key=settings.langfuse_public_key.get_secret_value())
+
+
 def poll[T](fetch: Callable[[], T | None], what: str) -> T:
-    """Ingestion is eventually consistent: empty results or 404 at first."""
+    """Ingestion is eventually consistent: only empty results or 404 mean "not there yet"."""
     deadline = time.monotonic() + TRACE_POLL_SECONDS
     while time.monotonic() < deadline:
         try:
             found = fetch()
-            if found is not None:
-                return found
-        except ApiError:
-            pass
+        except ApiError as error:
+            if error.status_code != HTTP_NOT_FOUND:
+                # Status only: bodies may echo keys or trace content.
+                pytest.fail(f"{what}: Langfuse API answered {error.status_code}")
+            found = None
+        if found is not None:
+            return found
         time.sleep(2)
     pytest.fail(f"{what} missing after {TRACE_POLL_SECONDS} s")
 
@@ -111,13 +127,16 @@ def fetch_observations(
 
 def fetch_score_names(client: Langfuse, trace_id: str) -> set[str]:
     def fetch() -> set[str] | None:
-        names = {score.name for score in client.api.scores.get_many(trace_id=trace_id).data}
+        names = {
+            score.name
+            for score in client.api.scores_v3.get_many_v3(trace_id=trace_id, limit=100).data
+        }
         return names if names >= SCORE_NAMES else None
 
     return poll(fetch, f"scores of trace {trace_id}")
 
 
-def assert_public_run(pair: str, settings: Settings) -> ContractChangeOutput:
+def assert_public_run(pair: str, client: Langfuse) -> ContractChangeOutput:
     session_id = f"cli-integration-{uuid.uuid4()}"
     completed = run_cli_process(pair, session_id)
 
@@ -128,7 +147,6 @@ def assert_public_run(pair: str, settings: Settings) -> ContractChangeOutput:
     assert final["run_id"]
     assert final["trace_id"]
 
-    client = get_client(public_key=settings.langfuse_public_key.get_secret_value())
     observations = fetch_observations(
         client, final["trace_id"], lambda data: {o.name for o in data} >= SPAN_NAMES
     )
@@ -141,15 +159,15 @@ def assert_public_run(pair: str, settings: Settings) -> ContractChangeOutput:
     return output
 
 
-def test_cli_restated_pair_a_end_to_end(settings: Settings) -> None:
-    output = assert_public_run("pair_a", settings)
+def test_cli_restated_pair_a_end_to_end(langfuse_client: Langfuse) -> None:
+    output = assert_public_run("pair_a", langfuse_client)
 
     assert output.sections_changed == ["3", "new:8"]
     assert output.topics_touched == ["price_payment", "confidentiality"]
 
 
-def test_cli_delta_pair_b_end_to_end(settings: Settings) -> None:
-    output = assert_public_run("pair_b", settings)
+def test_cli_delta_pair_b_end_to_end(langfuse_client: Langfuse) -> None:
+    output = assert_public_run("pair_b", langfuse_client)
 
     assert output.sections_changed == ["2", "5"]
     assert output.topics_touched == ["term_duration", "penalties"]
