@@ -125,18 +125,27 @@ def fetch_observations(
     return poll(fetch, f"observations of trace {trace_id}")
 
 
-def fetch_score_names(client: Langfuse, trace_id: str) -> set[str]:
-    def fetch() -> set[str] | None:
-        names = {
-            score.name
+def fetch_scores(client: Langfuse, trace_id: str, required: set[str]) -> dict[str, Any]:
+    def fetch() -> dict[str, Any] | None:
+        scores = {
+            score.name: score.value
             for score in client.api.scores_v3.get_many_v3(trace_id=trace_id, limit=100).data
         }
-        return names if names >= SCORE_NAMES else None
+        return scores if set(scores) >= required else None
 
     return poll(fetch, f"scores of trace {trace_id}")
 
 
-def assert_public_run(pair: str, client: Langfuse) -> ContractChangeOutput:
+def output_validation_metadata(observations: list[Any]) -> dict[str, Any]:
+    span = next(o for o in observations if o.name == "output_validation")
+    raw = span.metadata
+    return dict(json.loads(raw) if isinstance(raw, str) else raw)
+
+
+def assert_public_run(
+    pair: str, client: Langfuse, soft_scores: set[str]
+) -> tuple[ContractChangeOutput, dict[str, Any], dict[str, Any]]:
+    """Returns the output, the trace scores and the output_validation span metadata."""
     session_id = f"cli-integration-{uuid.uuid4()}"
     completed = run_cli_process(pair, session_id)
 
@@ -155,22 +164,34 @@ def assert_public_run(pair: str, client: Langfuse) -> ContractChangeOutput:
     root = next(o for o in observations if o.name == "contract-analysis")
     assert root.session_id == session_id
     assert root.version == APP_VERSION
-    assert fetch_score_names(client, final["trace_id"]) >= SCORE_NAMES
-    return output
+    scores = fetch_scores(client, final["trace_id"], SCORE_NAMES | soft_scores)
+    return output, scores, output_validation_metadata(observations)
 
 
 def test_cli_restated_pair_a_end_to_end(langfuse_client: Langfuse) -> None:
-    output = assert_public_run("pair_a", langfuse_client)
+    output, scores, metadata = assert_public_run(
+        "pair_a", langfuse_client, {"diff_agreement", "other_topic_rate"}
+    )
 
     assert output.sections_changed == ["3", "new:8"]
     assert output.topics_touched == ["price_payment", "confidentiality"]
+    # The Kind Heuristic is inconclusive on pair A, so kind_agreement is N/A (decision 47).
+    assert "kind_agreement" not in scores
+    assert 0.0 <= scores["diff_agreement"] <= 1.0
+    assert 0 < metadata["sections_diffed"] <= metadata["sections_total"]
 
 
 def test_cli_delta_pair_b_end_to_end(langfuse_client: Langfuse) -> None:
-    output = assert_public_run("pair_b", langfuse_client)
+    output, scores, metadata = assert_public_run(
+        "pair_b", langfuse_client, {"kind_agreement", "other_topic_rate"}
+    )
 
     assert output.sections_changed == ["2", "5"]
     assert output.topics_touched == ["term_duration", "penalties"]
+    # A delta amendment cannot be segmented, so diff_agreement is N/A.
+    assert "diff_agreement" not in scores
+    assert "sections_diffed" not in metadata
+    assert scores["kind_agreement"] == 1
 
 
 def test_callback_handler_masks_a_fake_dni_before_it_reaches_langfuse(
