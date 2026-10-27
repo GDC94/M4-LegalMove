@@ -1,0 +1,37 @@
+{
+  "base": "suministro_envases",
+  "split": "calibration",
+  "category": "standard",
+  "amendment_kind": "delta",
+  "declaration_sha256": "c5481a1be75d3c1a001b5dc221d99f754b49b8e6588b955f56cd261cbad1f50f",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "4",
+      "6"
+    ],
+    "topics_touched": [
+      "deliverables_sla",
+      "penalties"
+    ],
+    "summary_of_the_change": "El plazo de entrega de la cláusula 4 se reduce de diez (10) a cinco (5) días hábiles desde la orden de compra. Se elimina la cláusula 6, de modo que la demora en la entrega deja de generar multas."
+  },
+  "changes": [
+    {
+      "section_id": "4",
+      "change_type": "modified",
+      "topic": "deliverables_sla"
+    },
+    {
+      "section_id": "6",
+      "change_type": "removed",
+      "topic": "penalties"
+    }
+  ],
+  "key_facts": [
+    "cinco (5) días hábiles",
+    "multas"
+  ],
+  "reviewed_by": "German Derbes Catoni (Head of Compliance)",
+  "reviewed_at": "2026-10-27"
+}

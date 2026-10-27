@@ -1,6 +1,5 @@
 """Render contract source text as a plain one-page PNG: black on white, A4 at 150 dpi."""
 
-import sys
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
@@ -9,7 +8,6 @@ PAGE_SIZE = (1240, 1754)
 MARGIN_PX = 100
 FONT_SIZE_PX = 22
 LINE_HEIGHT_PX = 31
-TEST_CONTRACTS = Path(__file__).resolve().parent.parent / "data" / "test_contracts"
 # Pillow's bundled default font has no glyphs for á, ñ or the em dash, so a system
 # TrueType font with Latin-1 coverage is required. First match wins.
 FONT_CANDIDATES = (
@@ -88,18 +86,3 @@ def render_plain_page(text: str, output: Path) -> None:
     for index, line in enumerate(layout_lines(text, font)):
         draw.text((MARGIN_PX, MARGIN_PX + index * LINE_HEIGHT_PX), line, fill="black", font=font)
     page.save(output, format="PNG")
-
-
-def render_test_contracts(root: Path = TEST_CONTRACTS) -> list[Path]:
-    """Render every `source_<name>.txt` to `<name>.png` in the same folder."""
-    rendered: list[Path] = []
-    for source in sorted(root.glob("*/source_*.txt")):
-        output = source.with_name(source.stem.removeprefix("source_") + ".png")
-        render_plain_page(source.read_text(encoding="utf-8"), output)
-        rendered.append(output)
-    return rendered
-
-
-if __name__ == "__main__":
-    for path in render_test_contracts():
-        sys.stdout.write(f"{path}\n")

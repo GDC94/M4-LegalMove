@@ -1,0 +1,26 @@
+# Replaces data/test_contracts/pair_a (decision 14).
+base: servicios_nube
+amendment_kind: restated
+category: standard
+split: calibration
+template: one_column
+seed: 101
+mutations:
+  - op: modify
+    section: "3"
+    topic: price_payment
+    text: >-
+      El CLIENTE abonará al PROVEEDOR la suma mensual de $ 1.850.000 (pesos un millón ochocientos cincuenta mil), más IVA, dentro de los diez (10) días hábiles de recibida la factura, mediante transferencia bancaria.
+  - op: add
+    section: "new:8"
+    title: Confidencialidad
+    topic: confidentiality
+    text: >-
+      Las partes mantendrán en estricta reserva toda la información técnica, comercial y de datos a la que accedan con motivo de este contrato, durante su vigencia y por tres (3) años posteriores a su finalización.
+degradations: []
+key_facts:
+  - "$ 1.850.000"
+  - confidencialidad
+  - tres (3) años
+reference_summary: >-
+  El precio mensual de la Cláusula Tercera sube de $ 1.500.000 a $ 1.850.000 más IVA. Se agrega la Cláusula Octava, que obliga a ambas partes a mantener la confidencialidad de la información durante el contrato y por tres (3) años posteriores.

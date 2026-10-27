@@ -65,9 +65,10 @@ src/
     └── structured_output.py            plumbing compartido de with_structured_output (include_raw, retry)
 data/test_contracts/       *        ≥ 2 pares (PNG + source_*.txt) + README
 data/golden/                        golden set (sección 6.4)
-evals/                              render_plain.py, generate_golden.py, run_evals.py, EvalSettings
+evals/                              render_plain.py, generate_golden.py, golden_case.py, golden_text.py, golden_render.py, golden_degrade.py, run_evals.py, EvalSettings
 outputs/                            eval_report.json (ignorado por git), baseline.json (commiteado)
 tests/
+└── evals/                          tests del generador de golden y del golden set commiteado
 pyproject.toml                      sin [build-system]; pytest con pythonpath = ["src", "tests", "evals"]
 requirements.txt           *        exportado desde uv.lock
 .env.example               *
@@ -698,11 +699,10 @@ data/golden/
 - `key_facts` obligatorios para el resumen;
 - un resumen de referencia escrito a mano;
 - `expected_error` cuando el resultado esperado es una revisión humana;
-- `reviewed_by` / `reviewed_at`.
 
 **Generador** (`evals/generate_golden.py`):
 1. Aplica las mutaciones al texto base y produce el texto de la adenda. Para `restated` es el contrato completo. Para `delta` son instrucciones redactadas con **frases variadas**, incluidas algunas que la heurística de `delta` no conoce, para no evaluarla con su propio vocabulario.
-2. Convierte HTML a PNG con Playwright. La plantilla "plain" es la de `evals/render_plain.py` (sección 6.5), que ya existe desde la fase 1.
+2. Convierte HTML a PNG con Playwright usando 4 plantillas (`one_column`, `two_column`, `table`, `roman_articles`). `render_plain.py` conserva las constantes de página y la fuente que comparte el generador; su CLI de la fase 1 se elimina.
 3. Degrada la imagen con Pillow: rotación, ruido, blur, calidad JPEG, reducción de resolución, sello encima. Usa una semilla fija.
 4. Deriva un borrador de `expected.json` a partir de las mutaciones.
 5. **No sobrescribe un `expected.json` ya revisado**: si `reviewed_at` está presente, se niega a pisarlo, igual que el índice de `orchestration` rechaza una colección construida con otra configuración.
@@ -714,7 +714,7 @@ Las imágenes se **commitean**, porque el render de fuentes varía entre sistema
 - el `expected.json` es correcto contra las imágenes;
 - el resumen de referencia es fiel.
 
-Al final se completan `reviewed_by` y `reviewed_at`.
+Al final se completan `reviewed_by` y `reviewed_at` en `expected.json` (y en el front matter de cada contrato base). `case.yaml` no los declara: el generador los escribe vacíos y no regenera un caso revisado. Para corregir un caso revisado se borra `reviewed_at`, se regenera y se vuelve a revisar; `declaration_sha256` detecta un `case.yaml` editado después de la revisión.
 
 **Separación sin fuga.** El split se asigna por familia de contrato base antes de generar mutaciones: todas las variantes de un mismo contenido contractual quedan enteramente en `calibration` o enteramente en `validation`. Los templates y las degradaciones visuales sí pueden repetirse entre splits, porque la unidad semántica protegida es el contrato base.
 
@@ -738,7 +738,7 @@ Al final se completan `reviewed_by` y `reviewed_at`.
 
 El texto lo redactó un LLM a pedido del autor y el autor lo revisó (como los datos de `orchestration`). Se guarda como `source_original.txt` y `source_amendment.txt` junto a cada PNG en `data/test_contracts/`.
 
-**`evals/render_plain.py`** (commiteado): usa una fuente TrueType del sistema con glifos del español: DejaVu Sans y, si falta, Arial; falla si no hay ninguna. La fuente por defecto de Pillow no sirve porque dibuja cuadrados en lugar de tildes, ñ, raya y ¿¡. Usa un lienzo de 1240×1754 px (A4 a 150 dpi), texto negro sobre fondo blanco, salida PNG. Más adelante es la plantilla "plain" del generador de golden.
+**`evals/render_plain.py`** (commiteado): usa una fuente TrueType del sistema con glifos del español: DejaVu Sans y, si falta, Arial; falla si no hay ninguna. La fuente por defecto de Pillow no sirve porque dibuja cuadrados en lugar de tildes, ñ, raya y ¿¡. Usa un lienzo de 1240×1754 px (A4 a 150 dpi), texto negro sobre fondo blanco, salida PNG. En la fase 2 el generador de golden reutiliza sus constantes de página y su fuente, pero no lo usa como plantilla (decisión 72).
 
 ### 6.6 Métricas y umbrales
 
@@ -1090,6 +1090,7 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 69 | El "host aprobado" de producción se implementa como rechazo de `cloud.langfuse.com` y `*.cloud.langfuse.com`; concreta la decisión 49 | El plan no define una variable de hosts aprobados; una regla por sufijo cubre las regiones nuevas del cloud público | 5.1, 5.6 | 2026-10-26 |
 | 70 | `budget.py` (dominio) y `budgeted_model.py` (adaptador) se suman al layout; el presupuesto fija timeout y reintentos del SDK por intento | Los reintentos de transporte del SDK reusan el mismo timeout y podían exceder los 300 s | 1, 5.1 | 2026-10-26 |
 | 71 | `auth_check()` al inicializar el tracer; la entrega posterior al `flush()` es best-effort; acota la decisión 53 | Langfuse no propaga los errores de exportación OTLP, así que `flush()` no puede confirmar la entrega | 5.7 | 2026-10-26 |
+| 72 | El generador de golden renderiza con Playwright y 4 plantillas HTML (`one_column`, `two_column`, `table`, `roman_articles`); `render_plain.py` solo conserva las constantes de página y la fuente compartidas y pierde su CLI; supera la "plantilla plain posterior" de la decisión 34 | El ticket T7 fija 4 plantillas HTML; mantener la CLI de la fase 1 pisaría los PNG de los pares generados desde los golden Standard | 6.4, 6.5 | 2026-10-27 |
 
 ## 9. Diagrama de LegalMove pipeline
 

@@ -1,0 +1,26 @@
+base: locacion_oficina
+amendment_kind: restated
+category: standard
+split: validation
+template: two_column
+seed: 201
+mutations:
+  - op: modify
+    section: "5"
+    topic: price_payment
+    text: >-
+      La LOCATARIA entrega en este acto la suma de $ 1.800.000, equivalente a dos (2) meses de alquiler, como depósito en garantía, que le será devuelto al finalizar la locación.
+  - op: add
+    section: "new:9"
+    title: Seguro
+    topic: insurance
+    text: >-
+      La LOCATARIA contratará un seguro de responsabilidad civil e incendio sobre el inmueble por una suma mínima de $ 50.000.000 y entregará la póliza a la LOCADORA dentro de los quince (15) días.
+degradations: []
+key_facts:
+  - "$ 1.800.000"
+  - dos (2) meses
+  - seguro
+  - "$ 50.000.000"
+reference_summary: >-
+  El depósito en garantía de la Cláusula Quinta pasa de $ 900.000 (un mes) a $ 1.800.000 (dos meses de alquiler). Se agrega la Cláusula Novena, que obliga a la LOCATARIA a contratar un seguro de responsabilidad civil e incendio por al menos $ 50.000.000.

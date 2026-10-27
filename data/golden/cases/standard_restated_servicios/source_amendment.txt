@@ -1,0 +1,21 @@
+ADENDA N° 1 — TEXTO ORDENADO DEL CONTRATO DE PRESTACIÓN DE SERVICIOS
+
+En la Ciudad Autónoma de Buenos Aires, a los 15 días del mes de septiembre de 2026, NUBESUR S.A., CUIT 30-71234567-9, en adelante "el PROVEEDOR", y COMERCIAL ANDINA S.R.L., CUIT 30-70987654-3, en adelante "el CLIENTE", acuerdan reemplazar íntegramente el contrato celebrado el 3 de marzo de 2026 por el siguiente texto ordenado, vigente desde el 1 de octubre de 2026:
+
+Cláusula Primera — Objeto. El PROVEEDOR prestará al CLIENTE servicios de alojamiento de aplicaciones en la nube, soporte técnico y respaldo diario de datos, conforme al anexo técnico acordado por las partes.
+
+Cláusula Segunda — Plazo. El presente contrato tendrá una vigencia de doce (12) meses contados desde el 1 de abril de 2026, renovable por períodos iguales salvo notificación en contrario con treinta (30) días de anticipación.
+
+Cláusula Tercera — Precio y forma de pago. El CLIENTE abonará al PROVEEDOR la suma mensual de $ 1.850.000 (pesos un millón ochocientos cincuenta mil), más IVA, dentro de los diez (10) días hábiles de recibida la factura, mediante transferencia bancaria.
+
+Cláusula Cuarta — Niveles de servicio. El PROVEEDOR garantiza una disponibilidad mensual del 99,5 % y una respuesta a incidentes críticos dentro de las cuatro (4) horas de reportados.
+
+Cláusula Quinta — Penalidades. Si la disponibilidad mensual fuera inferior a la comprometida, el PROVEEDOR bonificará al CLIENTE el cinco por ciento (5 %) del precio mensual por cada punto porcentual de incumplimiento, con un máximo del veinte por ciento (20 %).
+
+Cláusula Sexta — Rescisión. Cualquiera de las partes podrá rescindir el contrato sin expresión de causa mediante notificación fehaciente cursada con sesenta (60) días de anticipación, sin derecho a indemnización alguna.
+
+Cláusula Séptima — Notificaciones y jurisdicción. Las notificaciones se cursarán a los domicilios indicados o al correo legales@nubesur.com.ar. Para cualquier controversia, las partes se someten a los tribunales ordinarios de la Ciudad Autónoma de Buenos Aires.
+
+Cláusula Octava — Confidencialidad. Las partes mantendrán en estricta reserva toda la información técnica, comercial y de datos a la que accedan con motivo de este contrato, durante su vigencia y por tres (3) años posteriores a su finalización.
+
+En prueba de conformidad, se firman dos ejemplares de un mismo tenor y a un solo efecto.

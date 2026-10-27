@@ -1,0 +1,30 @@
+base: licencia_software
+amendment_kind: restated
+category: standard
+split: validation
+template: roman_articles
+seed: 401
+mutations:
+  - op: modify
+    section: "2"
+    topic: object_scope
+    text: >-
+      La licencia es no exclusiva, intransferible y permite hasta ochenta (80) usuarios concurrentes, exclusivamente para las operaciones propias de la LICENCIATARIA en la República Argentina.
+  - op: modify
+    section: "7"
+    topic: liability_indemnity
+    text: >-
+      La responsabilidad total de la LICENCIANTE por cualquier reclamo derivado del contrato no excederá el importe abonado por la LICENCIATARIA en los doce (12) meses anteriores al hecho que lo origine.
+  - op: add
+    section: "new:9"
+    title: Protección de datos personales
+    topic: data_protection
+    text: >-
+      La LICENCIANTE tratará los datos personales alojados en el sistema solo para prestar el servicio, conforme a la Ley 25.326, y los eliminará dentro de los treinta (30) días de finalizado el contrato.
+degradations: []
+key_facts:
+  - ochenta (80) usuarios
+  - doce (12) meses
+  - Ley 25.326
+reference_summary: >-
+  El Artículo II amplía la licencia de cincuenta (50) a ochenta (80) usuarios concurrentes. El Artículo VII eleva el tope de responsabilidad de la LICENCIANTE de seis (6) a doce (12) meses de pagos. Se agrega el Artículo IX sobre protección de datos personales conforme a la Ley 25.326, con eliminación de los datos a los treinta (30) días del fin del contrato.

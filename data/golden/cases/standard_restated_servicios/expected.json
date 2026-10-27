@@ -1,0 +1,38 @@
+{
+  "base": "servicios_nube",
+  "split": "calibration",
+  "category": "standard",
+  "amendment_kind": "restated",
+  "declaration_sha256": "f0577fcf5f685089b31e8a1b0024b8e64808babaf6f15eae20757c918ae403c1",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "3",
+      "new:8"
+    ],
+    "topics_touched": [
+      "price_payment",
+      "confidentiality"
+    ],
+    "summary_of_the_change": "El precio mensual de la Cláusula Tercera sube de $ 1.500.000 a $ 1.850.000 más IVA. Se agrega la Cláusula Octava, que obliga a ambas partes a mantener la confidencialidad de la información durante el contrato y por tres (3) años posteriores."
+  },
+  "changes": [
+    {
+      "section_id": "3",
+      "change_type": "modified",
+      "topic": "price_payment"
+    },
+    {
+      "section_id": "new:8",
+      "change_type": "added",
+      "topic": "confidentiality"
+    }
+  ],
+  "key_facts": [
+    "$ 1.850.000",
+    "confidencialidad",
+    "tres (3) años"
+  ],
+  "reviewed_by": "German Derbes Catoni (Head of Compliance)",
+  "reviewed_at": "2026-10-27"
+}

@@ -40,10 +40,12 @@ Ninguna. Las imágenes son texto negro sobre fondo blanco, sin rotación, ruido 
 
 ## Cómo se generan las imágenes
 
+Los dos pares salen de dos golden cases Standard (decisión 14, plan §6.4): `pair_a` es `data/golden/cases/standard_restated_servicios` y `pair_b` es `data/golden/cases/standard_delta_servicios`. La verdad de cada par se declara primero en su `case.yaml`, y el generador produce los textos, las imágenes y el `expected.json`:
+
 ```bash
-uv run python evals/render_plain.py
+PYTHONPATH=src uv run python evals/generate_golden.py
 ```
 
-`evals/render_plain.py` renderiza cada `source_<nombre>.txt` como `<nombre>.png` en la misma carpeta: lienzo de 1240×1754 px (A4 a 150 dpi), texto negro sobre fondo blanco y sin degradaciones. Usa una fuente TrueType del sistema (DejaVu Sans en Linux, Arial en macOS o Windows) porque la fuente por defecto de Pillow no tiene glifos para tildes, eñes ni la raya (—). Si el texto no entra en una página, el script falla en lugar de cortar el documento.
+`evals/generate_golden.py` renderiza el HTML de la plantilla `one_column` a PNG con Playwright (lienzo de 1240×1754 px, A4 a 150 dpi), sin degradaciones, y copia `original.png`, `amendment.png` y los `source_*.txt` de cada caso a su carpeta de par. Si el texto no entra en una página, el generador falla en lugar de cortar el documento.
 
-Las imágenes se commitean porque el render de fuentes puede variar entre sistemas operativos. En la fase 2, los golden cases Standard reemplazan a estos pares.
+Las imágenes se commitean porque el render de fuentes puede variar entre sistemas operativos.

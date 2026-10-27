@@ -1,0 +1,39 @@
+{
+  "base": "locacion_oficina",
+  "split": "validation",
+  "category": "standard",
+  "amendment_kind": "restated",
+  "declaration_sha256": "768f1eb22f3355fa4437a88ad6cda2b82db7573a7834ee31f012590300c0a661",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "5",
+      "new:9"
+    ],
+    "topics_touched": [
+      "price_payment",
+      "insurance"
+    ],
+    "summary_of_the_change": "El depósito en garantía de la Cláusula Quinta pasa de $ 900.000 (un mes) a $ 1.800.000 (dos meses de alquiler). Se agrega la Cláusula Novena, que obliga a la LOCATARIA a contratar un seguro de responsabilidad civil e incendio por al menos $ 50.000.000."
+  },
+  "changes": [
+    {
+      "section_id": "5",
+      "change_type": "modified",
+      "topic": "price_payment"
+    },
+    {
+      "section_id": "new:9",
+      "change_type": "added",
+      "topic": "insurance"
+    }
+  ],
+  "key_facts": [
+    "$ 1.800.000",
+    "dos (2) meses",
+    "seguro",
+    "$ 50.000.000"
+  ],
+  "reviewed_by": "German Derbes Catoni (Head of Compliance)",
+  "reviewed_at": "2026-10-27"
+}

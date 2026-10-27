@@ -1,0 +1,33 @@
+base: consultoria_profesional
+amendment_kind: delta
+category: standard
+split: validation
+template: one_column
+seed: 501
+mutations:
+  - op: modify
+    section: "2"
+    topic: price_payment
+    phrasing: reformulase
+    text: >-
+      La EMPRESA abonará a la CONSULTORA honorarios mensuales de $ 2.900.000 (pesos dos millones novecientos mil), más IVA.
+  - op: modify
+    section: "7"
+    topic: termination
+    phrasing: modificase
+    text: >-
+      Cualquiera de las partes podrá rescindir el contrato sin causa con un preaviso escrito de cuarenta y cinco (45) días, debiendo la EMPRESA abonar los honorarios devengados hasta esa fecha.
+  - op: add
+    section: "new:8"
+    title: Notificaciones
+    topic: notices
+    phrasing: agregase
+    text: >-
+      Las notificaciones entre las partes serán válidas si se envían a los domicilios indicados en el encabezado o a los correos contratos@andesestrategia.com.ar y legales@vallealto.com.ar.
+degradations: []
+key_facts:
+  - "$ 2.900.000"
+  - cuarenta y cinco (45) días
+  - notificaciones
+reference_summary: >-
+  Los honorarios mensuales de la Cláusula Segunda suben de $ 2.400.000 a $ 2.900.000 más IVA. El preaviso de rescisión de la Cláusula Séptima pasa de treinta (30) a cuarenta y cinco (45) días. Se agrega la Cláusula Octava, que fija los domicilios y correos válidos para las notificaciones.

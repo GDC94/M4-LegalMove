@@ -1,9 +1,12 @@
 """AST architecture tests: dependencies only point inward (plan §1 Arquitectura, §6.2)."""
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
+
+from golden_text import PHRASINGS
 
 SRC = Path(__file__).resolve().parent.parent / "src"
 DOMAIN_MODULES = ["models.py", "errors.py", "checks.py", "prompt_blocks.py", "budget.py"]
@@ -157,3 +160,106 @@ def test_test_contracts_hold_at_least_two_complete_pairs() -> None:
     ]
 
     assert len(pairs) >= 2
+
+
+GOLDEN = ROOT / "data/golden"
+SENTENCE_END = re.compile(r"(?<=[.:;])\s+|\n+")
+MIN_FRAGMENT_CHARS = 30
+YAML_KEY = re.compile(r"^[a-z_]+:\s*")
+
+
+def normalize_text(text: str) -> str:
+    return " ".join(text.split()).casefold()
+
+
+def golden_fragments(golden: Path) -> set[str]:
+    """Every long sentence of the base contracts and case declarations, normalized."""
+    sources = [*golden.glob("base/*.md"), *golden.glob("cases/*/case.yaml")]
+    sentences = (
+        normalize_text(piece)
+        for path in sources
+        for piece in SENTENCE_END.split(path.read_text(encoding="utf-8"))
+    )
+    sentences = (YAML_KEY.sub("", sentence) for sentence in sentences)
+    return {sentence for sentence in sentences if len(sentence) >= MIN_FRAGMENT_CHARS}
+
+
+def phrasing_fragments() -> set[str]:
+    """The fixed words of each delta phrasing, without its placeholders."""
+    pieces = (
+        normalize_text(piece)
+        for phrasings in PHRASINGS.values()
+        for template in phrasings.values()
+        for piece in re.split(r"\{[a-z]+\}", template)
+    )
+    return {piece for piece in pieces if len(piece) >= 15}
+
+
+def string_constants(src: Path) -> str:
+    """All string literals of the source tree (docstrings and prompts included), normalized."""
+    return "\n".join(
+        normalize_text(node.value)
+        for path in sorted(src.rglob("*.py"))
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    )
+
+
+def leaked_fragments(fragments: set[str], src: Path) -> list[str]:
+    literals = string_constants(src)
+    return sorted(fragment for fragment in fragments if fragment in literals)
+
+
+def test_no_golden_text_appears_in_src() -> None:
+    fragments = golden_fragments(GOLDEN) | phrasing_fragments()
+
+    assert len(fragments) > 50  # never pass vacuously on a missing golden set
+    assert leaked_fragments(fragments, SRC) == []
+
+
+def test_leak_detection_finds_a_golden_sentence_inside_a_prompt(tmp_path: Path) -> None:
+    (tmp_path / "base").mkdir()
+    (tmp_path / "base/prueba.md").write_text(
+        "## 1. Precio\nEl CLIENTE abonará la suma mensual de $ 1.850.000 más IVA.\n",
+        encoding="utf-8",
+    )
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "prompt.py").write_text(
+        'PROMPT = """Ejemplo:\n  el cliente abonará la suma mensual de $ 1.850.000 más IVA."""\n',
+        encoding="utf-8",
+    )
+
+    assert leaked_fragments(golden_fragments(tmp_path), src) == [
+        "el cliente abonará la suma mensual de $ 1.850.000 más iva."
+    ]
+
+
+def test_leak_detection_ignores_yaml_keys_in_front_matter(tmp_path: Path) -> None:
+    (tmp_path / "base").mkdir()
+    (tmp_path / "base/prueba.md").write_text(
+        "---\nclosing: En prueba de conformidad se firman dos ejemplares.\n---\n",
+        encoding="utf-8",
+    )
+
+    assert golden_fragments(tmp_path) == {"en prueba de conformidad se firman dos ejemplares."}
+
+
+EVALS_MODULES = {
+    "generate_golden",
+    "golden_case",
+    "golden_text",
+    "golden_render",
+    "golden_degrade",
+    "render_plain",
+    "playwright",
+}
+
+
+def test_src_never_imports_evals_modules_or_playwright() -> None:
+    importers = {
+        path.relative_to(SRC).as_posix(): sorted(runtime_imports(path) & EVALS_MODULES)
+        for path in source_files()
+    }
+
+    assert {name: found for name, found in importers.items() if found} == {}

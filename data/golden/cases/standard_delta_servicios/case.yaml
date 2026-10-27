@@ -1,0 +1,26 @@
+# Replaces data/test_contracts/pair_b (decision 14). The removal keeps a Kind Heuristic
+# marker so kind_agreement stays measurable on pair B; the modification uses a phrasing
+# the heuristic does not know.
+base: servicios_nube
+amendment_kind: delta
+category: standard
+split: calibration
+template: one_column
+seed: 102
+mutations:
+  - op: modify
+    section: "2"
+    topic: term_duration
+    phrasing: pase_a_decir
+    text: >-
+      El presente contrato tendrá una vigencia de veinticuatro (24) meses contados desde el 1 de abril de 2026, renovable por períodos iguales salvo notificación en contrario con treinta (30) días de anticipación.
+  - op: remove
+    section: "5"
+    topic: penalties
+    phrasing: deja_sin_efecto
+degradations: []
+key_facts:
+  - veinticuatro (24) meses
+  - penalidades
+reference_summary: >-
+  El plazo de la Cláusula Segunda pasa de doce (12) a veinticuatro (24) meses, con la misma renovación. Se elimina la Cláusula Quinta, por lo que el PROVEEDOR ya no bonifica penalidades por baja disponibilidad.

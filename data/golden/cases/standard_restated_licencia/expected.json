@@ -1,0 +1,45 @@
+{
+  "base": "licencia_software",
+  "split": "validation",
+  "category": "standard",
+  "amendment_kind": "restated",
+  "declaration_sha256": "192e00ddc9868ddfd14338f4a668c6c047a8b12649981a07377a343d52a4e5c9",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "2",
+      "7",
+      "new:9"
+    ],
+    "topics_touched": [
+      "object_scope",
+      "liability_indemnity",
+      "data_protection"
+    ],
+    "summary_of_the_change": "El Artículo II amplía la licencia de cincuenta (50) a ochenta (80) usuarios concurrentes. El Artículo VII eleva el tope de responsabilidad de la LICENCIANTE de seis (6) a doce (12) meses de pagos. Se agrega el Artículo IX sobre protección de datos personales conforme a la Ley 25.326, con eliminación de los datos a los treinta (30) días del fin del contrato."
+  },
+  "changes": [
+    {
+      "section_id": "2",
+      "change_type": "modified",
+      "topic": "object_scope"
+    },
+    {
+      "section_id": "7",
+      "change_type": "modified",
+      "topic": "liability_indemnity"
+    },
+    {
+      "section_id": "new:9",
+      "change_type": "added",
+      "topic": "data_protection"
+    }
+  ],
+  "key_facts": [
+    "ochenta (80) usuarios",
+    "doce (12) meses",
+    "Ley 25.326"
+  ],
+  "reviewed_by": "German Derbes Catoni (Head of Compliance)",
+  "reviewed_at": "2026-10-27"
+}

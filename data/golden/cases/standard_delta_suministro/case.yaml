@@ -1,0 +1,25 @@
+# Every instruction uses a phrasing the Kind Heuristic does not know: the heuristic is
+# inconclusive on this amendment and kind_agreement is N/A.
+base: suministro_envases
+amendment_kind: delta
+category: standard
+split: calibration
+template: table
+seed: 301
+mutations:
+  - op: modify
+    section: "4"
+    topic: deliverables_sla
+    phrasing: dira_en_adelante
+    text: >-
+      El PROVEEDOR entregará cada pedido en la planta del COMPRADOR dentro de los cinco (5) días hábiles de recibida la orden de compra, con flete a su cargo.
+  - op: remove
+    section: "6"
+    topic: penalties
+    phrasing: suprimese
+degradations: []
+key_facts:
+  - cinco (5) días hábiles
+  - multas
+reference_summary: >-
+  El plazo de entrega de la cláusula 4 se reduce de diez (10) a cinco (5) días hábiles desde la orden de compra. Se elimina la cláusula 6, de modo que la demora en la entrega deja de generar multas.

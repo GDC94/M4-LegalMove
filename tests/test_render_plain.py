@@ -11,7 +11,6 @@ from render_plain import (
     PageOverflowError,
     load_page_font,
     render_plain_page,
-    render_test_contracts,
 )
 
 
@@ -59,21 +58,6 @@ def test_text_longer_than_one_page_is_rejected(
 ) -> None:
     with pytest.raises(PageOverflowError):
         render_plain_page("línea\n" * 200, tmp_path / "page.png")
-
-
-def test_renders_every_source_text_next_to_it(
-    tmp_path: Path, page_font: ImageFont.FreeTypeFont
-) -> None:
-    pair = tmp_path / "pair_a"
-    pair.mkdir()
-    (pair / "source_original.txt").write_text("Cláusula Primera.", encoding="utf-8")
-    (pair / "source_amendment.txt").write_text("Cláusula Primera bis.", encoding="utf-8")
-
-    rendered = render_test_contracts(tmp_path)
-
-    assert sorted(path.name for path in rendered) == ["amendment.png", "original.png"]
-    assert (pair / "original.png").is_file()
-    assert (pair / "amendment.png").is_file()
 
 
 def glyph_pixels(font: ImageFont.FreeTypeFont, char: str) -> bytes:
