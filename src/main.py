@@ -128,7 +128,7 @@ def execute(
     settings = composition.load_settings()
     logging.getLogger().setLevel(settings.log_level)
     container = composition.compose(settings)
-    return run_traced(container, arguments, context)
+    return run_traced(container, arguments, context).output
 
 
 def parse_arguments(argv: Sequence[str]) -> CliArguments:
@@ -145,15 +145,18 @@ def parse_arguments(argv: Sequence[str]) -> CliArguments:
 
 def run_traced(
     container: Container, arguments: CliArguments, context: RunContext
-) -> ContractChangeOutput:
-    """Fail closed: the output is only returned, and so printed, after a confirmed flush."""
+) -> AnalysisResult:
+    """Fail closed: the result is only returned, and so printed, after a confirmed flush.
+
+    The CLI prints `result.output`; the eval runner (evals/case_runner.py) reads the rest.
+    """
     try:
         result = run_in_root(container, arguments, context)
     except Exception:
         flush_after_failure(container.tracer)
         raise
     container.tracer.flush()
-    return result.output
+    return result
 
 
 def flush_after_failure(tracer: TraceLifecycle) -> None:

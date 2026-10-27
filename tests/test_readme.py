@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 import errors
-from config import Settings
+from settings import EvalSettings
 from test_layering import DELIVERABLES
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -83,7 +83,8 @@ def test_diagram_section_has_mermaid_and_links_the_animated_version() -> None:
     assert (ROOT / ANIMATED_DIAGRAM).is_file()
 
 
-@pytest.mark.parametrize("field", sorted(Settings.model_fields))
+# EvalSettings extends Settings, so this also covers the eval-only JUDGE_MODEL.
+@pytest.mark.parametrize("field", sorted(EvalSettings.model_fields))
 def test_configuration_table_lists_every_setting(field: str) -> None:
     assert f"| `{field.upper()}` |" in read_section("Configuration")
 
@@ -121,7 +122,8 @@ def test_testing_section_has_the_measured_results_subsection() -> None:
     assert re.search(r"^### Measured results$", read_section("Testing and evals"), flags=re.M)
 
 
-@pytest.mark.parametrize("field", sorted(Settings.model_fields))
+# EvalSettings extends Settings, so this also covers the eval-only JUDGE_MODEL.
+@pytest.mark.parametrize("field", sorted(EvalSettings.model_fields))
 def test_env_example_lists_every_setting(field: str) -> None:
     """E09: the template names every Settings variable, set or commented out."""
     pattern = rf"^(# )?{field.upper()}="

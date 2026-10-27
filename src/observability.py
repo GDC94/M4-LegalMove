@@ -308,13 +308,27 @@ class LangfuseTracer:
 def build_langfuse_tracer(
     *, public_key: str, secret_key: str, host: str, environment: str
 ) -> LangfuseTracer:
-    """Masking is wired here, unconditionally, so no caller can forget or disable it.
+    """The pipeline's tracer over a client from `connect_langfuse`, so masking is never optional."""
+    client = connect_langfuse(
+        public_key=public_key, secret_key=secret_key, host=host, environment=environment
+    )
+    try:
+        callback_handler = CallbackHandler(public_key=public_key)
+    # The SDK documents no error type for start-up; only the type goes out.
+    except Exception as error:
+        raise ObservabilityError(f"tracer initialisation failed: {type(error).__name__}") from None
+    return LangfuseTracer(client, callback_handler=callback_handler)
+
+
+def connect_langfuse(*, public_key: str, secret_key: str, host: str, environment: str) -> Langfuse:
+    """The only place a Langfuse client is built: masking is wired here, unconditionally.
 
     The auth check runs before any model call: a run whose trace cannot be delivered must fail
     before it spends anything (plan §5.7).
 
-    This must be the first Langfuse client created for `public_key` in the process: the SDK
-    keeps one resource manager per key, and mask and media settings are fixed when it is built.
+    The SDK keeps one resource manager per public key, and mask, media and environment are fixed
+    when the first client for that key is built. Every client of the process (the pipeline tracer
+    and the eval publisher) comes from here, so whichever is first, the settings are the same.
     """
     # The SDK turns data: URIs into uploaded media BEFORE the mask runs, so the mask would only
     # see a media reference while the image bytes leave the process. The only switch is this
@@ -328,7 +342,6 @@ def build_langfuse_tracer(
             environment=environment,
             mask=mask_personal_data,
         )
-        callback_handler = CallbackHandler(public_key=public_key)
         reachable = client.auth_check()
     # The SDK documents no error type for start-up; its messages may echo keys, hosts or response
     # bodies, so only the type goes out.
@@ -336,7 +349,7 @@ def build_langfuse_tracer(
         raise ObservabilityError(f"tracer initialisation failed: {type(error).__name__}") from None
     if not reachable:
         raise ObservabilityError("tracer initialisation failed: auth check rejected")
-    return LangfuseTracer(client, callback_handler=callback_handler)
+    return client
 
 
 if TYPE_CHECKING:

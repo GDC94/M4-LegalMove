@@ -1,5 +1,6 @@
 """Trace lifecycle owned by main.py: root span, propagated attributes and flush (§5.3, §5.7)."""
 
+import os
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -11,7 +12,14 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 import observability
 from errors import ObservabilityError, UpstreamError
-from observability import LangfuseTracer, TraceAttributes, build_langfuse_tracer
+from observability import (
+    LANGFUSE_MEDIA_UPLOAD_ENABLED,
+    LangfuseTracer,
+    TraceAttributes,
+    build_langfuse_tracer,
+    connect_langfuse,
+    mask_personal_data,
+)
 
 ATTRIBUTES = TraceAttributes(session_id="lote-7", version="0.1.0", environment="development")
 
@@ -228,3 +236,27 @@ def test_an_unreachable_host_fails_initialisation_without_echoing_details(
         build_with_auth(monkeypatch, error)
 
     assert str(caught.value) == "tracer initialisation failed: ConnectionError"
+
+
+def test_connect_langfuse_is_the_one_place_mask_and_media_are_wired(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The eval publisher shares this client set-up, so the SDK's per-key settings always match."""
+    received: dict[str, Any] = {}
+
+    def client(**kwargs: Any) -> AuthCheckingClient:
+        received.update(kwargs)
+        return AuthCheckingClient(True)
+
+    monkeypatch.setattr(observability, "Langfuse", client)
+    monkeypatch.setenv(LANGFUSE_MEDIA_UPLOAD_ENABLED, "true")
+
+    connected = connect_langfuse(
+        public_key="pk-lf-key", secret_key="sk-lf-key", host="https://x.test", environment="staging"
+    )
+
+    assert received["mask"] is mask_personal_data
+    assert received["environment"] == "staging"
+    assert received["base_url"] == "https://x.test"
+    assert os.environ[LANGFUSE_MEDIA_UPLOAD_ENABLED] == "false"
+    assert isinstance(connected, AuthCheckingClient) and connected.auth_checks == 1

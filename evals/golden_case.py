@@ -6,8 +6,9 @@ from pathlib import Path
 from typing import Literal, Self
 
 import yaml
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
+from errors import NeedsHumanReviewError
 from models import AmendmentKind, Topic, check_section_id, parse_section_id
 
 
@@ -169,6 +170,38 @@ class Degradation(BaseModel):
     text: str | None = None
 
 
+def human_review_error_names() -> frozenset[str]:
+    """Concrete Human Review errors; the base class itself is never raised."""
+    pending, names = list(NeedsHumanReviewError.__subclasses__()), set[str]()
+    while pending:
+        error = pending.pop()
+        names.add(error.__name__)
+        pending.extend(error.__subclasses__())
+    return frozenset(names)
+
+
+# Every ValidationIssue code src can emit; a test rebuilds this set from src so it cannot drift.
+KNOWN_ISSUE_CODES = frozenset(
+    {
+        "change_type_mismatch",
+        "empty_context_map",
+        "empty_section_mapping",
+        "inconsistent_extraction",
+        "missing_structural_change",
+        "quote_rule_violation",
+        "removed_quote_mismatch",
+        "schema_violation",
+        "section_order",
+        "section_origin_mismatch",
+        "ungrounded_quote",
+        "ungrounded_reference",
+        "unparseable_output",
+        "unresolved_section_reference",
+        "untargeted_delta_change",
+    }
+)
+
+
 class CaseSpec(BaseModel):
     """The case.yaml declaration: the source of truth every artifact is derived from."""
 
@@ -185,6 +218,16 @@ class CaseSpec(BaseModel):
     key_facts: tuple[str, ...]
     reference_summary: str
     expected_error: str | None = None
+
+    @field_validator("expected_error")
+    @classmethod
+    def check_expected_error(cls, value: str | None) -> str | None:
+        """A Human Review error name or issue code; a typo would make the case unwinnable."""
+        if value is not None and value not in human_review_error_names() | KNOWN_ISSUE_CODES:
+            raise ValueError(
+                "expected_error must name a NeedsHumanReviewError subclass or a known issue code"
+            )
+        return value
 
 
 def load_case_spec(path: Path) -> CaseSpec:

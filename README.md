@@ -146,6 +146,7 @@ Image resolution: OpenAI scales every image to fit 2048×2048 px, so scanning ab
 | `PARSE_CACHE_ENABLED` | no | by `APP_ENV` | optional bool | Unset: on in `development`, off elsewhere; `production` needs an explicit opt-in |
 | `PARSE_CACHE_TTL_HOURS` | no | `24` | ≥ 1 | Lazy expiry of cached transcriptions |
 | `LOG_LEVEL` | no | `INFO` | `DEBUG` \| `INFO` \| `WARNING` \| `ERROR` \| `CRITICAL` | Logs to stderr |
+| `JUDGE_MODEL` | no | `gpt-4.1` | not empty; differs from `EXTRACTION_MODEL` | Evals only (`EvalSettings` in `evals/settings.py`): the Judge of `summary_of_the_change` |
 
 Deliberately not configurable: personal-data masking (always on), the semantic retries (exactly one per agent) and model fallback (none in this delivery). The public `cloud.langfuse.com` host is for synthetic data only.
 
@@ -259,17 +260,19 @@ Three levels, each answering a different question:
 |---|---|---|---|
 | Unit + architecture | Does the code do what it says? | `uv run pytest` | No |
 | Integration | Does it work against the real APIs? | `uv run pytest -m integration` | Yes (OpenAI and Langfuse) |
-| Evals | Is the system good at analysing contracts? | `uv run python evals/run_evals.py` (phase 2) | Yes |
+| Evals | Is the system good at analysing contracts? | `PYTHONPATH=src uv run python evals/run_evals.py --split calibration` | Yes (OpenAI and Langfuse) |
 
 ```bash
 uv run pytest                                                       # unit + architecture, no .env needed
 uv run ruff check . && uv run ruff format --check . && uv run mypy src   # style gate
 uv run pytest -m integration                                        # spends OpenAI and Langfuse credit
+PYTHONPATH=src uv run python evals/run_evals.py --split calibration  # spends credit; src must be on the path
 ```
 
 - **Unit tests** replace adapters with recording doubles (`RecordingTracer`, scripted structured models) and run offline.
 - **Architecture tests** (`tests/test_layering.py`, `tests/test_llm_schema.py`, `tests/test_requirements.py`, `tests/test_readme.py`, `tests/test_gitignore.py`, `tests/test_ci_workflow.py`) check the dependency direction, the strict JSON-schema subset, the `==` pins, the deliverables, this README and `.env.example`, the git-ignored secrets and caches, and the CI workflow.
 - **Integration tests** run real vision and both agents on the two pairs, read the trace back through the Langfuse API, and prove that masking and the fail-closed flush work end to end. They are skipped when the keys are missing.
+- **Evals** run every reviewed case of a Split through the same composition root as the CLI, grade it with pure checks (`evals/metrics.py`: CER, `amendment_kind` accuracy, micro precision and recall of `sections_changed`, `change_type` accuracy, topic Jaccard, Key Fact coverage, the Judge on `JUDGE_MODEL` and the expected exit `10`), write `outputs/eval_report.json` (global, per category, per Amendment Kind and per case, with the evaluable case count of each metric; N/A never counts as 0), compare it with `outputs/baseline.json` when that file exists, and publish the Split as a Langfuse Dataset and the run as an Experiment with the checks as evaluators. In `development` the parse cache is on by default, so a re-run within `PARSE_CACHE_TTL_HOURS` reuses the cached transcriptions: its CER repeats the first run's instead of measuring vision again. Set `PARSE_CACHE_ENABLED=false` (or clear `.cache/parsed`) to re-measure CER.
 - **CI** (`.github/workflows/ci.yml`) runs the style gate and the unit tests on every push. It has no secrets and never runs integration tests or evals.
 
 ### Measured results

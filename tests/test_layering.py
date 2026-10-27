@@ -245,15 +245,12 @@ def test_leak_detection_ignores_yaml_keys_in_front_matter(tmp_path: Path) -> Non
     assert golden_fragments(tmp_path) == {"en prueba de conformidad se firman dos ejemplares."}
 
 
-EVALS_MODULES = {
-    "generate_golden",
-    "golden_case",
-    "golden_text",
-    "golden_render",
-    "golden_degrade",
-    "render_plain",
-    "playwright",
-}
+# Derived from the folder, so a new eval module (run_evals, metrics, settings...) is covered too.
+EVALS_MODULES = {path.stem for path in (ROOT / "evals").glob("*.py")} | {"playwright"}
+
+
+def test_evals_module_list_is_not_vacuous() -> None:
+    assert {"generate_golden", "run_evals", "metrics", "settings"} <= EVALS_MODULES
 
 
 def test_src_never_imports_evals_modules_or_playwright() -> None:

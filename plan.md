@@ -65,10 +65,11 @@ src/
     └── structured_output.py            plumbing compartido de with_structured_output (include_raw, retry)
 data/test_contracts/       *        ≥ 2 pares (PNG + source_*.txt) + README
 data/golden/                        golden set (sección 6.4)
-evals/                              render_plain.py, generate_golden.py, golden_case.py, golden_text.py, golden_render.py, golden_degrade.py, run_evals.py, EvalSettings
-outputs/                            eval_report.json (ignorado por git), baseline.json (commiteado)
+evals/                              render_plain.py, generate_golden.py, golden_case.py, golden_text.py, golden_render.py, golden_degrade.py, run_evals.py, settings.py (EvalSettings), metrics.py, eval_case.py, eval_report.py, judge.py, case_runner.py, experiment_publisher.py, langfuse_publisher.py
+outputs/                            eval_report.json (ignorado por git; incluye experiment_url), baseline.json (commiteado)
 tests/
-└── evals/                          tests del generador de golden y del golden set commiteado
+├── eval_doubles.py                 casos y corridas sintéticos y RecordingPublisher para los tests de evals
+└── evals/                          tests del generador de golden, del golden set commiteado y del runner de evals
 pyproject.toml                      sin [build-system]; pytest con pythonpath = ["src", "tests", "evals"]
 requirements.txt           *        exportado desde uv.lock
 .env.example               *
@@ -760,9 +761,12 @@ Los umbrales son **objetivos iniciales**. Se ajustan exclusivamente con `calibra
 
 ### 6.7 Ejecución de las evals
 
-- `evals/run_evals.py --split validation` corre el pipeline completo sobre cada caso.
+- `PYTHONPATH=src uv run python evals/run_evals.py --split calibration` (o `--split validation`) corre el pipeline completo sobre cada caso revisado del split, a través de `main.run_traced` y con un Container nuevo por caso (el presupuesto de tiempo arranca al construirlo). El pipeline corre antes y fuera del Experiment.
+- El task del Experiment reproduce cada `CaseRun` ya registrado; los checks son los evaluadores y un resultado N/A no emite score.
+- Agregación: micro (numeradores y denominadores sumados) para CER, exactitud de `amendment_kind`, P/R, `change_type`, `key_facts` y `human_review`; media por caso para el Jaccard de temas y el juez.
+- El CER colapsa los espacios y une ambas páginas contra sus `source_*.txt`. `expected_error` se cumple con exit `10` y el nombre del error o uno de sus códigos de issue.
 - Escribe `outputs/eval_report.json` con las métricas globales, por categoría, por `amendment_kind` y por caso.
-- Compara contra `outputs/baseline.json` y marca las regresiones.
+- Compara contra `outputs/baseline.json`, solo si es del mismo split, y marca las regresiones: un movimiento en la dirección peor que supera la tolerancia (`1e-9` en los ratios; `0.25` puntos en la media del juez, que no es determinista a temperatura 0) o una caída en el conteo de casos evaluables.
 - Publica el set como **Dataset de Langfuse** y cada corrida como un **Experiment**, con los checks como evaluadores. Es el patrón de `observability/experiments.py` de `orchestration`.
 - Los checks de las evals son funciones puras `(resultado, caso) -> score`, separadas del adaptador de Langfuse.
 - `JUDGE_MODEL` se lee de `EvalSettings` (sección 5.1), no de `Settings`.
@@ -1091,6 +1095,7 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 70 | `budget.py` (dominio) y `budgeted_model.py` (adaptador) se suman al layout; el presupuesto fija timeout y reintentos del SDK por intento | Los reintentos de transporte del SDK reusan el mismo timeout y podían exceder los 300 s | 1, 5.1 | 2026-10-26 |
 | 71 | `auth_check()` al inicializar el tracer; la entrega posterior al `flush()` es best-effort; acota la decisión 53 | Langfuse no propaga los errores de exportación OTLP, así que `flush()` no puede confirmar la entrega | 5.7 | 2026-10-26 |
 | 72 | El generador de golden renderiza con Playwright y 4 plantillas HTML (`one_column`, `two_column`, `table`, `roman_articles`); `render_plain.py` solo conserva las constantes de página y la fuente compartidas y pierde su CLI; supera la "plantilla plain posterior" de la decisión 34 | El ticket T7 fija 4 plantillas HTML; mantener la CLI de la fase 1 pisaría los PNG de los pares generados desde los golden Standard | 6.4, 6.5 | 2026-10-27 |
+| 73 | El Experiment de Langfuse reproduce corridas ya hechas y `connect_langfuse` es el único constructor del cliente | No se paga dos veces; el reporte sobrevive a una falla de Langfuse; el SDK guarda un resource manager por clave pública y el primer cliente fija mask, media y environment. Costo: el Experiment no muestra latencia ni costo del pipeline, el `trace_id` real vive en el output del item y enlazar la traza real exigiría el endpoint deprecado `dataset-run-items` | 5.6, 6.7 | 2026-10-27 |
 
 ## 9. Diagrama de LegalMove pipeline
 

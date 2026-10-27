@@ -6,6 +6,7 @@ CLI that reads two scanned contract images (original and amendment) and returns 
 
 - `uv run pytest` runs unit tests; integration tests are excluded by default.
 - `uv run pytest -m integration` runs integration tests against real OpenAI and Langfuse. Only on the author's explicit request.
+- `PYTHONPATH=src uv run python evals/run_evals.py --split calibration` runs the evals against real OpenAI and Langfuse and spends credit. Only on the author's explicit request.
 - `uv run ruff check . && uv run ruff format --check . && uv run mypy src` is the style gate; must be green before every commit.
 - `uv run python src/main.py <original.png> <amendment.png>` runs the pipeline.
 - `uv add <pkg>` or `uv add --dev <pkg>`, never `pip`. Pin with `==` (`uv add 'pkg==1.2.3'`). Then `uv export --format requirements-txt --no-hashes --no-emit-project --no-dev > requirements.txt`.
