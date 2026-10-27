@@ -13,13 +13,13 @@ from pydantic import ValidationError
 
 from agents.contextualization_agent import (
     ContextualizationInput,
-    build_contextualization_agent,
+    build_contextualization_stage,
     build_structured_context_models,
 )
 from agents.extraction_agent import (
     EXTRACTION_PROMPT_VERSION,
     ExtractionInput,
-    build_extraction_agent,
+    build_extraction_stage,
     build_structured_extraction_models,
 )
 from checks import is_grounded
@@ -93,23 +93,23 @@ def extract_in_own_trace(
 ) -> tuple[str, ExtractionResult, ContextualizationInput]:
     """The real agent 1 builds the map, so agent 2 sees exactly what the pipeline will give it."""
     tracer = build_tracer(settings)
-    contextualize = build_contextualization_agent(
+    contextualize = build_contextualization_stage(
         build_structured_context_models(chat_model(settings, settings.contextualization_model)),
         tracer,
     )
-    extract = build_extraction_agent(
+    extract = build_extraction_stage(
         build_structured_extraction_models(chat_model(settings, settings.extraction_model)),
         tracer,
     )
     contracts = source_contracts(pair)
     client = get_client(public_key=settings.langfuse_public_key.get_secret_value())
     with client.start_as_current_observation(name="extraction-integration-test", as_type="span"):
-        context_map = contextualize.invoke(contracts)
+        context_map = contextualize.invoke(contracts).result
         result = extract.invoke(
             ExtractionInput(
                 context_map=context_map, original=contracts.original, amendment=contracts.amendment
             )
-        )
+        ).result
         trace_id = client.get_current_trace_id()
     assert trace_id
     return trace_id, result, contracts

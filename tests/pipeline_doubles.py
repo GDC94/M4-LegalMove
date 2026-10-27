@@ -5,22 +5,28 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from models import (
+    AgentOutcome,
     AmendmentKind,
     ContextMap,
     DocumentRole,
     ExtractionResult,
     ParsedContract,
     SectionMapping,
+    SemanticRetries,
 )
 from observability import PipelineTracer
 from pipeline import PipelineStages
 
 ORIGINAL_TEXT = "CONTRATO\nCláusula Primera — Precio. $ 1.500.000."
-AMENDMENT_TEXT = "ADENDA\nCláusula Primera — Precio. $ 1.850.000."
+# The amended clause differs well beyond any plausible diff threshold, so difflib and the
+# stub ExtractionAgent agree on Section 1 (diff_agreement 1.0).
+AMENDMENT_TEXT = (
+    "ADENDA\nCláusula Primera — Precio. $ 1.850.000, pagaderos en doce cuotas mensuales iguales."
+)
 
 
-def parsed(role: DocumentRole, path: Path) -> ParsedContract:
-    text = ORIGINAL_TEXT if role is DocumentRole.ORIGINAL else AMENDMENT_TEXT
+def parsed(role: DocumentRole, path: Path, amendment_text: str = AMENDMENT_TEXT) -> ParsedContract:
+    text = ORIGINAL_TEXT if role is DocumentRole.ORIGINAL else amendment_text
     sha = "a" * 64 if role is DocumentRole.ORIGINAL else "b" * 64
     return ParsedContract(role=role, source_path=str(path), image_sha256=sha, text=text)
 
@@ -71,6 +77,10 @@ class StubStages:
     failures: dict[str, BaseException] = field(default_factory=dict)
     extraction_result: Callable[[], ExtractionResult] = extraction
     on_call: Callable[[str], None] = lambda _: None
+    context_map_result: Callable[[], ContextMap] = context_map
+    amendment_text: str = AMENDMENT_TEXT
+    context_retries: SemanticRetries = 0
+    extraction_retries: SemanticRetries = 0
 
     def ports(self) -> PipelineStages:
         return PipelineStages(
@@ -89,19 +99,21 @@ class StubStages:
         name = f"parse_{role.value}_contract"
         with self.tracer.stage(name, {"path": path.name}):
             self._enter(name)
-            return parsed(role, path)
+            return parsed(role, path, self.amendment_text)
 
-    def contextualize(self, original: ParsedContract, amendment: ParsedContract) -> ContextMap:
+    def contextualize(
+        self, original: ParsedContract, amendment: ParsedContract
+    ) -> AgentOutcome[ContextMap]:
         assert (original.role, amendment.role) == (DocumentRole.ORIGINAL, DocumentRole.AMENDMENT)
         with self.tracer.stage("contextualization_agent", {}):
             self._enter("contextualization_agent")
-            return context_map()
+            return AgentOutcome(self.context_map_result(), self.context_retries)
 
     def extract(
         self, mapped: ContextMap, original: ParsedContract, amendment: ParsedContract
-    ) -> ExtractionResult:
-        assert mapped == context_map()
-        assert (original.text, amendment.text) == (ORIGINAL_TEXT, AMENDMENT_TEXT)
+    ) -> AgentOutcome[ExtractionResult]:
+        assert mapped == self.context_map_result()
+        assert (original.text, amendment.text) == (ORIGINAL_TEXT, self.amendment_text)
         with self.tracer.stage("extraction_agent", {}):
             self._enter("extraction_agent")
-            return self.extraction_result()
+            return AgentOutcome(self.extraction_result(), self.extraction_retries)

@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from agents.contextualization_agent import (
     CONTEXTUALIZATION_PROMPT_VERSION,
     ContextualizationInput,
-    build_contextualization_agent,
+    build_contextualization_stage,
     build_structured_context_models,
 )
 from config import Settings
@@ -76,10 +76,10 @@ def contextualize_in_own_trace(settings: Settings, pair: str) -> tuple[str, Cont
         max_retries=settings.llm_max_retries,
         openai_api_key=settings.openai_api_key,
     )
-    agent = build_contextualization_agent(build_structured_context_models(chat_model), tracer)
+    agent = build_contextualization_stage(build_structured_context_models(chat_model), tracer)
     client = get_client(public_key=settings.langfuse_public_key.get_secret_value())
     with client.start_as_current_observation(name="context-integration-test", as_type="span"):
-        context_map = agent.invoke(source_input(pair))
+        context_map = agent.invoke(source_input(pair)).result
         trace_id = client.get_current_trace_id()
     assert trace_id
     return trace_id, context_map

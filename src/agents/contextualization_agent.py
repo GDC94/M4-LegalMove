@@ -27,7 +27,7 @@ from errors import (
     UnclassifiableAmendmentError,
     UpstreamError,
 )
-from models import AmendmentKind, ContextMap, ParsedContract
+from models import AgentOutcome, AmendmentKind, ContextMap, ParsedContract, SemanticRetries
 from prompt_blocks import serialize_block
 
 if TYPE_CHECKING:
@@ -125,11 +125,12 @@ def build_structured_context_models(chat_model: BaseChatModel) -> StructuredCont
     return build_structured_models(chat_model, CONTEXT_MAP_RESPONSE_FORMAT)
 
 
-def build_contextualization_agent(
+def build_contextualization_stage(
     models: StructuredContextModels, tracer: PipelineTracer
-) -> Runnable[ContextualizationInput, ContextMap]:
+) -> Runnable[ContextualizationInput, AgentOutcome[ContextMap]]:
+    """The agent as the pipeline's port: the Context Map plus its semantic retries (plan §3.3)."""
     agent = ContextualizationAgent(models, tracer)
-    return RunnableLambda(agent.contextualize, name="contextualization_agent")
+    return RunnableLambda(agent.run, name="contextualization_agent")
 
 
 class ContextualizationAgent:
@@ -139,7 +140,7 @@ class ContextualizationAgent:
         self._models = models
         self._tracer = tracer
 
-    def contextualize(self, request: ContextualizationInput) -> ContextMap:
+    def run(self, request: ContextualizationInput) -> AgentOutcome[ContextMap]:
         with self._tracer.stage(
             "contextualization_agent",
             describe_request(request),
@@ -147,18 +148,21 @@ class ContextualizationAgent:
         ) as span:
             heuristic = detect_kind_heuristic(request.amendment.text)
             span.set_metadata({"kind_heuristic": heuristic.value})
-            return accept_attempt(self._run_attempts(request, span), span)
+            attempt, retries = self._run_attempts(request, span)
+            return AgentOutcome(accept_attempt(attempt, span), retries)
 
-    def _run_attempts(self, request: ContextualizationInput, span: StageSpan) -> MapAttempt:
+    def _run_attempts(
+        self, request: ContextualizationInput, span: StageSpan
+    ) -> tuple[MapAttempt, SemanticRetries]:
         """Unknown is a valid answer, so it never spends the retry."""
         attempt = self._attempt(self._models.attempt, request, "")
-        retries = 1 if attempt.feedback else 0
+        retries: SemanticRetries = 1 if attempt.feedback else 0
         # Recorded before the retry call so a failing retry still leaves it in the trace.
         span.set_metadata({"context_retries": retries})
         self._tracer.score("context_retries", retries)
         if not retries:
-            return attempt
-        return self._attempt(self._models.retry, request, render_map_retry(attempt))
+            return attempt, retries
+        return self._attempt(self._models.retry, request, render_map_retry(attempt)), retries
 
     def _attempt(
         self, model: StructuredModel, request: ContextualizationInput, retry_blocks: str

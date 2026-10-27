@@ -23,7 +23,15 @@ from agents.structured_output import (
 )
 from checks import build_feedback, check_extraction, compute_grounding_rate
 from errors import InvalidExtractionError, RetryFeedback, UpstreamError
-from models import NO_CHANGES, TOPIC_DESCRIPTIONS, ContextMap, ExtractionResult, ParsedContract
+from models import (
+    NO_CHANGES,
+    TOPIC_DESCRIPTIONS,
+    AgentOutcome,
+    ContextMap,
+    ExtractionResult,
+    ParsedContract,
+    SemanticRetries,
+)
 from prompt_blocks import render_context_map, serialize_block
 
 if TYPE_CHECKING:
@@ -138,11 +146,12 @@ def build_structured_extraction_models(chat_model: BaseChatModel) -> StructuredE
     return build_structured_models(chat_model, EXTRACTION_RESPONSE_FORMAT)
 
 
-def build_extraction_agent(
+def build_extraction_stage(
     models: StructuredExtractionModels, tracer: PipelineTracer
-) -> Runnable[ExtractionInput, ExtractionResult]:
+) -> Runnable[ExtractionInput, AgentOutcome[ExtractionResult]]:
+    """The agent as the pipeline's port: the ExtractionResult plus its semantic retries (§3.3)."""
     agent = ExtractionAgent(models, tracer)
-    return RunnableLambda(agent.extract, name="extraction_agent")
+    return RunnableLambda(agent.run, name="extraction_agent")
 
 
 class ExtractionAgent:
@@ -152,29 +161,32 @@ class ExtractionAgent:
         self._models = models
         self._tracer = tracer
 
-    def extract(self, request: ExtractionInput) -> ExtractionResult:
+    def run(self, request: ExtractionInput) -> AgentOutcome[ExtractionResult]:
         with self._tracer.stage(
             "extraction_agent",
             describe_request(request),
             {"extraction_prompt_version": EXTRACTION_PROMPT_VERSION},
         ) as span:
-            attempt = self._run_attempts(request, span)
+            attempt, retries = self._run_attempts(request, span)
             self._record_validation(attempt, request, span)
-            return accept_attempt(attempt, span)
+            return AgentOutcome(accept_attempt(attempt, span), retries)
 
-    def _run_attempts(self, request: ExtractionInput, span: StageSpan) -> ExtractionAttempt:
+    def _run_attempts(
+        self, request: ExtractionInput, span: StageSpan
+    ) -> tuple[ExtractionAttempt, SemanticRetries]:
         attempt = self._attempt(self._models.attempt, request, "")
-        retries = 1 if attempt.feedback else 0
+        retries: SemanticRetries = 1 if attempt.feedback else 0
         # Recorded before the retry call so a failing retry still leaves it in the trace.
         span.set_metadata({"extraction_retries": retries})
         self._tracer.score("extraction_retries", retries)
         if not retries:
-            return attempt
+            return attempt, retries
         # Internal feedback may quote documents; the adapter's mask hook covers span metadata.
         span.set_metadata(
             {"retry_feedback": [describe_feedback(item) for item in attempt.feedback]}
         )
-        return self._attempt(self._models.retry, request, render_extraction_retry(attempt))
+        retry_blocks = render_extraction_retry(attempt)
+        return self._attempt(self._models.retry, request, retry_blocks), retries
 
     def _attempt(
         self, model: StructuredModel, request: ExtractionInput, retry_blocks: str

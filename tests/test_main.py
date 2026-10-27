@@ -356,7 +356,8 @@ def test_build_container_agents_get_timeout_and_retries_planned_by_the_budget(
         parsed(DocumentRole.ORIGINAL, Path("o.png")), parsed(DocumentRole.AMENDMENT, Path("a.png"))
     )
 
-    assert mapped == context_map()
+    assert mapped.result == context_map()
+    assert mapped.retries == 0
     assert limits == [(60, 2)]
 
 

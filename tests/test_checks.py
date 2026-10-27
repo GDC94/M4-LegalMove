@@ -1,15 +1,21 @@
-"""Deterministic Checks: Context Map, extraction, grounding normalization and Kind Heuristic."""
+"""Deterministic Checks: Context Map, extraction, grounding, Kind Heuristic and soft signals."""
 
 from pathlib import Path
 
 import pytest
 
 from checks import (
+    DIFF_RATIO_THRESHOLD,
+    DiffAgreement,
     KindHeuristic,
     check_context_map,
     check_extraction,
+    compute_diff_agreement,
     compute_grounding_rate,
+    compute_kind_agreement,
+    compute_other_topic_rate,
     detect_kind_heuristic,
+    is_changed_by_diff,
     is_grounded,
     normalize_for_grounding,
 )
@@ -572,3 +578,194 @@ def test_heuristic_on_the_test_contract_pairs() -> None:
 
     assert detect_kind_heuristic(restated) is KindHeuristic.INCONCLUSIVE
     assert detect_kind_heuristic(delta) is KindHeuristic.DELTA
+
+
+# --- soft signals: diff_agreement ---
+
+
+def diff(
+    context: ContextMap, sections_changed: list[str], amendment: str = AMENDMENT
+) -> DiffAgreement | None:
+    return compute_diff_agreement(context, sections_changed, ORIGINAL, amendment)
+
+
+def test_threshold_is_a_constant_of_the_checks() -> None:
+    assert DIFF_RATIO_THRESHOLD == 0.97
+
+
+def test_a_ratio_exactly_at_the_threshold_is_unchanged() -> None:
+    original = "a" * 100
+    at_threshold = "a" * 97 + "bcd"  # 2 * 97 / 200 == 0.97
+    below_threshold = "a" * 96 + "bcde"  # 0.96
+
+    assert not is_changed_by_diff(original, original)
+    assert not is_changed_by_diff(original, at_threshold)
+    assert is_changed_by_diff(original, below_threshold)
+
+
+def test_diff_agreement_is_one_when_difflib_and_the_agent_mark_the_same_sections() -> None:
+    assert diff(valid_map(), ["3", "new:4"]) == DiffAgreement(1.0, 3, 3)
+
+
+def test_diff_agreement_is_the_jaccard_of_both_sets() -> None:
+    # difflib marks {3}; the agent marks {2, 3}: one shared over two in the union.
+    assert diff(valid_map(), ["2", "3", "new:4"]) == DiffAgreement(0.5, 3, 3)
+    assert diff(valid_map(), ["2"]) == DiffAgreement(0.0, 3, 3)
+
+
+def test_only_sections_present_in_both_documents_are_diffed() -> None:
+    # new:4 has no original side: the hard structural check owns it, not difflib. It never
+    # enters the total, and the agent's mark on it never enters the agent's set.
+    assert diff(valid_map(), ["3"]) == DiffAgreement(1.0, 3, 3)
+    assert diff(valid_map(), ["new:4"]) == DiffAgreement(0.0, 3, 3)
+
+
+def test_segmentation_locates_refs_after_grounding_normalization() -> None:
+    shouting = context_map(
+        mapping("1"),
+        mapping("2"),
+        mapping("3", original_ref="CLÁUSULA   TERCERA", amendment_ref="cláusula tercera"),
+        mapping("new:4", original_ref=None),
+    )
+
+    assert diff(shouting, ["3", "new:4"]) == DiffAgreement(1.0, 3, 3)
+
+
+def test_each_section_is_cut_at_the_next_ref_in_document_order() -> None:
+    # Without the new:4 cut, section 3 of the amendment would swallow "Cuarta" and still be
+    # changed; with section 3 unchanged, the cut is what keeps it equal.
+    amendment = AMENDMENT.replace("$ 1.850.000", "$ 1.500.000")
+
+    assert diff(valid_map(), ["new:4"], amendment) == DiffAgreement(1.0, 3, 3)
+
+
+def test_a_ref_that_is_not_found_leaves_its_section_out_and_lowers_coverage() -> None:
+    missing = context_map(
+        mapping("1", original_ref="Cláusula Novena"),
+        mapping("2"),
+        mapping("3"),
+        mapping("new:4", original_ref=None),
+    )
+
+    # Section 1 drops out of both sets, so the agent's mark on it cannot count.
+    assert diff(missing, ["1", "3", "new:4"]) == DiffAgreement(1.0, 2, 3)
+    assert diff(missing, ["1"]) == DiffAgreement(0.0, 2, 3)
+
+
+def test_diff_agreement_is_one_when_both_sets_are_empty_with_coverage() -> None:
+    unchanged = AMENDMENT.replace("$ 1.850.000", "$ 1.500.000")
+
+    assert diff(valid_map(), ["new:4"], unchanged) == DiffAgreement(1.0, 3, 3)
+
+
+def test_diff_agreement_is_not_applicable_without_segmentable_sections() -> None:
+    lost = context_map(
+        mapping("1", original_ref="Artículo I"),
+        mapping("2", original_ref="Artículo II"),
+        mapping("new:4", original_ref=None),
+    )
+
+    result = diff(lost, ["2"])
+
+    assert result == DiffAgreement(None, 0, 2)
+    assert result is not None and result.value is None  # N/A, never 0
+
+
+def test_diff_agreement_is_not_applicable_in_delta() -> None:
+    assert diff(delta_map(), ["2"]) is None
+
+
+# --- soft signals: kind_agreement and other_topic_rate ---
+
+
+def test_kind_agreement_compares_a_delta_heuristic_with_the_agent() -> None:
+    assert compute_kind_agreement(AmendmentKind.DELTA, KindHeuristic.DELTA) == 1
+    assert compute_kind_agreement(AmendmentKind.RESTATED, KindHeuristic.DELTA) == 0
+
+
+@pytest.mark.parametrize("kind", [AmendmentKind.DELTA, AmendmentKind.RESTATED])
+def test_kind_agreement_is_not_applicable_when_the_heuristic_is_inconclusive(
+    kind: AmendmentKind,
+) -> None:
+    assert compute_kind_agreement(kind, KindHeuristic.INCONCLUSIVE) is None
+
+
+def test_other_topic_rate_is_the_share_of_other_topics() -> None:
+    other = change("2", ChangeType.MODIFIED, "Doce meses", "Doce meses", Topic.OTHER)
+
+    assert compute_other_topic_rate(extraction(other, price_change()).changes) == 0.5
+    assert compute_other_topic_rate(extraction(price_change()).changes) == 0.0
+
+
+def test_other_topic_rate_is_not_applicable_without_changes() -> None:
+    assert compute_other_topic_rate(extraction().changes) is None
+
+
+# --- soft signals: segmentation edge cases ---
+
+
+def two_section_map(original_ref: str, amendment_ref: str) -> ContextMap:
+    return context_map(
+        mapping("1", original_ref=original_ref, amendment_ref=amendment_ref), mapping("2")
+    )
+
+
+def test_a_heading_only_renumbering_is_not_flagged_as_changed() -> None:
+    original = "Cláusula Primera - Precio. Diez.\nCláusula Segunda - Plazo. Doce meses."
+    amendment = "Cláusula 1 - Precio. Diez.\nCláusula Segunda - Plazo. Doce meses."
+
+    result = compute_diff_agreement(
+        two_section_map("Cláusula Primera", "Cláusula 1"), [], original, amendment
+    )
+
+    assert result == DiffAgreement(1.0, 2, 2)
+
+
+def test_refs_sharing_the_same_text_collide_and_are_not_segmentable() -> None:
+    duplicated = context_map(
+        mapping("1"),
+        mapping("2", original_ref="Cláusula Primera", amendment_ref="Cláusula Primera"),
+        mapping("3"),
+        mapping("new:4", original_ref=None),
+    )
+
+    assert diff(duplicated, ["3", "new:4"]) == DiffAgreement(1.0, 1, 3)
+
+
+def test_a_ref_that_also_appears_as_an_earlier_cross_reference_is_not_segmentable() -> None:
+    cross = " Rige lo dispuesto en la Cláusula Tercera."
+    original = ORIGINAL.replace("Servicios.", "Servicios." + cross)
+    amendment = AMENDMENT.replace("Servicios.", "Servicios." + cross)
+
+    result = compute_diff_agreement(valid_map(), ["3", "new:4"], original, amendment)
+
+    # Section 3 is ambiguous; its occurrences still cut the neighbours, so 1 and 2 stay equal.
+    assert result == DiffAgreement(1.0, 2, 3)
+
+
+def test_adjacent_refs_and_a_ref_at_the_end_leave_empty_segments_out() -> None:
+    original = "Cláusula Primera\nCláusula Segunda - Plazo. Doce meses.\nCláusula Tercera"
+    amendment = "Cláusula Primera\nCláusula Segunda - Plazo. Doce meses.\nCláusula Tercera"
+    headings_only = context_map(mapping("1"), mapping("2"), mapping("3"))
+
+    result = compute_diff_agreement(headings_only, [], original, amendment)
+
+    assert result == DiffAgreement(1.0, 1, 3)
+
+
+def test_a_new_section_inserted_mid_amendment_cuts_the_section_before_it() -> None:
+    original = "Cláusula Primera - Objeto. Servicios.\nCláusula Segunda - Plazo. Doce meses."
+    amendment = (
+        "Cláusula Primera - Objeto. Servicios.\n"
+        "Cláusula Nueva - Confidencialidad. Reserva total de la información.\n"
+        "Cláusula Segunda - Plazo. Doce meses."
+    )
+    inserted = context_map(
+        mapping("1"),
+        mapping("2"),
+        mapping("new:3", original_ref=None, amendment_ref="Cláusula Nueva"),
+    )
+
+    result = compute_diff_agreement(inserted, ["new:3"], original, amendment)
+
+    assert result == DiffAgreement(1.0, 2, 2)

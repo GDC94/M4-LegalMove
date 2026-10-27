@@ -17,13 +17,13 @@ from langchain_openai import ChatOpenAI
 from agents.contextualization_agent import (
     CONTEXTUALIZATION_PROMPT_VERSION,
     ContextualizationInput,
-    build_contextualization_agent,
+    build_contextualization_stage,
     build_structured_context_models,
 )
 from agents.extraction_agent import (
     EXTRACTION_PROMPT_VERSION,
     ExtractionInput,
-    build_extraction_agent,
+    build_extraction_stage,
     build_structured_extraction_models,
 )
 from budget import AttemptLimits, CallBudget
@@ -256,7 +256,7 @@ def describe_versions(settings: Settings) -> dict[str, object]:
 
 def build_stages(settings: Settings, tracer: PipelineTracer, budget: CallBudget) -> PipelineStages:
     parser = build_parser(settings, tracer, budget)
-    contextualize = build_contextualization_agent(
+    contextualize = build_contextualization_stage(
         build_budgeted_structured_models(
             lambda limits: build_structured_context_models(
                 build_chat_model(settings, settings.contextualization_model, limits)
@@ -265,7 +265,7 @@ def build_stages(settings: Settings, tracer: PipelineTracer, budget: CallBudget)
         ),
         tracer,
     )
-    extract = build_extraction_agent(
+    extract = build_extraction_stage(
         build_budgeted_structured_models(
             lambda limits: build_structured_extraction_models(
                 build_chat_model(settings, settings.extraction_model, limits)

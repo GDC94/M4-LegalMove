@@ -3,6 +3,7 @@
 import re
 from collections import Counter
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 from enum import StrEnum
 from typing import Literal, NamedTuple, Self
 
@@ -394,3 +395,15 @@ def render_change_sentence(change: Change) -> str:
     if not description.rstrip(CLOSING_MARKS).endswith(TERMINAL_PUNCTUATION):
         description += "."
     return f"{change.section_id} — {change.change_type.value}: {description}"
+
+
+# One semantic retry per agent at most (plan §4.4).
+type SemanticRetries = Literal[0, 1]
+
+
+@dataclass(frozen=True)
+class AgentOutcome[T]:
+    """An agent's accepted result and the semantic retries it spent to get it (0 or 1)."""
+
+    result: T
+    retries: SemanticRetries

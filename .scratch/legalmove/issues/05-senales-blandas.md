@@ -12,7 +12,7 @@ Se agregan alarmas suaves. Un programa viejo compara los textos línea por líne
 
 ## Resultado vertical
 
-`difflib`, acuerdo de formato y proporción de `other` como telemetría. La traza del par A muestra `diff_agreement` con cobertura `sections_diffed / sections_total` y `kind_agreement`; la del par B no registra `diff_agreement` (N/A) y sí `kind_agreement = 1`; `other_topic_rate` es N/A sin cambios. Nada de esto reintenta ni bloquea.
+`difflib`, acuerdo de formato y proporción de `other` como telemetría. La traza del par A muestra `diff_agreement` con cobertura `sections_diffed / sections_total` y no registra `kind_agreement` (heurística inconclusa → N/A); la del par B no registra `diff_agreement` (N/A) y sí `kind_agreement = 1`; `other_topic_rate` es N/A sin cambios. Nada de esto reintenta ni bloquea.
 
 ## Cobertura de la consigna
 

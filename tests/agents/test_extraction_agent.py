@@ -19,7 +19,7 @@ from agents.extraction_agent import (
     EXTRACTION_SYSTEM_PROMPT,
     ExtractionInput,
     StructuredExtractionModels,
-    build_extraction_agent,
+    build_extraction_stage,
     build_structured_extraction_models,
 )
 from errors import InvalidExtractionError, UpstreamError
@@ -130,8 +130,8 @@ def run(
 ) -> tuple[ExtractionResult, RecordingStructuredModel, RecordingTracer]:
     model = RecordingStructuredModel(*replies)
     tracer = RecordingTracer()
-    agent = build_extraction_agent(same_model(model), tracer)
-    return agent.invoke(inputs or request()), model, tracer
+    agent = build_extraction_stage(same_model(model), tracer)
+    return agent.invoke(inputs or request()).result, model, tracer
 
 
 def run_failing(
@@ -139,7 +139,7 @@ def run_failing(
 ) -> tuple[pytest.ExceptionInfo[Exception], RecordingStructuredModel, RecordingTracer]:
     model = RecordingStructuredModel(*replies)
     tracer = RecordingTracer()
-    agent = build_extraction_agent(same_model(model), tracer)
+    agent = build_extraction_stage(same_model(model), tracer)
     with pytest.raises(error_type) as caught:
         agent.invoke(request())
     return caught, model, tracer
@@ -149,7 +149,7 @@ def run_failing(
 
 
 def test_builder_returns_a_runnable_that_produces_an_extraction_result() -> None:
-    agent = build_extraction_agent(same_model(RecordingStructuredModel()), RecordingTracer())
+    agent = build_extraction_stage(same_model(RecordingStructuredModel()), RecordingTracer())
     assert isinstance(agent, Runnable)
 
     result, _, _ = run(structured_reply(extraction_payload()))
@@ -238,7 +238,7 @@ def test_the_retry_goes_to_the_retry_model() -> None:
     retry = RecordingStructuredModel(structured_reply(extraction_payload()))
     models = StructuredExtractionModels(attempt=attempt.runnable, retry=retry.runnable)
 
-    build_extraction_agent(models, RecordingTracer()).invoke(request())
+    build_extraction_stage(models, RecordingTracer()).invoke(request())
 
     assert (len(attempt.calls), len(retry.calls)) == (1, 1)
     assert "<validation_errors>" in retry.human_text(0)
@@ -511,7 +511,7 @@ def test_model_calls_carry_the_tracer_callbacks() -> None:
             return (handler,)
 
     model = RecordingStructuredModel(structured_reply(extraction_payload()))
-    build_extraction_agent(same_model(model), CallbackTracer()).invoke(request())
+    build_extraction_stage(same_model(model), CallbackTracer()).invoke(request())
 
     [(_, config)] = model.calls
     assert handler in config["callbacks"].handlers
@@ -636,3 +636,29 @@ def test_an_untargeted_delta_removal_is_retried_with_the_targeted_ids() -> None:
     errors = model.human_text(1).split("<validation_errors>")[1]
     assert "- untargeted_delta_change at changes[0].section_id:" in errors
     assert "the amendment targets only section_ids: 2" in errors
+
+
+# --- pipeline seam: the accepted result with its semantic retries ---
+
+
+def test_stage_hands_the_pipeline_the_result_and_no_retry() -> None:
+    model = RecordingStructuredModel(structured_reply(extraction_payload()))
+    stage = build_extraction_stage(same_model(model), RecordingTracer())
+
+    outcome = stage.invoke(request())
+
+    assert isinstance(outcome.result, ExtractionResult)
+    assert outcome.retries == 0
+
+
+def test_stage_hands_the_pipeline_the_retry_it_spent() -> None:
+    model = RecordingStructuredModel(
+        structured_reply(ungrounded_payload()), structured_reply(extraction_payload())
+    )
+    tracer = RecordingTracer()
+    stage = build_extraction_stage(same_model(model), tracer)
+
+    outcome = stage.invoke(request())
+
+    assert outcome.retries == 1
+    assert ("extraction_retries", 1) in tracer.scores

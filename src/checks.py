@@ -1,8 +1,11 @@
-"""Deterministic Checks: Context Map and extraction rules, grounding and the Kind Heuristic."""
+"""Deterministic Checks: map and extraction rules, grounding, Kind Heuristic, soft signals."""
 
 import re
 import unicodedata
+from collections import Counter
 from collections.abc import Iterator, Mapping, Sequence
+from dataclasses import dataclass
+from difflib import SequenceMatcher
 from enum import StrEnum
 
 from errors import RetryFeedback, ValidationIssue
@@ -13,6 +16,7 @@ from models import (
     ContextMap,
     ExtractionResult,
     SectionMapping,
+    Topic,
     find_order_breaks,
     parse_section_id,
 )
@@ -350,3 +354,101 @@ def detect_kind_heuristic(amendment_text: str) -> KindHeuristic:
     if any(marker.search(normalized) for marker in DELTA_MARKERS):
         return KindHeuristic.DELTA
     return KindHeuristic.INCONCLUSIVE
+
+
+def compute_kind_agreement(kind: AmendmentKind, heuristic: KindHeuristic) -> int | None:
+    """1 or 0 only when the heuristic saw Delta markers; inconclusive is N/A (decision 47)."""
+    if heuristic is KindHeuristic.INCONCLUSIVE:
+        return None
+    return int(kind is AmendmentKind.DELTA)
+
+
+def compute_other_topic_rate(changes: Sequence[Change]) -> float | None:
+    """Share of Changes whose Topic is other; N/A without Changes (decision 47)."""
+    if not changes:
+        return None
+    return sum(change.topic is Topic.OTHER for change in changes) / len(changes)
+
+
+# A Section counts as changed below this ratio; calibrated with the calibration Split (T9),
+# never an environment variable (decision 20).
+DIFF_RATIO_THRESHOLD = 0.97
+
+
+@dataclass(frozen=True)
+class DiffAgreement:
+    """Jaccard of difflib's and the ExtractionAgent's changed Sections, with its coverage.
+
+    `value` is None (N/A) when no Section could be segmented on both sides; never 0.
+    """
+
+    value: float | None
+    sections_diffed: int
+    sections_total: int
+
+
+def is_changed_by_diff(original_segment: str, amendment_segment: str) -> bool:
+    # autojunk off: its popularity heuristic would skew the ratio of longer Sections.
+    matcher = SequenceMatcher(None, original_segment, amendment_segment, autojunk=False)
+    return matcher.ratio() < DIFF_RATIO_THRESHOLD
+
+
+def compute_diff_agreement(
+    context_map: ContextMap,
+    sections_changed: Sequence[str],
+    original_text: str,
+    amendment_text: str,
+) -> DiffAgreement | None:
+    """Soft signal for Restated only (§2.5); Delta has nothing to diff, so it is N/A."""
+    # Validated maps passed check_refs_grounded, so every ref is found: coverage only drops
+    # on ambiguous or colliding refs and empty segments.
+    if context_map.amendment_kind is not AmendmentKind.RESTATED:
+        return None
+    sections = context_map.sections
+    original = segment_sections({s.section_id: s.original_ref for s in sections}, original_text)
+    amendment = segment_sections({s.section_id: s.amendment_ref for s in sections}, amendment_text)
+    paired = [s.section_id for s in sections if s.original_ref and s.amendment_ref]
+    diffed = [
+        section_id for section_id in paired if section_id in original and section_id in amendment
+    ]
+    by_diff = {sid for sid in diffed if is_changed_by_diff(original[sid], amendment[sid])}
+    by_agent = set(sections_changed) & set(diffed)
+    value = jaccard(by_diff, by_agent) if diffed else None
+    return DiffAgreement(value, len(diffed), len(paired))
+
+
+def segment_sections(refs: Mapping[str, str | None], text: str) -> dict[str, str]:
+    """Each located ref's text after its heading, up to the next ref occurrence of any row.
+
+    A ref found once, at a position no other ref shares, and followed by text is segmentable;
+    every other ref is left out and lowers coverage, but all its occurrences still cut.
+    """
+    normalized = normalize_for_grounding(text)
+    needles = {
+        sid: needle for sid, ref in refs.items() if ref and (needle := normalize_for_grounding(ref))
+    }
+    occurrences = {sid: find_occurrences(needle, normalized) for sid, needle in needles.items()}
+    cuts = sorted({position for found in occurrences.values() for position in found})
+    starts = Counter(found[0] for found in occurrences.values() if len(found) == 1)
+    segments = {
+        sid: cut_segment(normalized, found[0] + len(needles[sid]), cuts)
+        for sid, found in occurrences.items()
+        if len(found) == 1 and starts[found[0]] == 1
+    }
+    return {sid: segment for sid, segment in segments.items() if segment}
+
+
+def find_occurrences(needle: str, normalized_text: str) -> list[int]:
+    return [match.start() for match in re.finditer(re.escape(needle), normalized_text)]
+
+
+def cut_segment(normalized_text: str, start: int, cuts: Sequence[int]) -> str:
+    """Up to the next ref occurrence at or after start, stripped; adjacent refs leave it empty."""
+    end = next((cut for cut in cuts if cut >= start), len(normalized_text))
+    return normalized_text[start:end].strip()
+
+
+def jaccard(left: set[str], right: set[str]) -> float:
+    """1.0 when both sets are empty: agreeing that nothing changed is agreement."""
+    union = left | right
+    return len(left & right) / len(union) if union else 1.0
