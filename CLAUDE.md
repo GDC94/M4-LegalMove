@@ -60,9 +60,18 @@ uv run ruff check . && uv run ruff format --check . && uv run mypy src
 - `uv export` includes the `dev` group by default, which would put playwright, jiwer, pytest, ruff and mypy into `requirements.txt`. Always pass `--no-dev`; `tests/test_requirements.py` fails otherwise.
 - `uv add` writes `>=` constraints by default. Pass the version explicitly (`'pkg==1.2.3'`); the requirements test rejects any declared dependency not pinned with `==`.
 - LangChain's fake chat models do not support `with_structured_output`. Put the injection seam above that call and cover structured behavior with integration tests (plan §11).
-- The project is not installable (no `[build-system]`). Imports are absolute from `src/` (`from models import ...`); pytest finds them through `pythonpath = ["src"]`, never through relative imports or `sys.path` hacks.
+- The project is not installable (no `[build-system]`). Imports are absolute from `src/` (`from models import ...`); pytest finds them through `pythonpath = ["src", "tests", "evals"]`, never through relative imports or `sys.path` hacks.
 - `ruff check .` also lints `tests/`: every test module needs a one-line module docstring (`D100`).
 - The real `.env` holds secrets. Never print, stage or commit it; `.gitignore` covers it and `tests/test_gitignore.py` guards that.
+- `with_structured_output` given a Pydantic class validates inside the SDK, so a validator failure raises past `include_raw` and skips the semantic retry. Pass the strict JSON schema dict (`agents/structured_output.py`) and validate ourselves.
+- OpenAI SDK transport retries reuse `request_timeout`, so `max_retries` multiplies the wall time. Build each attempt's model from the remaining budget (`budgeted_model.py`, decision 70).
+- The model copies context map labels such as "[2] Plazo" into `section_id`, and a temperature-0 retry repeats the mistake unless told the valid IDs. Keep the prompt explicit that only the canonical ID is valid, and keep `add_section_id_hints` in the retry feedback.
+- Langfuse v1 `trace.get` answers 410 on Cloud v4. Read traces with the v2 `api.observations.get_many(trace_id=...)`, whose input and metadata may come back as JSON strings.
+- Langfuse v2 scores answer 410 for new orgs (observed body: `LEGACY_API_UNAVAILABLE_FOR_NEW_ORGANIZATION`). Read scores with `api.scores_v3.get_many_v3(trace_id=...)`.
+- `get_client(public_key=...)` only finds a client built earlier in the same process; otherwise every API read answers 401. Build the client (or the tracer) first.
+- Langfuse uploads `data:` URIs as media before the `mask` hook runs, so images would leave the process unmasked. `LANGFUSE_MEDIA_UPLOAD_ENABLED=false` is set before the client is built; do not remove it.
+- Langfuse `flush()` swallows OTLP export errors, so a clean flush does not prove delivery. `auth_check()` at start-up is the only fail-fast check on the keys (decision 71).
+- Pillow's default font has no glyphs for á, ñ or the em dash. `evals/render_plain.py` needs a system TrueType font (DejaVu Sans or Arial) and fails rather than render boxes.
 
 ## Git and GitHub
 

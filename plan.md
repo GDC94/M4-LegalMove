@@ -61,13 +61,14 @@ src/
 ├── observability.py                puerto PipelineTracer + adaptador Langfuse + masking
 └── agents/
     ├── contextualization_agent.py *
-    └── extraction_agent.py        *
+    ├── extraction_agent.py        *
+    └── structured_output.py            plumbing compartido de with_structured_output (include_raw, retry)
 data/test_contracts/       *        ≥ 2 pares (PNG + source_*.txt) + README
 data/golden/                        golden set (sección 6.4)
 evals/                              render_plain.py, generate_golden.py, run_evals.py, EvalSettings
 outputs/                            eval_report.json (ignorado por git), baseline.json (commiteado)
 tests/
-pyproject.toml                      sin [build-system]; pytest con pythonpath = ["src"]
+pyproject.toml                      sin [build-system]; pytest con pythonpath = ["src", "tests", "evals"]
 requirements.txt           *        exportado desde uv.lock
 .env.example               *
 .gitignore
@@ -76,7 +77,7 @@ CLAUDE.md, CONTEXT.md
 README.md                  *
 ```
 
-**Imports y empaquetado.** `src/` es plano y el proyecto no es un paquete instalable: `pyproject.toml` no tiene `[build-system]`. `uv run python src/main.py` pone `src/` en `sys.path`, y todos los imports son absolutos desde esa raíz (`from models import ...`, `from agents.extraction_agent import ...`). Para pytest, `[tool.pytest.ini_options] pythonpath = ["src"]`. `APP_VERSION` es una constante de `config.py` y se usa como `version` de la traza.
+**Imports y empaquetado.** `src/` es plano y el proyecto no es un paquete instalable: `pyproject.toml` no tiene `[build-system]`. `uv run python src/main.py` pone `src/` en `sys.path`, y todos los imports son absolutos desde esa raíz (`from models import ...`, `from agents.extraction_agent import ...`). Para pytest, `[tool.pytest.ini_options] pythonpath = ["src", "tests", "evals"]`. `APP_VERSION` es una constante de `config.py` y se usa como `version` de la traza.
 
 ### Arquitectura
 
@@ -1050,7 +1051,7 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 30 | El mapa contextual se renderiza como texto plano en `<context_map>` | El agente 2 lo lee mejor que un JSON y respeta "texto estructurado" | 3.3, 4.2 | 2026-10-24 |
 | 31 | `ILLEGIBLE_MAX_MARKS` es un conteo absoluto por página | Cada imagen es una página | 5.1 | 2026-10-24 |
 | 32 | `JUDGE_MODEL` vive en `EvalSettings`, no en `Settings` | No es configuración de runtime | 5.1 | 2026-10-24 |
-| 33 | `src/` plano sin `[build-system]`, imports absolutos, `pythonpath = ["src"]`, `APP_VERSION` en `config.py` | Coincide con `uv run python src/main.py` | 1 | 2026-10-24 |
+| 33 | `src/` plano sin `[build-system]`, imports absolutos, `pythonpath = ["src", "tests", "evals"]`, `APP_VERSION` en `config.py` | Coincide con `uv run python src/main.py` | 1 | 2026-10-24 |
 | 34 | `evals/render_plain.py` (Pillow con DejaVu Sans o Arial, 1240×1754, negro sobre blanco) | Imágenes mínimas desde T1 y plantilla "plain" posterior | 6.5 | 2026-10-24 |
 | 35 | Tracker local de tickets y orden de implementación; `git init` en T0 con commits convencionales | Un ticket en verde por commit; documentación primero y README al final | 6.8, 6.9 | 2026-10-24 |
 | 36 | Prompts, heurísticas y umbrales se ajustan solo con `calibration`; `validation` es ciega | Evitar leakage y métricas optimistas | 6.4–6.7 | 2026-10-25 |
@@ -1117,11 +1118,11 @@ flowchart TD
     EXT -->|cambios + citas| CHK
     CHK -->|json bufferizado| FLUSH
     FLUSH -->|traza confirmada| OUT
-    VAL -.->|falla| ERR
-    CHK -.->|falla| ERR
-    CTX -.->|unknown| ERR
-    CTX -.->|mapa inválido ×2| ERR
-    FLUSH -.->|falla| ERR
+    VAL -.->|falla · exit 4| ERR
+    CTX -.->|unknown · exit 10| ERR
+    CTX -.->|mapa inválido ×2 · exit 10| ERR
+    EXT -.->|extracción inválida ×2 · exit 10| ERR
+    FLUSH -.->|falla · exit 5| ERR
 
     subgraph LF["Langfuse · traza contract-analysis"]
         direction LR
@@ -1157,7 +1158,7 @@ flowchart TD
 - `run_id` local siempre; `trace_id` nullable hasta inicializar Langfuse.
 - `flush()` antes de stdout en éxito y en `finally` ante errores.
 
-**Pendiente:** la versión animada todavía no muestra la detección de `amendment_kind` ni la salida por `unknown`. El diagrama Mermaid ya está actualizado.
+La versión animada muestra la detección de `amendment_kind`, la salida por `unknown` (exit `10`) y el gate de flush (exit `5`).
 
 ## 10. Herramientas a utilizar
 
@@ -1203,7 +1204,7 @@ LegalMove todavía no tiene lockfile. Las versiones de referencia salen del `uv.
 
 | Tema | Convención |
 |---|---|
-| Runtime y paquetes | Python 3.14 + uv. `src/` plano sin `[build-system]`, imports absolutos desde `src/` (`from models import ...`) y `pythonpath = ["src"]` para pytest. `requirements.txt` se exporta con `uv export --format requirements-txt --no-hashes --no-emit-project --no-dev`, y un test verifica los pins. Nunca `pip install` directo. |
+| Runtime y paquetes | Python 3.14 + uv. `src/` plano sin `[build-system]`, imports absolutos desde `src/` (`from models import ...`) y `pythonpath = ["src", "tests", "evals"]` para pytest. `requirements.txt` se exporta con `uv export --format requirements-txt --no-hashes --no-emit-project --no-dev`, y un test verifica los pins. Nunca `pip install` directo. |
 | Configuración | `Settings(BaseSettings)` con `env_file=".env"`, secretos como `SecretStr` y rangos con `Field(ge=, le=)`. `.env.example` como template. Solo `main.py` llama a `load_settings()`. |
 | Inyección de dependencias | Cada módulo expone un factory `build_*(chat_model, ...)`. `main.py` es el único punto de cableado y arma un contenedor `@dataclass(frozen=True)`. |
 | Prompts | Viven junto a su builder (cada agente tiene su system prompt). Son `ChatPromptTemplate` en inglés. |
@@ -1307,14 +1308,14 @@ Cada requisito de `requirements.md`, con el entregable que lo cumple, cómo se v
 | ID | Entregable exigido | Path | Verificación | Plan |
 |---|---|---|---|---|
 | E01 | Script principal que acepta dos paths y ejecuta el pipeline completo | `src/main.py` | arq: el archivo existe; int: corrida de punta a punta | 1, 4.7 |
-| E02 | Agente 1 con system prompt y lógica propios | `src/agents/contextualization_agent.py` | arq: el archivo existe y define su prompt | 4.1 |
-| E03 | Agente 2 con system prompt y lógica propios | `src/agents/extraction_agent.py` | arq: el archivo existe y define su prompt | 4.1 |
+| E02 | Agente 1 con system prompt y lógica propios | `src/agents/contextualization_agent.py` | arq: el archivo existe; unit: prompt y reintento | 4.1 |
+| E03 | Agente 2 con system prompt y lógica propios | `src/agents/extraction_agent.py` | arq: el archivo existe; unit: prompt y reintento | 4.1 |
 | E04 | Utilidades de imagen: validación, encoding y llamadas multimodales | `src/image_parser.py` | arq + unit | 1, 5.1 |
 | E05 | Modelos Pydantic con `ContractChangeOutput` | `src/models.py` | arq + unit | 3 |
 | E06 | Mínimo 2 pares (4 imágenes) con README explicativo | `data/test_contracts/` | arq: ≥ 4 imágenes y el README existen; manual: revisión de los pares | 6.5, 8.3 |
 | E07 | README con diagramas, arquitectura, setup, uso y decisiones técnicas | `README.md` | arq: las secciones obligatorias existen | 8.2 |
 | E08 | `requirements.txt` con versiones fijadas | `requirements.txt` | arq: cada dependencia declarada está fijada con `==`; `playwright` y `jiwer` van en el grupo `dev` de uv, así que `requirements.txt` no lleva navegador | 6.2, 10 |
-| E09 | Template de variables de entorno | `.env.example` | arq: contiene todas las variables de `Settings` | 5.1 |
+| E09 | Template de variables de entorno | `.env.example` | arq: `.env.example` lista todas las variables de `Settings` | 5.1 |
 | E10 | Integración con Langfuse con jerarquía de spans | `src/observability.py` | unit + int | 5 |
 | E11 | Repositorio público en GitHub | remoto de GitHub | manual: el repo es público y está actualizado | — |
 

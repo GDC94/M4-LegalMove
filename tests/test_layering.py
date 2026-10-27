@@ -121,7 +121,7 @@ def test_pipeline_never_flushes_or_owns_the_trace_lifecycle() -> None:
 
 
 ROOT = SRC.parent
-# Deliverables of the assignment (plan §1 layout, marked *); the README arrives in T6.
+# Deliverables of the assignment (plan §1 layout, marked *).
 DELIVERABLES = [
     "src/main.py",
     "src/image_parser.py",
@@ -131,6 +131,7 @@ DELIVERABLES = [
     "requirements.txt",
     ".env.example",
     "data/test_contracts/README.md",
+    "README.md",
 ]
 
 
