@@ -334,6 +334,25 @@ def test_an_empty_restated_result_over_differing_text_ends_in_human_review() -> 
     ]
 
 
+def test_a_summary_without_the_parenthetical_number_is_retried_with_its_feedback() -> None:
+    # T13: decision 95's literal number rule, enforced in code instead of only in the prompt.
+    amendment = AMENDMENT_TEXT + " Rige por dos (2) trimestres."
+    dropped = extraction_payload()
+    dropped["summary_of_the_change"] = "Se agrega reserva que rige por dos trimestres."
+
+    result, model, tracer = run(
+        structured_reply(dropped),
+        structured_reply(extraction_payload()),
+        inputs=request(amendment),
+    )
+
+    assert len(model.calls) == 2
+    assert "- number_parenthetical_dropped at summary_of_the_change:" in model.human_text(1)
+    assert "'dos (2) trimestres'" in model.human_text(1)
+    assert tracer.stages[0].metadata["extraction_retries"] == 1
+    assert result.summary_of_the_change == extraction_payload()["summary_of_the_change"]
+
+
 def test_an_unresolved_section_reference_becomes_its_issue() -> None:
     bad = extraction_payload()
     bad["changes"][0]["section_id"] = "7"

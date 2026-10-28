@@ -1427,3 +1427,135 @@ def test_added_and_removed_changes_are_never_reported_as_unchanged() -> None:
     found = unchanged_feedback(result, renumbered_map(), RENUMBERED_ORIGINAL, RENUMBERED_AMENDMENT)
 
     assert found == []
+
+
+# --- number parentheticals (T13, decision 95's literal number rule) -------------------------
+
+NUMERAL_ISSUE = "number_parenthetical_dropped"
+
+
+def numeral_feedback(
+    summary: str,
+    amendment_line: str = "",
+    original_line: str = "",
+    description: str = "Descripción.",
+) -> list[tuple[str, str, str]]:
+    described = price_change().model_copy(update={"description": description})
+    result = extraction(described).model_copy(update={"summary_of_the_change": summary})
+    feedback = check_extraction(
+        result, valid_map(), f"{ORIGINAL}\n{original_line}", f"{AMENDMENT}\n{amendment_line}"
+    )
+    return [
+        (item.issue.path, item.issue.message, item.detail)
+        for item in feedback
+        if item.issue.code == NUMERAL_ISSUE
+    ]
+
+
+def test_a_summary_that_drops_the_parenthetical_number_fails() -> None:
+    [(path, message, detail)] = numeral_feedback(
+        "Exige dos trimestres consecutivos.", "Ventas durante dos (2) trimestres consecutivos."
+    )
+
+    assert path == "summary_of_the_change"
+    assert "trimestres" not in message
+    assert "'dos (2)'" in detail
+    assert "'dos (2) trimestres'" in detail
+
+
+def test_a_change_description_that_drops_the_parenthetical_number_fails() -> None:
+    found = numeral_feedback(
+        "Resumen.",
+        "Ventas durante dos (2) trimestres consecutivos.",
+        description="Exige dos trimestres consecutivos.",
+    )
+
+    assert [path for path, *_ in found] == ["changes[0].description"]
+
+
+def test_the_number_also_comes_from_the_original_contract() -> None:
+    found = numeral_feedback("Antes eran dos trimestres.", original_line="Por dos (2) trimestres.")
+
+    assert [path for path, *_ in found] == ["summary_of_the_change"]
+
+
+@pytest.mark.parametrize(
+    ("amendment_line", "summary"),
+    [
+        ("Hasta dieciocho ( 18 ) camiones.", "Amplía la flota a dieciocho camiones."),
+        ("Recargo del veinte por ciento (20 %) anual.", "Recargo del veinte por ciento anual."),
+        ("Preaviso de cuarenta y cinco (45) días.", "El preaviso pasa a cuarenta y cinco días."),
+    ],
+)
+def test_ocr_spacing_percent_and_compound_numbers_are_still_detected(
+    amendment_line: str, summary: str
+) -> None:
+    assert len(numeral_feedback(summary, amendment_line)) == 1
+
+
+@pytest.mark.parametrize(
+    ("amendment_line", "summary"),
+    [
+        ("Ventas durante dos trimestres consecutivos.", "Exige dos trimestres consecutivos."),
+        ("Ventas durante dos (2) trimestres.", "Exige dos (2) trimestres consecutivos."),
+        ("Ventas durante dos (2) trimestres.", "Lo firman las dos partes."),
+        ("Ventas durante dos (2) trimestres.", "Exige todos trimestres cerrados."),
+        ("Según el Anexo (1) del contrato.", "Según el anexo del contrato."),
+        ("Hasta dieciocho (18).", "Hasta dieciocho camiones."),
+        ("Hasta dieciocho (18) [ILLEGIBLE] camiones.", "Hasta dieciocho camiones."),
+        (
+            "Garantía de dos (2) meses de alquiler y luego dos meses de gracia.",
+            "Suma dos meses de gracia.",
+        ),
+        (
+            "Un canon del veinte por ciento (20 %) del total.",
+            "Una quita del cinco por ciento del total.",
+        ),
+        ("Una multa de un mil (1.000) pesos.", "Una multa de cinco mil pesos."),
+        ("Una (1) vez por año.", "Rige una vez firmada la adenda."),
+    ],
+    ids=[
+        "no-parenthetical",
+        "number-kept",
+        "other-noun",
+        "word-boundary",
+        "not-a-cardinal",
+        "no-next-word",
+        "illegible-next",
+        "phrase-grounded",
+        "other-percent-run",
+        "other-thousands-run",
+        "lone-article",
+    ],
+)
+def test_the_number_check_stays_quiet(amendment_line: str, summary: str) -> None:
+    assert numeral_feedback(summary, amendment_line) == []
+
+
+def test_each_compound_number_keeps_its_own_numeral() -> None:
+    found = numeral_feedback(
+        "Preaviso de cuarenta y cinco días y garantía de treinta y cinco días.",
+        "Preaviso de cuarenta y cinco (45) días. Garantía de treinta y cinco (35) días.",
+    )
+
+    details = [detail for *_, detail in found]
+    assert len(details) == 2
+    assert "'cuarenta y cinco (45) días'" in details[0]
+    assert "'treinta y cinco (35) días'" in details[1]
+
+
+def test_another_compound_number_written_bare_does_not_hide_the_dropped_one() -> None:
+    found = numeral_feedback(
+        "El preaviso pasa a cuarenta y cinco días.",
+        "Preaviso de cuarenta y cinco (45) días. Entrega en treinta y cinco días hábiles.",
+    )
+
+    [(_, _, detail)] = found
+    assert "'cuarenta y cinco (45)'" in detail
+
+
+def test_a_compound_number_ending_in_un_still_counts() -> None:
+    found = numeral_feedback("Plazo de treinta y un días.", "Plazo de treinta y un (31) días.")
+
+    [(_, _, detail)] = found
+    assert "'treinta y un (31) días'" in detail

@@ -71,6 +71,34 @@ def normalize_fact_text(text: str) -> str:
     return SIGN_SPACING.sub("", normalize_text(text))
 
 
+# Articles and prepositions a summary may add or omit without changing the fact ("informe de
+# las ventas" and "informe de ventas"). Whole words only, so "desde" keeps its "de". "un", "una"
+# and "por" stay out: they are part of numbers ("un (1) mes", "veinte por ciento").
+FACT_STOPWORDS = frozenset({"el", "la", "los", "las", "lo", "de", "del", "al"})
+
+
+def drop_fact_stopwords(text: str) -> str:
+    return " ".join(word for word in text.split() if word not in FACT_STOPWORDS)
+
+
+def is_fact_found(fact: str, summary: str) -> bool:
+    """Substring match after dropping stopwords on both sides; never fuzzy.
+
+    The fact must start at a word boundary ("20%" is not in "120%"), but may end inside a
+    longer word ("seguro" in "seguros"). A fact made only of stopwords falls back to its plain
+    form, since an empty one is in any text.
+    """
+    plain_fact, plain_summary = normalize_fact_text(fact), normalize_fact_text(summary)
+    content = drop_fact_stopwords(plain_fact)
+    if not content:
+        return starts_a_match(plain_fact, plain_summary)
+    return starts_a_match(content, drop_fact_stopwords(plain_summary))
+
+
+def starts_a_match(needle: str, text: str) -> bool:
+    return re.search(rf"(?<!\w){re.escape(needle)}", text) is not None
+
+
 def collapse_whitespace(text: str) -> str:
     return " ".join(text.split())
 
@@ -168,8 +196,10 @@ def score_topic_jaccard(run: CaseRun, case: GoldenCase) -> Ratio | None:
 def score_key_facts(run: CaseRun, case: GoldenCase) -> Ratio | None:
     if not case.expects_output or not case.key_facts:
         return None
-    summary = normalize_fact_text(run.output.summary_of_the_change) if run.output else ""
-    found = sum(normalize_fact_text(fact) in summary for fact in case.key_facts)
+    if run.output is None:
+        return Ratio(0, len(case.key_facts))
+    summary = run.output.summary_of_the_change
+    found = sum(is_fact_found(fact, summary) for fact in case.key_facts)
     return Ratio(found, len(case.key_facts))
 
 

@@ -11,6 +11,7 @@ from metrics import (
     Aggregation,
     Ratio,
     aggregate_metric,
+    drop_fact_stopwords,
     metric_named,
     score_amendment_kind,
     score_case,
@@ -341,6 +342,73 @@ def test_key_facts_spacing_tolerance_is_not_fuzzy_matching() -> None:
     run = summary_run("El alquiler sube a 1.150.000 pesos y la disponibilidad al 99,5 %.")
 
     assert score_key_facts(run, case) == Ratio(0, 2)
+
+
+@pytest.mark.parametrize(
+    ("fact", "summary"),
+    [
+        ("informe de las ventas", "El proveedor entregará un informe de ventas mensual."),
+        ("electricidad y de pintura", "Suma los trabajos de electricidad y pintura."),
+        ("dieciocho (18)", "Amplía la flota de camiones semirremolque hasta dieciocho (18)."),
+        ("el plazo del contrato", "Se extiende plazo de contrato."),
+    ],
+)
+def test_key_facts_ignore_articles_and_prepositions_on_both_sides(fact: str, summary: str) -> None:
+    assert score_key_facts(summary_run(summary), golden_case(key_facts=[fact])) == Ratio(1, 1)
+
+
+@pytest.mark.parametrize(
+    ("fact", "summary"),
+    [
+        ("dieciocho (18)", "Amplía la flota hasta diecinueve (19) camiones."),
+        ("dieciocho (18) camiones", "Amplía la flota hasta dieciocho (18) acoplados."),
+        ("dos (2) trimestres", "Exige dos trimestres consecutivos."),
+        ("veinte por ciento (20 %)", "Sube al veinte por ciento (25 %)."),
+    ],
+)
+def test_key_facts_word_normalization_never_accepts_another_number_or_unit(
+    fact: str, summary: str
+) -> None:
+    assert score_key_facts(summary_run(summary), golden_case(key_facts=[fact])) == Ratio(0, 1)
+
+
+def test_fact_stopwords_are_dropped_as_whole_words_only() -> None:
+    assert drop_fact_stopwords("desde la firma del acta") == "desde firma acta"
+    assert drop_fact_stopwords("delegación al deudor") == "delegación deudor"
+
+
+def test_numbers_units_and_signs_survive_stopword_removal() -> None:
+    assert drop_fact_stopwords("un (1) mes de $ 1.500 por el 20 %") == "un (1) mes $ 1.500 por 20 %"
+
+
+def test_a_stopword_only_fact_falls_back_to_its_plain_form() -> None:
+    case = golden_case(key_facts=["de la"])
+
+    assert score_key_facts(summary_run("Cambia la fecha de la firma."), case) == Ratio(1, 1)
+    assert score_key_facts(summary_run("Cambia fecha y firma."), case) == Ratio(0, 1)
+
+
+@pytest.mark.parametrize(
+    ("fact", "summary"),
+    [
+        ("el 20 %", "La tasa sube al 120 % anual."),
+        ("20 %", "La tasa sube al 120 % anual."),
+    ],
+)
+def test_a_key_fact_must_start_at_a_word_boundary_of_the_summary(fact: str, summary: str) -> None:
+    assert score_key_facts(summary_run(summary), golden_case(key_facts=[fact])) == Ratio(0, 1)
+
+
+def test_a_key_fact_may_end_inside_a_longer_word() -> None:
+    case = golden_case(key_facts=["seguro"])
+
+    assert score_key_facts(summary_run("Exige seguros contra incendio."), case) == Ratio(1, 1)
+
+
+def test_the_stopword_only_fallback_also_starts_at_a_word_boundary() -> None:
+    case = golden_case(key_facts=["de la"])
+
+    assert score_key_facts(summary_run("Cambia el borde la firma."), case) == Ratio(0, 1)
 
 
 def test_key_facts_are_not_applicable_without_declared_facts() -> None:

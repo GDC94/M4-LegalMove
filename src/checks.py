@@ -234,6 +234,7 @@ def check_extraction(
         *check_quotes_grounded(result.changes, original_text, amendment_text),
         *check_missing_text_changes(result, kind, pairs),
         *check_unchanged_text_reports(result.changes, pairs),
+        *check_number_parentheticals(result, original_text, amendment_text),
     ]
 
 
@@ -710,6 +711,191 @@ def describe_text_difference(section_id: str, original: str, amendment: str) -> 
     if len(edits) > TEXT_DIFFERENCE_QUOTE_LIMIT:
         return f"section {section_id}"
     return f"section {section_id}: {edits}"
+
+
+# Spanish cardinal words the literal number rule (decision 95) writes before "(N)". A closed
+# lexicon, so "Anexo (1) del" or "Cláusula (2)" never count as a number written in words.
+CARDINAL_WORDS = frozenset(
+    [
+        "uno",
+        "un",
+        "una",
+        "dos",
+        "tres",
+        "cuatro",
+        "cinco",
+        "seis",
+        "siete",
+        "ocho",
+        "nueve",
+        "diez",
+        "once",
+        "doce",
+        "trece",
+        "catorce",
+        "quince",
+        "dieciséis",
+        "diecisiete",
+        "dieciocho",
+        "diecinueve",
+        "veinte",
+        "veintiuno",
+        "veintiún",
+        "veintiuna",
+        "veintidós",
+        "veintitrés",
+        "veinticuatro",
+        "veinticinco",
+        "veintiséis",
+        "veintisiete",
+        "veintiocho",
+        "veintinueve",
+        "treinta",
+        "cuarenta",
+        "cincuenta",
+        "sesenta",
+        "setenta",
+        "ochenta",
+        "noventa",
+        "cien",
+        "ciento",
+        "doscientos",
+        "doscientas",
+        "trescientos",
+        "trescientas",
+        "cuatrocientos",
+        "cuatrocientas",
+        "quinientos",
+        "quinientas",
+        "seiscientos",
+        "seiscientas",
+        "setecientos",
+        "setecientas",
+        "ochocientos",
+        "ochocientas",
+        "novecientos",
+        "novecientas",
+        "mil",
+        "millón",
+        "millones",
+    ]
+)
+# A number written in words is the maximal run of cardinal words, joined directly or by these
+# connectors ("cuarenta y cinco", "veinte por ciento", "un mil"); the run starts and ends with a
+# cardinal word.
+CARDINAL_CONNECTORS = frozenset({"y", "por"})
+# Alone, these are usually articles ("una vez firmada"), so a run made only of one never counts.
+ARTICLE_CARDINALS = frozenset({"un", "una", "uno"})
+NUMERAL = re.compile(r"\(\s*\d[\d.,]*\s*%?\s*\)")
+NUMBER_TOKEN = re.compile(rf"{NUMERAL.pattern}|\w+|[^\w\s]")
+WORD = re.compile(r"\w+")
+
+
+@dataclass(frozen=True)
+class NumberPhrase:
+    """A cardinal run, its "(N)" if the text gives one, and the word that follows them."""
+
+    words: str
+    numeral: str | None
+    following: str
+
+    @property
+    def bare(self) -> str:
+        return f"{self.words} {self.following}"
+
+
+def check_number_parentheticals(
+    result: ExtractionResult, original_text: str, amendment_text: str
+) -> Iterator[RetryFeedback]:
+    """A number the documents write as "dos (2)" keeps its "(2)" in the output (decision 95).
+
+    "dos (2) trimestres" in either document fires on an output that writes "dos trimestres",
+    unless a document also writes "dos trimestres" itself.
+    """
+    documents = [normalize_for_grounding(text) for text in (original_text, amendment_text)]
+    numbers = find_number_parentheticals(documents)
+    if not numbers:
+        return
+    fields = [("summary_of_the_change", result.summary_of_the_change)]
+    fields += [(f"changes[{i}].description", c.description) for i, c in enumerate(result.changes)]
+    for path, text in fields:
+        written = bare_numbers(normalize_for_grounding(text))
+        for phrase in numbers.values():
+            if phrase.bare in written:
+                yield number_parenthetical_feedback(path, phrase)
+
+
+def find_number_parentheticals(documents: Sequence[str]) -> dict[str, NumberPhrase]:
+    """Bare form -> its "(N)" phrase, skipping a bare form the documents also write as is."""
+    phrases = [phrase for document in documents for phrase in find_number_phrases(document)]
+    written_bare = {phrase.bare for phrase in phrases if phrase.numeral is None}
+    numbers: dict[str, NumberPhrase] = {}
+    for phrase in phrases:
+        counts = phrase.numeral is not None and phrase.words not in ARTICLE_CARDINALS
+        if counts and phrase.bare not in written_bare:
+            numbers.setdefault(phrase.bare, phrase)
+    return numbers
+
+
+def bare_numbers(normalized_text: str) -> set[str]:
+    return {phrase.bare for phrase in find_number_phrases(normalized_text) if not phrase.numeral}
+
+
+def find_number_phrases(normalized_text: str) -> Iterator[NumberPhrase]:
+    tokens = NUMBER_TOKEN.findall(normalized_text)
+    index = 0
+    while index < len(tokens):
+        if tokens[index] not in CARDINAL_WORDS:
+            index += 1
+            continue
+        end = extend_cardinal_run(tokens, index)
+        phrase = read_number_phrase(tokens, index, end)
+        if phrase is not None:
+            yield phrase
+        index = end
+
+
+def extend_cardinal_run(tokens: Sequence[str], start: int) -> int:
+    """The exclusive end of the maximal cardinal run that starts at start."""
+    end = start + 1
+    while True:
+        if is_cardinal_at(tokens, end):
+            end += 1
+        elif (
+            end < len(tokens)
+            and tokens[end] in CARDINAL_CONNECTORS
+            and is_cardinal_at(tokens, end + 1)
+        ):
+            end += 2
+        else:
+            return end
+
+
+def is_cardinal_at(tokens: Sequence[str], index: int) -> bool:
+    return index < len(tokens) and tokens[index] in CARDINAL_WORDS
+
+
+def read_number_phrase(tokens: Sequence[str], start: int, end: int) -> NumberPhrase | None:
+    """The run plus its "(N)" and the next word; "(18)." or "(18) [illegible]" have none."""
+    numeral = tokens[end] if end < len(tokens) and NUMERAL.fullmatch(tokens[end]) else None
+    following = end + 1 if numeral else end
+    if following >= len(tokens) or not WORD.fullmatch(tokens[following]):
+        return None
+    return NumberPhrase(" ".join(tokens[start:end]), numeral, tokens[following])
+
+
+def number_parenthetical_feedback(path: str, phrase: NumberPhrase) -> RetryFeedback:
+    # The public message names the field only; the detail quotes just the number and its noun.
+    number = f"{phrase.words} {phrase.numeral}"
+    message = (
+        f"{path} writes a number in words without the numeral in parentheses "
+        "that the documents give it"
+    )
+    detail = (
+        f"{message}; keep the number as {number!r}: "
+        f"write {f'{number} {phrase.following}'!r}, not {phrase.bare!r}"
+    )
+    return build_feedback("number_parenthetical_dropped", path, message, detail)
 
 
 def compute_grounding_rate(

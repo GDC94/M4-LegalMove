@@ -36,6 +36,7 @@ from golden_text import (
     document_text,
     render_delta_text,
 )
+from metrics import FACT_STOPWORDS, drop_fact_stopwords, normalize_fact_text
 from models import AmendmentKind
 
 BASES = sorted((GOLDEN_ROOT / "base").glob("*.md"))
@@ -424,3 +425,24 @@ def test_dangling_cases_accept_any_human_review() -> None:
 
     assert dangling
     assert {case.expected_error for case in dangling} == {"NeedsHumanReviewError"}
+
+
+def is_atomic_fact(fact: str) -> bool:
+    words = normalize_fact_text(fact).split()
+    edges = {words[0], words[-1]} if words else set()
+    return bool(drop_fact_stopwords(" ".join(words))) and not edges & FACT_STOPWORDS
+
+
+def test_calibration_key_facts_keep_content_once_stopwords_are_dropped() -> None:
+    # T13: the matcher drops FACT_STOPWORDS on both sides, so a fact must keep content words
+    # and must not lean on a leading or trailing article or preposition.
+    facts = [
+        (case_dir.name, fact)
+        for case_dir in CASE_DIRS
+        for case, base in [load(case_dir)]
+        if base.split is SplitName.CALIBRATION
+        for fact in case.key_facts
+    ]
+
+    assert facts
+    assert [(name, fact) for name, fact in facts if not is_atomic_fact(fact)] == []

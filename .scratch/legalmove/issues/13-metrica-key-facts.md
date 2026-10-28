@@ -42,17 +42,17 @@ Decisiones del registro §8.4: 36, 59, 76, 95, 101
 
 ## Criterios de aceptación
 
-- [ ] La regla elegida (key facts atómicos, normalización del matcher o ambas) se decide solo con `calibration` y tiene su fila en §8.4; no acepta coincidencia difusa (distancia de edición, similitud o embeddings).
-- [ ] La normalización nunca borra ni cambia números, unidades, signos de moneda o de porcentaje.
-- [ ] Los `key_facts` reescritos de `calibration` tienen revisión del autor (`reviewed_by`, `reviewed_at`) y su `declaration_sha256` recalculado; los de `validation` no se tocan.
-- [ ] Un número en palabras con su número entre paréntesis en la adenda que el resumen o una descripción escriben sin él produce un issue nombrado y un reintento.
-- [ ] Las corridas de `calibration` autorizadas por el autor alcanzan los objetivos de §6.6, sin regresiones en los demás.
-- [ ] `outputs/baseline.json` no cambia y la tabla del README sigue renderizada desde él.
-- [ ] La validación de la métrica nueva con un holdout futuro queda planteada como pregunta abierta, sin decidirse aquí.
+- [x] La regla elegida (key facts atómicos, normalización del matcher o ambas) se decide solo con `calibration` y tiene su fila en §8.4; no acepta coincidencia difusa (distancia de edición, similitud o embeddings).
+- [x] La normalización nunca borra ni cambia números, unidades, signos de moneda o de porcentaje.
+- [x] Los `key_facts` reescritos de `calibration` tienen revisión del autor (`reviewed_by`, `reviewed_at`) y su `declaration_sha256` recalculado; los de `validation` no se tocan.
+- [x] Un número en palabras con su número entre paréntesis en la adenda que el resumen o una descripción escriben sin él produce un issue nombrado y un reintento.
+- [x] Las corridas de `calibration` autorizadas por el autor alcanzan los objetivos de §6.6, sin regresiones en los demás.
+- [x] `outputs/baseline.json` no cambia y la tabla del README sigue renderizada desde él.
+- [x] La validación de la métrica nueva con un holdout futuro queda planteada como pregunta abierta, sin decidirse aquí.
 
 ## Tests requeridos (TDD estricto)
 
-**RED (se escriben primero y fallan):** en `tests/evals/test_metrics.py`, los cuatro pares de T12 como ejemplos generales (artículo o preposición omitidos, orden distinto de número y sustantivo) cuentan como encontrados según la regla elegida, y un número distinto, una unidad distinta o un "dos" sin "(2)" no cuentan. En `tests/test_checks.py`, el check del número literal dispara con "dos trimestres" frente a "dos (2) trimestres" y no dispara cuando la adenda no trae paréntesis. En `tests/evals/test_golden_data.py`, los `key_facts` de `calibration` cumplen la forma elegida.
+**RED (se escriben primero y fallan):** en `tests/evals/test_metrics.py`, los cuatro pares de T12 como ejemplos generales (artículo o preposición omitidos, orden distinto de número y sustantivo) cuentan como encontrados según la regla elegida; en el par de orden distinto se afirma que la forma atómica "dieciocho (18)" se encuentra en "camiones … hasta dieciocho (18)", no "dieciocho (18) camiones", y un número distinto, una unidad distinta o un "dos" sin "(2)" no cuentan. En `tests/test_checks.py`, el check del número literal dispara con "dos trimestres" frente a "dos (2) trimestres" y no dispara cuando la adenda no trae paréntesis. En `tests/evals/test_golden_data.py`, los `key_facts` de `calibration` cumplen la forma elegida.
 
 **GREEN (lo mínimo que los hace pasar):** el cambio en `evals/metrics.py`, el check en `checks.py` con su issue, y los `key_facts` reescritos y revisados.
 

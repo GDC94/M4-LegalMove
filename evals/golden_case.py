@@ -204,6 +204,7 @@ KNOWN_ISSUE_CODES = frozenset(
         "instruction_mismatch",
         "missing_structural_change",
         "missing_text_change",
+        "number_parenthetical_dropped",
         "quote_rule_violation",
         "removed_quote_mismatch",
         "schema_violation",
