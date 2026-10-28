@@ -91,13 +91,24 @@ def test_standard_cases_change_one_to_three_sections() -> None:
         assert 1 <= len(derive_expected(case, base, "")["changes"]) <= 3
 
 
-def test_every_family_stays_in_one_split_and_both_splits_are_used() -> None:
+def test_every_family_stays_in_one_split() -> None:
     splits: defaultdict[str, set[str]] = defaultdict(set)
     for case, base in map(load, CASE_DIRS):
         splits[base.family].add(derive_expected(case, base, "")["split"])
 
     assert all(len(split) == 1 for split in splits.values()), dict(splits)
-    assert set().union(*splits.values()) == set(SplitName)
+
+
+# Decisions 59 and 92: blind validation run 1 missed two targets, so the families it showed
+# are no longer blind; they never return to `validation`.
+SEEN_IN_VALIDATION_RUN_1 = {"consultoria_profesional", "licencia_software", "locacion_oficina"}
+
+
+def test_families_seen_by_validation_run_1_moved_to_calibration() -> None:
+    seen = [load_base_contract(path) for path in BASES if path.stem in SEEN_IN_VALIDATION_RUN_1]
+
+    assert {base.family for base in seen} == SEEN_IN_VALIDATION_RUN_1
+    assert {base.split for base in seen} == {SplitName.CALIBRATION}
 
 
 def delta_cases() -> list[tuple[CaseSpec, BaseContract]]:
@@ -218,10 +229,11 @@ def test_each_category_mixes_restated_and_delta(
     assert Counter(case.amendment_kind for case, _ in cases_in(category)) == kinds
 
 
-def test_ten_calibration_and_fourteen_validation_cases() -> None:
+def test_every_case_is_calibration_until_the_new_holdout() -> None:
+    # Decision 92: the 14 validation cases moved to calibration; T12 adds the fresh holdout.
     splits = Counter(base.split for _, base in map(load, CASE_DIRS))
 
-    assert splits == {SplitName.CALIBRATION: 10, SplitName.VALIDATION: 14}
+    assert splits == {SplitName.CALIBRATION: 24}
 
 
 def is_internal_edit(case: CaseSpec, base: BaseContract) -> bool:

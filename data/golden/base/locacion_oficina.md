@@ -1,5 +1,6 @@
 ---
-split: validation
+# Seen by blind validation run 1 (2026-10-28); moved to calibration (decisions 59, 92).
+split: calibration
 numbering: clausula
 title: CONTRATO DE LOCACIÓN DE OFICINA
 preamble: >-

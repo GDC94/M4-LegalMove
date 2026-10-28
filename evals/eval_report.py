@@ -1,4 +1,4 @@
-"""eval_report.json: metrics per run, category, Amendment Kind and case, plus the baseline check."""
+"""eval_report.json: metrics per run, category, Amendment Kind, scan and case, plus the baseline."""
 
 import json
 from collections.abc import Callable, Mapping, Sequence
@@ -16,6 +16,9 @@ RATIO_TOLERANCE = 1e-9
 # scale shifts the mean by 1/N. A quarter point absorbs a single flip once a split holds four or
 # more judged cases, and still flags it on smaller splits or when several cases drop together.
 REGRESSION_TOLERANCE: Mapping[str, float] = {"judge_score": 0.25}
+# Decision 90: CER has a target per scan, so a rise on one scan kind must not hide in the global
+# mean. Each scan group's CER is compared under its own key, such as cer[degraded].
+SCAN_COMPARED_METRICS = ("cer",)
 
 ScoredCase = tuple[GoldenCase, CaseRun, Mapping[str, Ratio | None]]
 
@@ -45,6 +48,7 @@ def build_report(
         "global": describe_aggregates([scores for _, _, scores in scored]),
         "by_category": group_aggregates(scored, lambda case: case.category),
         "by_kind": group_aggregates(scored, lambda case: case.amendment_kind.value),
+        "by_scan": group_aggregates(scored, lambda case: case.scan),
         "cases": [describe_case(case, run, scores) for case, run, scores in scored],
         "baseline": None,
     }
@@ -91,7 +95,7 @@ def read_baseline(path: Path) -> dict[str, Any] | None:
 
 
 def compare_with_baseline(report: Mapping[str, Any], baseline: Mapping[str, Any]) -> dict[str, Any]:
-    """Deltas per global metric; a regression is a move in the worse direction beyond tolerance.
+    """Deltas per global metric and per scan CER; a regression is a worse move beyond tolerance.
 
     Fewer evaluable cases is a regression too: a value that holds on a smaller denominator is
     not evidence that nothing broke.
@@ -99,11 +103,12 @@ def compare_with_baseline(report: Mapping[str, Any], baseline: Mapping[str, Any]
     if baseline.get("split") != report["split"]:
         reason = f"baseline split {baseline.get('split')} differs from {report['split']}"
         return {"compared": False, "reason": reason}
-    current, before = report["global"], baseline.get("global", {})
     judge_changed = baseline.get("judge_prompt_version") != report.get("judge_prompt_version")
     excluded = {"judge_score"} if judge_changed else set()
-    deltas = global_deltas(current, before, "value", excluded)
-    evaluable_deltas = global_deltas(current, before, "evaluable", excluded)
+    current = collect_compared_aggregates(report, excluded)
+    before = collect_compared_aggregates(baseline, excluded)
+    deltas = compute_deltas(current, before, "value")
+    evaluable_deltas = compute_deltas(current, before, "evaluable")
     regressions = [
         *find_regressions(deltas),
         *(f"{name}.evaluable" for name, delta in evaluable_deltas.items() if delta < 0),
@@ -117,29 +122,49 @@ def compare_with_baseline(report: Mapping[str, Any], baseline: Mapping[str, Any]
     }
 
 
-def global_deltas(
-    current: Mapping[str, Any], baseline: Mapping[str, Any], field: str, excluded: AbstractSet[str]
-) -> dict[str, float]:
-    """Only metrics both runs could evaluate; N/A on either side is no evidence either way.
+def collect_compared_aggregates(
+    report: Mapping[str, Any], excluded: AbstractSet[str]
+) -> dict[str, Mapping[str, Any]]:
+    """Global aggregates by metric name, then each scan group's CER keyed as cer[<scan>].
 
     `excluded` drops metrics measured differently in each run, such as the Judge after a prompt
     change: its delta would compare two graders, not two pipelines.
     """
+    global_group = report.get("global", {})
+    aggregates = {
+        metric.name: global_group.get(metric.name, {})
+        for metric in METRICS
+        if metric.name not in excluded
+    }
+    for scan, group in sorted(report.get("by_scan", {}).items()):
+        for name in SCAN_COMPARED_METRICS:
+            aggregates[f"{name}[{scan}]"] = group.get(name, {})
+    return aggregates
+
+
+def compute_deltas(
+    current: Mapping[str, Mapping[str, Any]], baseline: Mapping[str, Mapping[str, Any]], field: str
+) -> dict[str, float]:
+    """Only aggregates both runs could evaluate; N/A on either side is no evidence either way."""
     deltas: dict[str, float] = {}
-    for metric in METRICS:
-        if metric.name in excluded:
-            continue
-        now = current.get(metric.name, {}).get(field)
-        before = baseline.get(metric.name, {}).get(field)
+    for key, aggregate in current.items():
+        now = aggregate.get(field)
+        before = baseline.get(key, {}).get(field)
         if now is not None and before is not None:
-            deltas[metric.name] = now - before
+            deltas[key] = now - before
     return deltas
+
+
+def strip_scan(key: str) -> str:
+    """The metric name behind a compared key: cer[degraded] is measured as cer."""
+    return key.partition("[")[0]
 
 
 def find_regressions(deltas: Mapping[str, float]) -> list[str]:
     regressions: list[str] = []
-    for name, delta in deltas.items():
+    for key, delta in deltas.items():
+        name = strip_scan(key)
         worse = delta if metric_named(name).lower_is_better else -delta
         if worse > REGRESSION_TOLERANCE.get(name, RATIO_TOLERANCE):
-            regressions.append(name)
+            regressions.append(key)
     return regressions

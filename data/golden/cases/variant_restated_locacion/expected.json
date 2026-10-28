@@ -1,9 +1,9 @@
 {
   "base": "locacion_oficina",
-  "split": "validation",
+  "split": "calibration",
   "category": "variant",
   "amendment_kind": "restated",
-  "declaration_sha256": "93ae0011a94590dbfe75ff619eaf9122fef4a19f2fac8d9296e1db8acee1e090",
+  "declaration_sha256": "423c5bfa277b01d3a7fba170cf0571e8206c949e135d971c4af91b7bb300182d",
   "expected_error": null,
   "output": {
     "sections_changed": [

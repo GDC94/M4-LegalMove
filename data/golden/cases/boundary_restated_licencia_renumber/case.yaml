@@ -3,7 +3,7 @@
 base: licencia_software
 amendment_kind: restated
 category: boundary
-split: validation
+split: calibration
 template: roman_articles
 seed: 431
 mutations:

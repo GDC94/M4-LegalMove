@@ -3,7 +3,7 @@
 base: locacion_oficina
 amendment_kind: delta
 category: variant
-split: validation
+split: calibration
 template: one_column
 seed: 221
 mutations:

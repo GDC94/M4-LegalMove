@@ -1,7 +1,7 @@
 base: consultoria_profesional
 amendment_kind: delta
 category: standard
-split: validation
+split: calibration
 template: one_column
 seed: 501
 mutations:

@@ -1,9 +1,9 @@
 {
   "base": "locacion_oficina",
-  "split": "validation",
+  "split": "calibration",
   "category": "variant",
   "amendment_kind": "delta",
-  "declaration_sha256": "a2d811e4d16ea6f72d86fae4701e70ee8f26f344104bc01719d9078ce66b8e08",
+  "declaration_sha256": "b187f873fa5a638d3ec82f49acf09cbdb5d2e5dadee87366abc458a53512ff49",
   "expected_error": null,
   "output": {
     "sections_changed": [

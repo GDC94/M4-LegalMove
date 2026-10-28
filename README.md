@@ -280,11 +280,22 @@ PYTHONPATH=src uv run python evals/run_evals.py --split calibration  # spends cr
 
 ### Measured results
 
-Placeholder: the golden set, the evals and this table of measured results (parsing CER, `sections_changed` precision and recall, `change_type` accuracy, `amendment_kind` accuracy, summary judge score) are filled in T10, once the baseline is frozen.
+Blind validation run 1 (2026-10-28, run `validation-20261028T154123Z`, 14 cases of three families never used for tuning) **did not meet two targets**: `topic_jaccard` and `key_facts_coverage`. Rendered from `outputs/validation_run1.json` with `PYTHONPATH=src uv run python evals/render_results.py outputs/validation_run1.json`:
 
-| Metric | Threshold | Validation result |
-|---|---|---|
-| — | — | Filled in T10 |
+| Metric | Target | Validation result | Met |
+|---|---|---|---|
+| `cer` (clean scans) | ≤ 0.02 | 0.000 (6 cases) | yes |
+| `cer` (degraded scans) | ≤ 0.08 | 0.001 (7 cases) | yes |
+| `amendment_kind_accuracy` | ≥ 0.95 | 1.000 (14 cases) | yes |
+| `change_precision` | ≥ 0.9 | 0.962 (11 cases) | yes |
+| `change_recall` | ≥ 0.9 | 0.962 (12 cases) | yes |
+| `change_type_accuracy` | ≥ 0.9 | 1.000 (11 cases) | yes |
+| `topic_jaccard` | ≥ 0.8 | 0.667 (13 cases) | no |
+| `key_facts_coverage` | ≥ 0.9 | 0.897 (12 cases) | no |
+| `judge_score` | ≥ 7 | 9.308 (13 cases) | yes |
+| `human_review` | ≥ 1 | 1.000 (1 case) | yes |
+
+Following decision 59, those 14 cases are no longer blind and moved to `calibration`; the per-case misses are in `docs/calibration/t10-validation.md`. There is no frozen baseline yet: ticket T12 builds a fresh holdout from never-seen contract families, runs it once and freezes `outputs/baseline.json`. `tests/test_readme.py` checks that this table matches `outputs/validation_run1.json`, and switches to the baseline once it is frozen; the table is then re-rendered from it.
 
 ## Technical decisions
 

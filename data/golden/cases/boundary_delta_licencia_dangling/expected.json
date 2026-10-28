@@ -1,9 +1,9 @@
 {
   "base": "licencia_software",
-  "split": "validation",
+  "split": "calibration",
   "category": "boundary",
   "amendment_kind": "delta",
-  "declaration_sha256": "818b34023ebd94cec731c34ef173d16de26d0f18fddc400acf34802905458883",
+  "declaration_sha256": "421e141480b9d91142b50f1c14d2e22f2c92e3f64e7cde6b0d354c68de2aa018",
   "expected_error": "NeedsHumanReviewError",
   "output": null,
   "changes": [

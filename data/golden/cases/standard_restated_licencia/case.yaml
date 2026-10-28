@@ -1,7 +1,7 @@
 base: licencia_software
 amendment_kind: restated
 category: standard
-split: validation
+split: calibration
 template: roman_articles
 seed: 401
 mutations:

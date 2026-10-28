@@ -25,6 +25,13 @@ class SplitName(StrEnum):
     VALIDATION = "validation"
 
 
+class ScanKind(StrEnum):
+    """Plan §6.6 holds a scan with any declared Degradation to a looser CER target."""
+
+    CLEAN = "clean"
+    DEGRADED = "degraded"
+
+
 class Numbering(StrEnum):
     """How a base contract names its Sections: Cláusula Quinta, Artículo V or 5."""
 

@@ -2,7 +2,7 @@
 base: locacion_oficina
 amendment_kind: restated
 category: variant
-split: validation
+split: calibration
 template: roman_articles
 seed: 211
 mutations:

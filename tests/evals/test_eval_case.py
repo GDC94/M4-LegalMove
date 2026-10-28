@@ -10,28 +10,29 @@ import yaml
 from pydantic import ValidationError
 
 from eval_case import load_golden_case, load_split
-from golden_case import KNOWN_ISSUE_CODES, CaseSpec, SplitName
+from golden_case import KNOWN_ISSUE_CODES, CaseSpec, ScanKind, SplitName
 from models import AmendmentKind, ChangeType
 
 GOLDEN = Path(__file__).resolve().parents[2] / "data" / "golden"
 SRC = Path(__file__).resolve().parents[2] / "src"
 
 
-def test_calibration_holds_the_ten_reviewed_cases() -> None:
+def list_reviewed_case_ids(split: SplitName) -> list[str]:
+    """Read straight from expected.json, independently of load_split."""
+    case_ids: list[str] = []
+    for path in sorted((GOLDEN / "cases").glob("*/expected.json")):
+        expected = json.loads(path.read_text(encoding="utf-8"))
+        if expected["split"] == split.value and str(expected.get("reviewed_at") or "").strip():
+            case_ids.append(path.parent.name)
+    return case_ids
+
+
+def test_calibration_holds_every_reviewed_calibration_case() -> None:
+    # Decision 92: blind validation run 1 moved its cases here; T12 adds the fresh holdout.
     cases = load_split(GOLDEN, SplitName.CALIBRATION)
 
-    assert [case.case_id for case in cases] == [
-        "boundary_delta_servicios_identical",
-        "boundary_delta_suministro_dangling",
-        "boundary_delta_suministro_injection",
-        "boundary_restated_servicios_renumber",
-        "boundary_unknown_servicios",
-        "standard_delta_servicios",
-        "standard_delta_suministro",
-        "standard_restated_servicios",
-        "variant_delta_servicios",
-        "variant_restated_suministro",
-    ]
+    assert cases
+    assert [case.case_id for case in cases] == list_reviewed_case_ids(SplitName.CALIBRATION)
     assert {case.split for case in cases} == {SplitName.CALIBRATION}
 
 
@@ -52,6 +53,14 @@ def test_a_loaded_case_carries_its_truth_sources_and_images() -> None:
     assert case.amendment_image.name == "amendment.png" and case.amendment_image.is_file()
 
 
+def test_a_case_with_any_degradation_is_a_degraded_scan() -> None:
+    """Plan §6.6 sets one CER target for clean scans and another for degraded ones."""
+    assert load_golden_case(GOLDEN / "cases" / "standard_delta_consultoria").scan is ScanKind.CLEAN
+    assert (
+        load_golden_case(GOLDEN / "cases" / "variant_delta_consultoria").scan is ScanKind.DEGRADED
+    )
+
+
 def copy_case(tmp_path: Path, case_id: str) -> Path:
     golden = tmp_path / "golden"
     shutil.copytree(GOLDEN / "cases" / case_id, golden / "cases" / case_id)
@@ -69,6 +78,10 @@ def test_unreviewed_cases_are_left_out_of_the_split(tmp_path: Path) -> None:
 
 def test_cases_of_the_other_split_are_left_out(tmp_path: Path) -> None:
     golden = copy_case(tmp_path, "standard_delta_consultoria")
+    # No committed case is in validation until T12 (decision 92), so the copy is relabeled.
+    expected = golden / "cases" / "standard_delta_consultoria" / "expected.json"
+    payload = json.loads(expected.read_text(encoding="utf-8"))
+    expected.write_text(json.dumps({**payload, "split": "validation"}), encoding="utf-8")
 
     assert load_split(golden, SplitName.CALIBRATION) == []
     assert len(load_split(golden, SplitName.VALIDATION)) == 1

@@ -1,9 +1,9 @@
 {
   "base": "licencia_software",
-  "split": "validation",
+  "split": "calibration",
   "category": "standard",
   "amendment_kind": "restated",
-  "declaration_sha256": "192e00ddc9868ddfd14338f4a668c6c047a8b12649981a07377a343d52a4e5c9",
+  "declaration_sha256": "f8a1bd4be4ba3af21590049fb985224b86f0933c5e2d3a070b5925069f85d0b7",
   "expected_error": null,
   "output": {
     "sections_changed": [

@@ -3,7 +3,7 @@
 base: consultoria_profesional
 amendment_kind: delta
 category: variant
-split: validation
+split: calibration
 template: two_column
 seed: 521
 mutations:

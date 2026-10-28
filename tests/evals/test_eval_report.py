@@ -72,6 +72,21 @@ def test_metrics_are_grouped_by_category_and_by_declared_kind() -> None:
     }
 
 
+def test_metrics_are_grouped_by_clean_and_degraded_scans() -> None:
+    clean = golden_case()
+    degraded = golden_case(case_id="variant_delta_demo", degraded=True)
+    runs = {
+        clean.case_id: case_run(),
+        degraded.case_id: case_run(case_id=degraded.case_id, parsed_amendment="ADENDA"),
+    }
+
+    report = build_report([clean, degraded], runs, HEADER)
+
+    assert set(report["by_scan"]) == {"clean", "degraded"}
+    assert report["by_scan"]["clean"]["cer"] == {"value": 0.0, "evaluable": 1}
+    assert report["by_scan"]["degraded"]["cer"]["value"] > 0
+
+
 def test_each_case_reports_its_outcome_and_metric_values() -> None:
     report = two_case_report()
     review = report["cases"][2]
@@ -124,6 +139,45 @@ def test_baseline_comparison_marks_regressions_by_metric_direction() -> None:
         "topic_jaccard": 0,
         "judge_score": 0,
     }
+
+
+def with_scan_cer(
+    report: dict[str, Any], evaluable: int = 1, **cer_by_scan: float
+) -> dict[str, Any]:
+    report["by_scan"] = {
+        scan: {"cer": {"value": value, "evaluable": evaluable}}
+        for scan, value in cer_by_scan.items()
+    }
+    return report
+
+
+def test_a_degraded_cer_rise_is_a_regression_while_global_cer_holds() -> None:
+    """Decision 90: CER has a target per scan, so a per-scan rise is no longer hidden."""
+    current = with_scan_cer(baseline_report(cer=0.03), clean=0.01, degraded=0.07)
+    baseline = with_scan_cer(baseline_report(cer=0.03), clean=0.01, degraded=0.05)
+
+    comparison = compare_with_baseline(current, baseline)
+
+    assert comparison["deltas"]["cer"] == 0
+    assert comparison["deltas"]["cer[clean]"] == 0
+    assert comparison["deltas"]["cer[degraded]"] == pytest.approx(0.02)
+    assert comparison["regressions"] == ["cer[degraded]"]
+
+
+def test_float_noise_on_a_scan_cer_is_not_a_regression() -> None:
+    current = with_scan_cer(baseline_report(cer=0.03), degraded=0.05 + 1e-12)
+    baseline = with_scan_cer(baseline_report(cer=0.03), degraded=0.05)
+
+    assert compare_with_baseline(current, baseline)["regressions"] == []
+
+
+def test_fewer_evaluable_cases_in_a_scan_group_is_a_regression() -> None:
+    current = with_scan_cer(baseline_report(cer=0.03), evaluable=2, degraded=0.05)
+    baseline = with_scan_cer(baseline_report(cer=0.03), evaluable=3, degraded=0.05)
+
+    comparison = compare_with_baseline(current, baseline)
+
+    assert comparison["regressions"] == ["cer[degraded].evaluable"]
 
 
 def test_float_noise_on_a_ratio_is_not_a_regression() -> None:

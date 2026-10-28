@@ -1,9 +1,9 @@
 {
   "base": "consultoria_profesional",
-  "split": "validation",
+  "split": "calibration",
   "category": "boundary",
   "amendment_kind": "restated",
-  "declaration_sha256": "71eaf45566003b2c4c22024e69fe3d44265a2554f7fa994665f9ffd460078514",
+  "declaration_sha256": "ae2361fc76d3df29bed6ff1f270517e5bb219553d4f15c0d3d6d23ded25f09e5",
   "expected_error": null,
   "output": {
     "sections_changed": [

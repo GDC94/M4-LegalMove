@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
-from golden_case import GoldenCaseError, SplitName, load_case_spec
+from golden_case import GoldenCaseError, ScanKind, SplitName, load_case_spec
 from models import AmendmentKind, ChangeType, ContractChangeOutput, Topic
 
 Frozen = ConfigDict(extra="forbid", frozen=True)
@@ -41,6 +41,12 @@ class GoldenCase(BaseModel):
     source_amendment: str
     original_image: Path
     amendment_image: Path
+    # Any declared Degradation: plan §6.6 holds degraded scans to a looser CER target.
+    degraded: bool = False
+
+    @property
+    def scan(self) -> ScanKind:
+        return ScanKind.DEGRADED if self.degraded else ScanKind.CLEAN
 
     @property
     def expects_output(self) -> bool:
@@ -105,6 +111,7 @@ def load_golden_case(case_dir: Path) -> GoldenCase:
             "source_amendment": (case_dir / "source_amendment.txt").read_text(encoding="utf-8"),
             "original_image": case_dir / "original.png",
             "amendment_image": case_dir / "amendment.png",
+            "degraded": bool(spec.degradations),
         }
     )
 

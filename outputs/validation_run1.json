@@ -1,0 +1,704 @@
+{
+  "split": "validation",
+  "run_name": "validation-20261028T154123Z",
+  "dataset_name": "legalmove-validation",
+  "judge_prompt_version": "judge-v2",
+  "case_filter": null,
+  "experiment_url": "https://us.cloud.langfuse.com/project/cmv48hrxk012mad0iu5ad20ir/datasets/cmvsaqpf105f7ad0ec68d09u4/runs/c48a1563-dea1-450e-85d5-37ead2d33324",
+  "cases_total": 14,
+  "global": {
+    "cer": {
+      "value": 0.0006052047609441194,
+      "evaluable": 13
+    },
+    "amendment_kind_accuracy": {
+      "value": 1.0,
+      "evaluable": 14
+    },
+    "change_precision": {
+      "value": 0.9615384615384616,
+      "evaluable": 11
+    },
+    "change_recall": {
+      "value": 0.9615384615384616,
+      "evaluable": 12
+    },
+    "change_type_accuracy": {
+      "value": 1.0,
+      "evaluable": 11
+    },
+    "topic_jaccard": {
+      "value": 0.6666666666666666,
+      "evaluable": 13
+    },
+    "key_facts_coverage": {
+      "value": 0.896551724137931,
+      "evaluable": 12
+    },
+    "judge_score": {
+      "value": 9.307692307692308,
+      "evaluable": 13
+    },
+    "human_review": {
+      "value": 1.0,
+      "evaluable": 1
+    }
+  },
+  "by_category": {
+    "boundary": {
+      "cer": {
+        "value": 0.0011212558065032837,
+        "evaluable": 3
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 4
+      },
+      "change_precision": {
+        "value": 0.75,
+        "evaluable": 2
+      },
+      "change_recall": {
+        "value": 0.75,
+        "evaluable": 3
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 2
+      },
+      "topic_jaccard": {
+        "value": 0.2222222222222222,
+        "evaluable": 3
+      },
+      "key_facts_coverage": {
+        "value": 0.8,
+        "evaluable": 3
+      },
+      "judge_score": {
+        "value": 7.0,
+        "evaluable": 3
+      },
+      "human_review": {
+        "value": 1.0,
+        "evaluable": 1
+      }
+    },
+    "standard": {
+      "cer": {
+        "value": 0.0006532745386248571,
+        "evaluable": 3
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "change_precision": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "change_recall": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "topic_jaccard": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "key_facts_coverage": {
+        "value": 0.9,
+        "evaluable": 3
+      },
+      "judge_score": {
+        "value": 10.0,
+        "evaluable": 3
+      },
+      "human_review": {
+        "value": null,
+        "evaluable": 0
+      }
+    },
+    "variant": {
+      "cer": {
+        "value": 0.0003220871245671954,
+        "evaluable": 7
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 7
+      },
+      "change_precision": {
+        "value": 1.0,
+        "evaluable": 6
+      },
+      "change_recall": {
+        "value": 1.0,
+        "evaluable": 6
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 6
+      },
+      "topic_jaccard": {
+        "value": 0.7142857142857143,
+        "evaluable": 7
+      },
+      "key_facts_coverage": {
+        "value": 0.9285714285714286,
+        "evaluable": 6
+      },
+      "judge_score": {
+        "value": 10.0,
+        "evaluable": 7
+      },
+      "human_review": {
+        "value": null,
+        "evaluable": 0
+      }
+    }
+  },
+  "by_kind": {
+    "delta": {
+      "cer": {
+        "value": 0.0008794522268986745,
+        "evaluable": 5
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 6
+      },
+      "change_precision": {
+        "value": 1.0,
+        "evaluable": 4
+      },
+      "change_recall": {
+        "value": 1.0,
+        "evaluable": 4
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 4
+      },
+      "topic_jaccard": {
+        "value": 0.7333333333333333,
+        "evaluable": 5
+      },
+      "key_facts_coverage": {
+        "value": 0.8888888888888888,
+        "evaluable": 4
+      },
+      "judge_score": {
+        "value": 10.0,
+        "evaluable": 5
+      },
+      "human_review": {
+        "value": 1.0,
+        "evaluable": 1
+      }
+    },
+    "restated": {
+      "cer": {
+        "value": 0.0004754687825027488,
+        "evaluable": 8
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 8
+      },
+      "change_precision": {
+        "value": 0.9411764705882353,
+        "evaluable": 7
+      },
+      "change_recall": {
+        "value": 0.9411764705882353,
+        "evaluable": 8
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 7
+      },
+      "topic_jaccard": {
+        "value": 0.625,
+        "evaluable": 8
+      },
+      "key_facts_coverage": {
+        "value": 0.9,
+        "evaluable": 8
+      },
+      "judge_score": {
+        "value": 8.875,
+        "evaluable": 8
+      },
+      "human_review": {
+        "value": null,
+        "evaluable": 0
+      }
+    }
+  },
+  "by_scan": {
+    "clean": {
+      "cer": {
+        "value": 0.0004350474201687984,
+        "evaluable": 6
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 7
+      },
+      "change_precision": {
+        "value": 1.0,
+        "evaluable": 5
+      },
+      "change_recall": {
+        "value": 1.0,
+        "evaluable": 5
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 5
+      },
+      "topic_jaccard": {
+        "value": 0.8888888888888888,
+        "evaluable": 6
+      },
+      "key_facts_coverage": {
+        "value": 0.8571428571428571,
+        "evaluable": 5
+      },
+      "judge_score": {
+        "value": 10.0,
+        "evaluable": 6
+      },
+      "human_review": {
+        "value": 1.0,
+        "evaluable": 1
+      }
+    },
+    "degraded": {
+      "cer": {
+        "value": 0.0007523322299127295,
+        "evaluable": 7
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 7
+      },
+      "change_precision": {
+        "value": 0.9285714285714286,
+        "evaluable": 6
+      },
+      "change_recall": {
+        "value": 0.9285714285714286,
+        "evaluable": 7
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 6
+      },
+      "topic_jaccard": {
+        "value": 0.47619047619047616,
+        "evaluable": 7
+      },
+      "key_facts_coverage": {
+        "value": 0.9333333333333333,
+        "evaluable": 7
+      },
+      "judge_score": {
+        "value": 8.714285714285714,
+        "evaluable": 7
+      },
+      "human_review": {
+        "value": null,
+        "evaluable": 0
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "boundary_delta_licencia_dangling",
+      "category": "boundary",
+      "amendment_kind": "delta",
+      "exit_code": 10,
+      "error": "UnresolvedReferenceError",
+      "trace_id": "56539e7941cd0cbc4b0b5250a12ad74f",
+      "judge_reasoning": null,
+      "metrics": {
+        "cer": null,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": null,
+        "change_recall": null,
+        "change_type_accuracy": null,
+        "topic_jaccard": null,
+        "key_facts_coverage": null,
+        "judge_score": null,
+        "human_review": 1.0
+      }
+    },
+    {
+      "case_id": "boundary_restated_consultoria_injection",
+      "category": "boundary",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "2de08a2469aaa298e3250bc9f9c03d99",
+      "judge_reasoning": "The reference summary clearly states that the amendment changes the language in Clause Four from allowing the contract to be extended ('podrá prorrogarse') to requiring it ('deberá prorrogarse'). This is a key legal change. The candidate summary incorrectly states that no changes were identified, thus missing the only key fact. This is a significant omission.",
+      "metrics": {
+        "cer": 0.0,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": null,
+        "change_recall": 0.0,
+        "change_type_accuracy": null,
+        "topic_jaccard": 0.0,
+        "key_facts_coverage": 0.0,
+        "judge_score": 1.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "boundary_restated_licencia_renumber",
+      "category": "boundary",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "7cb000865487bd62b9f92a7570ade5bc",
+      "judge_reasoning": "The candidate summary accurately states the key change: the addition of Article V, which provides that the LICENCIANTE will train up to ten (10) users of the LICENCIATARIA free of charge during the first month of validity. It includes both key facts: 'capacitación' and 'diez (10) usuarios.' The candidate does not mention the renumbering of the subsequent articles, but this is context and not a required key fact. No changes are missing or misstated, and nothing is invented.",
+      "metrics": {
+        "cer": 0.0,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 0.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "boundary_restated_locacion_degraded",
+      "category": "boundary",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "139c35ede3fe20188cb6a39b56c5ee36",
+      "judge_reasoning": "The candidate summary correctly identifies both key changes: (1) that extraordinary expenses (expensas extraordinarias) are now to be paid by the LOCATARIA instead of the LOCADORA (Cláusula Séptima), and (2) that the notice period for early termination (preaviso de rescisión anticipada) is increased from sixty (60) to ninety (90) days (Cláusula Octava). The candidate also mentions a modification to Cláusula Sexta, which is not present in the reference summary, but this does not affect the score as it does not omit or misstate any required key fact. All key facts are present and correctly stated, with correct amounts and sections.",
+      "metrics": {
+        "cer": 0.0032399907428835918,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 0.6666666666666666,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 0.6666666666666666,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "standard_delta_consultoria",
+      "category": "standard",
+      "amendment_kind": "delta",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "df3fab0ffcfcaf85bb0d8e7480321d01",
+      "judge_reasoning": "The candidate summary accurately identifies all the changes described in the reference summary: (1) the increase in monthly fees from $2,400,000 to $2,900,000, (2) the extension of the termination notice period from 30 to 45 days, and (3) the addition of a new clause specifying valid addresses and emails for notifications. The candidate also provides the relevant section numbers and does not invent any changes. All key facts are present and correctly stated, with precise amounts, periods, and the nature of the new clause. There are no omissions or misstatements.",
+      "metrics": {
+        "cer": 0.002240717029449424,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "standard_restated_licencia",
+      "category": "standard",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "4a2cff098a802d1bef6ba25ad69e4fb3",
+      "judge_reasoning": "The candidate summary accurately captures all the key changes described in the reference summary: (1) the increase in concurrent users from 50 to 80 in Article II, (2) the extension of the liability cap from 6 to 12 months in Article VII, and (3) the addition of Article IX regarding personal data protection in accordance with Law 25.326, including the deletion of data within 30 days after contract termination. All key facts are present, with correct amounts, sections, and legal references. No changes are omitted or misstated, and nothing is invented.",
+      "metrics": {
+        "cer": 0.0,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 0.6666666666666666,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "standard_restated_locacion",
+      "category": "standard",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "4b8c6cdeeafad259ad0737607cffd5c7",
+      "judge_reasoning": "The candidate summary accurately states both key changes: (1) the increase of the security deposit from $900,000 (one month) to $1,800,000 (two months), and (2) the addition of Clause Nine requiring the tenant to obtain liability and fire insurance for at least $50,000,000. It also correctly mentions the obligation to deliver the policy within 15 days, which is additional detail but does not alter the legal meaning of the required changes. All key facts are present and correctly stated, with no invented or missing changes.",
+      "metrics": {
+        "cer": 0.00022002200220022002,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_delta_consultoria",
+      "category": "variant",
+      "amendment_kind": "delta",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "fa64ff49cce53ef34e9191b09bd81761",
+      "judge_reasoning": "The candidate summary accurately captures both key changes described in the reference summary: (1) that the consultant is no longer required to accompany the implementation of the improvement plan (implementation), and (2) that the confidentiality obligation will last for three years after the contract ends (tres (3) años). The candidate also specifies the relevant clauses and does not introduce any invented changes. All key facts are present and correctly stated, with correct amounts, dates, and sections.",
+      "metrics": {
+        "cer": 0.0010319917440660474,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_delta_licencia",
+      "category": "variant",
+      "amendment_kind": "delta",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "769542492139ad22480549b318aec53e",
+      "judge_reasoning": "The candidate summary accurately states both key changes: (1) the extension of the post-contract confidentiality period from two to five years (\"cinco (5) años\"), and (2) the addition of Article IX, which allows the LICENCIANTE to verify once per year (\"una vez por año\"/\"anualmente\") that the number of concurrent users does not exceed the licensed amount, with ten business days' notice. All key facts are present, correctly stated, and no changes are invented. The summary also correctly identifies the relevant sections and details.",
+      "metrics": {
+        "cer": 0.0,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 0.3333333333333333,
+        "key_facts_coverage": 0.5,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_delta_locacion",
+      "category": "variant",
+      "amendment_kind": "delta",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "fe35e6d46f38f11e44773683930dd876",
+      "judge_reasoning": "The candidate summary accurately states both key changes: (1) that Clause Six is modified to allow the tenant to sublet up to 20% of the area to associated professionals with written notice to the landlord, and (2) that Clause Eight is modified to reduce the advance notice for early termination from 60 to 30 days. Both key facts (\"treinta (30) días\" and \"veinte por ciento (20 %)\") are present and correctly stated. No changes are missing or misstated, and nothing is invented.",
+      "metrics": {
+        "cer": 0.0005952380952380953,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 0.3333333333333333,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_delta_locacion_sin_cambios",
+      "category": "variant",
+      "amendment_kind": "delta",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "1bc0428de0e9ac0ceabe1d0394e9becc",
+      "judge_reasoning": "Both the reference summary and the candidate summary state that no changes were identified. There are no key facts listed, and the candidate summary does not invent or omit any changes. Therefore, the candidate summary is fully accurate and complete according to the grading criteria.",
+      "metrics": {
+        "cer": 0.0006080875646093037,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": null,
+        "change_recall": null,
+        "change_type_accuracy": null,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": null,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_restated_consultoria",
+      "category": "variant",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "8480a4617de3e0f046d7e1e2c9720c27",
+      "judge_reasoning": "The candidate summary accurately captures all the key changes described in the reference summary: (1) The payment term in Clause 3 is extended from 15 to 30 days, (2) the duration in Clause 4 is extended from 8 to 12 months, and (3) Clause 6, regarding intellectual property, is removed. All key facts are present, with correct amounts, durations, and the mention of the intellectual property clause. There is no invented or missing change, and the legal meaning is preserved. Minor differences in wording do not affect the accuracy or completeness.",
+      "metrics": {
+        "cer": 0.0,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_restated_licencia",
+      "category": "variant",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "9384a04633dde2994818acef6ef00bff",
+      "judge_reasoning": "The candidate summary accurately states both key changes: (1) the annual fee in Article III is increased from USD 24,000 to USD 27,600, and (2) Article IV is modified so that its text is now 'N/A', which eliminates the licensor's obligations for support and minor updates. The candidate summary does not invent any changes and includes the correct amounts and the effect on support. The summary is precise and covers all key facts from the reference summary.",
+      "metrics": {
+        "cer": 0.0,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_restated_locacion",
+      "category": "variant",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "ee8710e06a0e9462c06bc328c022c67b",
+      "judge_reasoning": "The candidate summary accurately reflects all the key changes described in the reference summary. It states the increase in the monthly rent to $1,150,000, the change in the frequency of rent adjustment to every four months, and the addition of Clause Nine regarding the exclusive use of the parking spaces (cocheras) for the tenant or their staff, specifying the units involved. All key facts are present, with correct amounts, periods, and section references. There is no invented or missing information, and the legal meaning is preserved throughout.",
+      "metrics": {
+        "cer": 0.00022197558268590456,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 0.3333333333333333,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    }
+  ],
+  "baseline": null,
+  "thresholds": [
+    {
+      "label": "cer (clean scans)",
+      "metric": "cer",
+      "scan": "clean",
+      "target": 0.02,
+      "lower_is_better": true,
+      "value": 0.0004350474201687984,
+      "evaluable": 6,
+      "met": true
+    },
+    {
+      "label": "cer (degraded scans)",
+      "metric": "cer",
+      "scan": "degraded",
+      "target": 0.08,
+      "lower_is_better": true,
+      "value": 0.0007523322299127295,
+      "evaluable": 7,
+      "met": true
+    },
+    {
+      "label": "amendment_kind_accuracy",
+      "metric": "amendment_kind_accuracy",
+      "scan": null,
+      "target": 0.95,
+      "lower_is_better": false,
+      "value": 1.0,
+      "evaluable": 14,
+      "met": true
+    },
+    {
+      "label": "change_precision",
+      "metric": "change_precision",
+      "scan": null,
+      "target": 0.9,
+      "lower_is_better": false,
+      "value": 0.9615384615384616,
+      "evaluable": 11,
+      "met": true
+    },
+    {
+      "label": "change_recall",
+      "metric": "change_recall",
+      "scan": null,
+      "target": 0.9,
+      "lower_is_better": false,
+      "value": 0.9615384615384616,
+      "evaluable": 12,
+      "met": true
+    },
+    {
+      "label": "change_type_accuracy",
+      "metric": "change_type_accuracy",
+      "scan": null,
+      "target": 0.9,
+      "lower_is_better": false,
+      "value": 1.0,
+      "evaluable": 11,
+      "met": true
+    },
+    {
+      "label": "topic_jaccard",
+      "metric": "topic_jaccard",
+      "scan": null,
+      "target": 0.8,
+      "lower_is_better": false,
+      "value": 0.6666666666666666,
+      "evaluable": 13,
+      "met": false
+    },
+    {
+      "label": "key_facts_coverage",
+      "metric": "key_facts_coverage",
+      "scan": null,
+      "target": 0.9,
+      "lower_is_better": false,
+      "value": 0.896551724137931,
+      "evaluable": 12,
+      "met": false
+    },
+    {
+      "label": "judge_score",
+      "metric": "judge_score",
+      "scan": null,
+      "target": 7.0,
+      "lower_is_better": false,
+      "value": 9.307692307692308,
+      "evaluable": 13,
+      "met": true
+    },
+    {
+      "label": "human_review",
+      "metric": "human_review",
+      "scan": null,
+      "target": 1.0,
+      "lower_is_better": false,
+      "value": 1.0,
+      "evaluable": 1,
+      "met": true
+    }
+  ]
+}

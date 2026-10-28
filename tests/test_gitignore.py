@@ -36,6 +36,10 @@ def test_path_is_ignored(relative_path: str) -> None:
     assert is_ignored_by_git(relative_path)
 
 
-@pytest.mark.parametrize("relative_path", [".env.example", "outputs/baseline.json"])
+@pytest.mark.parametrize(
+    "relative_path",
+    # The single blind validation run is kept as evidence (decision 92).
+    [".env.example", "outputs/baseline.json", "outputs/validation_run1.json"],
+)
 def test_path_is_tracked(relative_path: str) -> None:
     assert not is_ignored_by_git(relative_path)

@@ -14,8 +14,8 @@ import main
 import run_evals
 from cli_doubles import RecordingLifecycleTracer
 from errors import ConfigurationError, ObservabilityError
-from eval_case import CaseRun, GoldenCase
-from eval_doubles import RecordingPublisher, case_run, failed_run, golden_case, review_case
+from eval_case import GoldenCase
+from eval_doubles import FakePipeline, RecordingPublisher, golden_case, review_case
 from golden_case import SplitName
 from judge import JUDGE_PROMPT_VERSION, JudgeVerdict
 from metrics import METRICS
@@ -31,6 +31,7 @@ from run_evals import (
     select_cases,
 )
 from settings import EvalSettings
+from thresholds import describe_thresholds
 
 
 def options(tmp_path: Path) -> EvalOptions:
@@ -40,19 +41,6 @@ def options(tmp_path: Path) -> EvalOptions:
         report_path=tmp_path / "outputs" / "eval_report.json",
         baseline_path=tmp_path / "outputs" / "baseline.json",
     )
-
-
-class FakePipeline:
-    """Stands in for CaseRunner: canned runs, and a log of which cases ran."""
-
-    def __init__(self) -> None:
-        self.calls: list[str] = []
-
-    def __call__(self, case: GoldenCase) -> CaseRun:
-        self.calls.append(case.case_id)
-        if case.expected_error:
-            return failed_run(case_id=case.case_id)
-        return case_run(case_id=case.case_id)
 
 
 CASES = [golden_case(), review_case()]
@@ -94,6 +82,15 @@ def test_the_report_is_written_with_the_experiment_url(tmp_path: Path) -> None:
     assert report["cases_total"] == 2
     assert report["global"]["human_review"] == {"value": 1.0, "evaluable": 1}
     assert report["baseline"] is None
+
+
+def test_the_report_says_which_plan_targets_were_met(tmp_path: Path) -> None:
+    run_evaluation(CASES, FakePipeline(), RecordingPublisher(), options(tmp_path))
+
+    report = read_report(tmp_path / "outputs" / "eval_report.json")
+    assert report["thresholds"] == describe_thresholds(report)
+    human_review = next(row for row in report["thresholds"] if row["metric"] == "human_review")
+    assert human_review["met"] is True
 
 
 def test_the_report_survives_a_failed_publication(tmp_path: Path) -> None:
@@ -184,6 +181,16 @@ def test_a_case_filter_is_recorded_and_never_compared_with_the_baseline(tmp_path
     report = read_report(tmp_path / "outputs" / "eval_report.json")
     assert report["case_filter"] == "boundary_unknown_demo"
     assert report["baseline"] == {"compared": False, "reason": "case filter"}
+
+
+def test_a_case_filter_computes_no_threshold_verdicts(tmp_path: Path) -> None:
+    """One case against a whole-split target is no verdict, as with the baseline (decision 86)."""
+    filtered = dataclasses.replace(options(tmp_path), case_id="boundary_unknown_demo")
+
+    run_evaluation([review_case()], FakePipeline(), RecordingPublisher(), filtered)
+
+    report = read_report(tmp_path / "outputs" / "eval_report.json")
+    assert report["thresholds"] == {"checked": False, "reason": "case filter"}
 
 
 def test_a_full_split_run_records_no_case_filter(tmp_path: Path) -> None:
@@ -309,7 +316,7 @@ def test_the_publisher_connects_before_the_first_case_and_every_case_gets_a_fres
 
     report, _ = run_evals.evaluate_split(arguments)
 
-    calibration_cases = 10
+    calibration_cases = 24  # decision 92 moved the 14 validation cases to calibration
     assert events == ["publisher", *["compose"] * calibration_cases]
     assert len({id(budget) for budget in budgets}) == calibration_cases
     assert report["cases_total"] == calibration_cases

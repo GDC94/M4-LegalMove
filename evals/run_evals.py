@@ -9,7 +9,7 @@ import argparse
 import json
 import logging
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -28,12 +28,16 @@ from main import LOG_FORMAT, UNEXPECTED_EXIT_CODE, build_container
 from metrics import METRICS
 from observability import connect_langfuse
 from settings import EvalSettings, load_eval_settings
+from thresholds import describe_thresholds
 
 GOLDEN_ROOT = Path(__file__).resolve().parent.parent / "data" / "golden"
 DEFAULT_REPORT = Path("outputs/eval_report.json")
 DEFAULT_BASELINE = Path("outputs/baseline.json")
 DATASET_PREFIX = "legalmove"
 USAGE_EXIT_CODE = 2
+# Outside 0-10, the range the pipeline's own exit codes use (errors.py, main.py), so a script
+# can tell "the evals ran and regressed" from any failure run_cli passes through.
+REGRESSION_EXIT_CODE = 20
 
 RunCase = Callable[[GoldenCase], CaseRun]
 
@@ -123,6 +127,7 @@ def run_evaluation(
         options.case_id,
     )
     report = build_report(cases, runs, header)
+    report["thresholds"] = describe_report_thresholds(report, options)
     report["baseline"] = describe_baseline(report, options)
     write_report(report, options.report_path)
     metadata = {"judge_prompt_version": JUDGE_PROMPT_VERSION}
@@ -132,6 +137,15 @@ def run_evaluation(
     report["experiment_url"] = publisher.publish(experiment)
     write_report(report, options.report_path)
     return report
+
+
+def describe_report_thresholds(
+    report: dict[str, Any], options: EvalOptions
+) -> list[dict[str, Any]] | dict[str, Any]:
+    """One case against a whole-split target is no verdict either way (decision 86)."""
+    if options.case_id is not None:
+        return {"checked": False, "reason": "case filter"}
+    return describe_thresholds(report)
 
 
 def describe_baseline(report: dict[str, Any], options: EvalOptions) -> dict[str, Any] | None:
@@ -211,7 +225,20 @@ def run_cli(argv: Sequence[str], stderr: TextIO) -> int:
         logger.error("unexpected failure: %s", type(error).__name__)
         return UNEXPECTED_EXIT_CODE
     stderr.write(f"report: {report_path}\nexperiment: {report['experiment_url']}\n")
-    return 0
+    return gate_regressions(report, stderr)
+
+
+def gate_regressions(report: Mapping[str, Any], stderr: TextIO) -> int:
+    """Runs after the report is written and published, so a failed gate never loses a paid run.
+
+    No baseline, another Split or a --case run was never compared, so it cannot regress.
+    """
+    baseline = report.get("baseline") or {}
+    regressions: list[str] = baseline.get("regressions", []) if baseline.get("compared") else []
+    if not regressions:
+        return 0
+    stderr.write(f"regressions against the baseline: {', '.join(regressions)}\n")
+    return REGRESSION_EXIT_CODE
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@
 base: licencia_software
 amendment_kind: restated
 category: variant
-split: validation
+split: calibration
 template: two_column
 seed: 411
 mutations:

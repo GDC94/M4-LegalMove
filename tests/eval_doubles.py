@@ -90,6 +90,19 @@ def failed_run(**overrides: Any) -> CaseRun:
     )
 
 
+class FakePipeline:
+    """Stands in for CaseRunner: canned runs, and a log of which cases ran."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def __call__(self, case: GoldenCase) -> CaseRun:
+        self.calls.append(case.case_id)
+        if case.expected_error:
+            return failed_run(case_id=case.case_id)
+        return case_run(case_id=case.case_id)
+
+
 @dataclass
 class RecordingPublisher:
     """ExperimentPublisher double: records what would reach Langfuse and returns a fixed URL."""
@@ -100,3 +113,30 @@ class RecordingPublisher:
     def publish(self, experiment: ExperimentRun) -> str | None:
         self.published.append(experiment)
         return self.url
+
+
+def build_aggregate(value: float | None, evaluable: int = 4) -> dict[str, Any]:
+    return {"value": value, "evaluable": evaluable if value is not None else 0}
+
+
+def build_perfect_report(**overrides: dict[str, Any]) -> dict[str, Any]:
+    """A validation report meeting every §6.6 target; overrides replace global metrics."""
+    measured = {
+        "amendment_kind_accuracy": build_aggregate(1.0),
+        "change_precision": build_aggregate(1.0),
+        "change_recall": build_aggregate(1.0),
+        "change_type_accuracy": build_aggregate(1.0),
+        "topic_jaccard": build_aggregate(1.0),
+        "key_facts_coverage": build_aggregate(1.0),
+        "judge_score": build_aggregate(8.0),
+        "human_review": build_aggregate(1.0),
+        "cer": build_aggregate(0.03),
+    }
+    return {
+        "split": "validation",
+        "global": {**measured, **overrides},
+        "by_scan": {
+            "clean": {"cer": build_aggregate(0.01)},
+            "degraded": {"cer": build_aggregate(0.05)},
+        },
+    }

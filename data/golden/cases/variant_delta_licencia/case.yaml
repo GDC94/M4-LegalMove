@@ -2,7 +2,7 @@
 base: licencia_software
 amendment_kind: delta
 category: variant
-split: validation
+split: calibration
 template: roman_articles
 seed: 421
 mutations:

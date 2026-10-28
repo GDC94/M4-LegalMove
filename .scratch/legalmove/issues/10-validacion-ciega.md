@@ -31,11 +31,11 @@ Decisiones del registro §8.4: 36, 59
 
 ## Criterios de aceptación
 
-- [ ] Se hace una sola corrida de `validation` antes de congelar.
-- [ ] Cualquier reintento exige un holdout nuevo.
-- [ ] El gate de regresión falla si una métrica cae por debajo de la baseline.
-- [ ] `outputs/baseline.json` está commiteado.
-- [ ] El README muestra la tabla de resultados medidos.
+- [x] Se hace una sola corrida de `validation` antes de congelar.
+- [x] Cualquier reintento exige un holdout nuevo.
+- [x] El gate de regresión falla si una métrica cae por debajo de la baseline.
+- [ ] `outputs/baseline.json` está commiteado. **Pasa a T12 por la decisión 92** (el ticket gana sobre el plan; aprobado por el autor): la validación ciega 1 no alcanzó dos umbrales y sus casos pasaron a `calibration`.
+- [x] El README muestra la tabla de resultados medidos (la de la validación ciega 1, marcada como no cumplida; T12 la reemplaza por la de la línea base).
 
 ## Tests requeridos (TDD estricto)
 
@@ -49,3 +49,7 @@ Decisiones del registro §8.4: 36, 59
 - Fallback de modelos.
 
 ## Comments
+
+**2026-10-28 — Validación ciega 1.** Una sola corrida autorizada por el autor sobre los 14 casos de `validation` (`validation-20261028T154123Z`; reporte `outputs/validation_run1.json`; detalle en `docs/calibration/t10-validation.md`). Cumplidos: CER 0,000 en limpias (6) y 0,001 en degradadas (7), `amendment_kind` 1,000, precision 0,962, recall 0,962, `change_type` 1,000, juez 9,308 y revisión humana 1,000. **No cumplidos:** `topic_jaccard` 0,667 (objetivo 0,80) y `key_facts_coverage` 0,897 (objetivo 0,90). Fallas por caso: `boundary_restated_consultoria_injection` no reportó ningún cambio; Jaccard de temas 0 en `boundary_restated_licencia_renumber` (con P/R 1,0) y 0,33 en `variant_delta_licencia`, `variant_delta_locacion` y `variant_restated_locacion`; `key_facts` 0,5 en `variant_delta_licencia` y 0,67 en `standard_restated_licencia`. Un lote de exportación OTLP de spans venció por timeout: Langfuse puede no tener algunos spans; el reporte local está completo.
+
+Por la decisión 59 (registrada como 92) las tres familias y sus 14 casos pasan a `calibration`, T10 cierra sin `outputs/baseline.json` y T12 (`12-holdout-nuevo.md`) arma un holdout nuevo y congela la línea base con su única corrida. Se registran además las decisiones 88–91 (exit `20` del gate, umbrales como datos y tabla renderizada, `by_scan`, métricas de §6.6 sin umbral automático).

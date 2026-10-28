@@ -3,7 +3,7 @@
 base: licencia_software
 amendment_kind: delta
 category: boundary
-split: validation
+split: calibration
 template: table
 seed: 441
 mutations:
