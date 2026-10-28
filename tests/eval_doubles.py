@@ -72,6 +72,7 @@ def case_run(**overrides: Any) -> CaseRun:
         "parsed_original": "CONTRATO\nCláusula Segunda. $ 2.400.000.",
         "parsed_amendment": "ADENDA\nModifícase la Cláusula Segunda: $ 2.900.000.",
         "judge_score": 8.0,
+        "judge_reasoning": "Cubre los hechos.",
     }
     return CaseRun.model_validate({**fields, **overrides})
 

@@ -6,7 +6,14 @@ import pytest
 
 from budget import CallBudget
 from errors import InvalidExtractionError, UpstreamError, ValidationIssue
-from models import NO_CHANGES, AmendmentKind, ContextMap, ExtractionResult, SectionMapping
+from models import (
+    NO_CHANGES,
+    AmendmentKind,
+    ContextMap,
+    ExtractionResult,
+    InstructionKind,
+    SectionMapping,
+)
 from observability import RecordingTracer
 from pipeline import AnalysisRequest, AnalysisResult, run_analysis
 from pipeline_doubles import ORIGINAL_TEXT, StubStages, context_map, extraction
@@ -74,6 +81,7 @@ def test_result_carries_the_hard_and_soft_scores_with_n_a_kept_as_none() -> None
         "grounding_rate": 1.0,
         "diff_agreement": 1.0,
         "kind_agreement": None,
+        "new_section_gap": None,
         "other_topic_rate": 0.0,
     }
 
@@ -103,6 +111,7 @@ def test_output_validation_records_diff_coverage_in_its_span() -> None:
         "sections_diffed": 1,
         "sections_total": 1,
         "kind_agreement": None,
+        "new_section_gap": None,
         "other_topic_rate": 0.0,
     }
 
@@ -118,6 +127,7 @@ def delta_map() -> ContextMap:
             SectionMapping(
                 section_id="1",
                 title="Precio",
+                instruction=InstructionKind.REWRITES,
                 original_ref="Cláusula Primera",
                 amendment_ref="Modifícase la Cláusula Primera",
                 purpose="Fija el precio.",
@@ -139,6 +149,31 @@ def test_delta_records_kind_agreement_and_no_diff_agreement() -> None:
     assert result.scores["kind_agreement"] == 1
     assert tracer.stages[-1].metadata["diff_agreement"] is None
     assert "sections_total" not in tracer.stages[-1].metadata
+
+
+def gapped_delta_map() -> ContextMap:
+    """Section 1 plus a new:5 that skips 2 to 4: the shape of an invented Section."""
+    added = SectionMapping(
+        section_id="new:5",
+        title=None,
+        instruction=InstructionKind.ADDS,
+        original_ref=None,
+        amendment_ref="Modifícase la Cláusula Primera",
+        purpose="Agrega una cláusula.",
+    )
+    return delta_map().model_copy(update={"sections": [*delta_map().sections, added]})
+
+
+def test_a_new_section_gap_is_scored_and_never_blocks() -> None:
+    tracer = RecordingTracer()
+    stages = StubStages(tracer, context_map_result=gapped_delta_map, amendment_text=DELTA_AMENDMENT)
+
+    result = run(stages, tracer)
+
+    assert result.scores["new_section_gap"] == 1
+    assert ("new_section_gap", 1) in tracer.scores
+    assert tracer.stages[-1].metadata["new_section_gap"] == 1
+    assert tracer.scores[-1] == ("outcome", "ok")
 
 
 def no_changes() -> ExtractionResult:

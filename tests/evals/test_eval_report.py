@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from eval_case import CaseRun
 from eval_doubles import case_run, failed_run, golden_case, review_case
 from eval_report import ReportHeader, build_report, compare_with_baseline, read_baseline
 
@@ -12,6 +13,7 @@ HEADER = ReportHeader(
     split="calibration",
     run_name="calibration-20261027T120000Z",
     dataset_name="legalmove-calibration",
+    judge_prompt_version="judge-v9",
 )
 
 
@@ -33,6 +35,7 @@ def test_report_header_names_the_split_run_and_dataset() -> None:
     assert report["split"] == "calibration"
     assert report["run_name"] == "calibration-20261027T120000Z"
     assert report["dataset_name"] == "legalmove-calibration"
+    assert report["judge_prompt_version"] == "judge-v9"
     assert report["cases_total"] == 3
     assert report["experiment_url"] is None
     assert report["baseline"] is None
@@ -85,6 +88,8 @@ def test_each_case_reports_its_outcome_and_metric_values() -> None:
     assert review["metrics"]["human_review"] == 1.0
     assert review["metrics"]["change_recall"] is None
     assert report["cases"][0]["trace_id"] == "trace-1"
+    assert report["cases"][0]["judge_reasoning"] == "Cubre los hechos."
+    assert review["judge_reasoning"] is None
 
 
 def test_a_case_without_a_run_is_refused() -> None:
@@ -95,6 +100,7 @@ def test_a_case_without_a_run_is_refused() -> None:
 def baseline_report(evaluable: int = 1, **global_values: float | None) -> dict[str, Any]:
     return {
         "split": "calibration",
+        "judge_prompt_version": "judge-v2",
         "global": {
             name: {"value": value, "evaluable": evaluable} for name, value in global_values.items()
         },
@@ -182,3 +188,39 @@ def test_an_existing_baseline_file_is_read(tmp_path: Path) -> None:
     path.write_text('{"split": "validation", "global": {}}', encoding="utf-8")
 
     assert read_baseline(path) == {"split": "validation", "global": {}}
+
+
+@pytest.mark.parametrize("baseline_version", ["judge-v1", None])
+def test_a_judge_prompt_change_leaves_judge_score_out_of_the_comparison(
+    baseline_version: str | None,
+) -> None:
+    baseline = baseline_report(judge_score=9.0, change_recall=0.9)
+    if baseline_version is None:
+        del baseline["judge_prompt_version"]  # reports from before the version was recorded
+    else:
+        baseline["judge_prompt_version"] = baseline_version
+    current = baseline_report(judge_score=7.0, change_recall=0.9)
+
+    comparison = compare_with_baseline(current, baseline)
+
+    assert comparison["judge_prompt_version_changed"] is True
+    assert "judge_score" not in comparison["deltas"]
+    assert "judge_score" not in comparison["evaluable_deltas"]
+    assert comparison["regressions"] == []
+    assert comparison["deltas"]["change_recall"] == 0
+
+
+def test_the_same_judge_prompt_keeps_judge_score_in_the_comparison() -> None:
+    comparison = compare_with_baseline(
+        baseline_report(judge_score=7.0), baseline_report(judge_score=9.0)
+    )
+
+    assert comparison["judge_prompt_version_changed"] is False
+    assert comparison["regressions"] == ["judge_score"]
+
+
+def test_a_case_run_recorded_before_judge_reasoning_still_loads() -> None:
+    old = case_run().model_dump(mode="json")
+    del old["judge_reasoning"]
+
+    assert CaseRun.model_validate(old).judge_reasoning is None

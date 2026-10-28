@@ -53,8 +53,16 @@ The ContextualizationAgent's result: the Amendment Kind and one Section Mapping 
 _Avoid_: context, structural summary, outline, mapa
 
 **Section Mapping**:
-One row of the Context Map: a Section ID, how the Section appears in each document, and its purpose.
+One row of the Context Map: a Section ID, the Instruction that targets it, how the Section appears in each document, and its purpose.
 _Avoid_: alignment, correspondence row, pair
+
+**Instruction**:
+What a Delta Amendment's instruction does to one Section: adds it, rewrites it or removes it. `none` when no instruction names the Section, and always `none` in a Restated Amendment.
+_Avoid_: action, operation, change type (reserved for Changes)
+
+**Unresolved Reference**:
+A Delta instruction that rewrites or removes a Section the Original Contract does not have. The Section cannot be invented as an Addition: the run goes straight to Human Review, without a retry.
+_Avoid_: dangling clause, missing section, broken reference
 
 ### Changes
 

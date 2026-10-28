@@ -15,6 +15,7 @@ from models import (
     ChangeType,
     ContextMap,
     ExtractionResult,
+    InstructionKind,
     SectionMapping,
     Topic,
     find_order_breaks,
@@ -60,8 +61,43 @@ def check_context_map(
         *check_canonical_order(sections),
         *check_rows_have_a_ref(sections),
         *check_section_origins(sections),
+        *check_instructions(context_map),
         *check_refs_grounded(sections, original_text, amendment_text),
     ]
+
+
+def find_unresolved_references(context_map: ContextMap) -> list[ValidationIssue]:
+    """Delta new: rows an instruction rewrites or removes: the referenced Section is missing.
+
+    Terminal (decision 60 applied to references): the retry would see the same evidence, so
+    these go straight to Human Review instead of feeding the retry.
+    """
+    if context_map.amendment_kind is not AmendmentKind.DELTA:
+        return []
+    return [
+        ValidationIssue(
+            code="unresolved_reference",
+            path=f"sections[{index}]",
+            # Canonical IDs and enum values only: they passed the grammar, so no document text.
+            message=(
+                f"section {section.section_id} is mapped as new, but its instruction "
+                f"{section.instruction} it: the amendment references a section the original "
+                "contract does not have"
+            ),
+        )
+        for index, section in enumerate(context_map.sections)
+        if is_unresolved_reference(section)
+    ]
+
+
+# A new: row that an instruction rewrites or removes: that Section has nothing to rewrite or
+# remove in the original. A new: row with none is a filling mistake and gets the retry.
+UNRESOLVABLE_INSTRUCTIONS = frozenset({InstructionKind.REWRITES, InstructionKind.REMOVES})
+
+
+def is_unresolved_reference(section: SectionMapping) -> bool:
+    is_new = parse_section_id(section.section_id).is_new
+    return is_new and section.instruction in UNRESOLVABLE_INSTRUCTIONS
 
 
 def check_map_not_empty(context_map: ContextMap) -> Iterator[RetryFeedback]:
@@ -110,6 +146,48 @@ def check_section_origins(sections: Sequence[SectionMapping]) -> Iterator[RetryF
                 f"sections[{index}].original_ref",
                 f"section {section.section_id} {expected} an original_ref",
             )
+
+
+def check_instructions(context_map: ContextMap) -> Iterator[RetryFeedback]:
+    """Restated has no instructions; a delta row an instruction names says what it does."""
+    kind = context_map.amendment_kind
+    for index, section in enumerate(context_map.sections):
+        message = describe_instruction_mismatch(section, kind)
+        if message is not None:
+            yield build_feedback("instruction_mismatch", f"sections[{index}].instruction", message)
+
+
+def describe_instruction_mismatch(section: SectionMapping, kind: AmendmentKind) -> str | None:
+    if kind is AmendmentKind.RESTATED and section.instruction is not InstructionKind.NONE:
+        return (
+            f"section {section.section_id} has instruction {section.instruction}, but a "
+            "restated amendment has no instructions: use none"
+        )
+    if kind is AmendmentKind.DELTA:
+        return describe_delta_instruction_mismatch(section)
+    return None
+
+
+def describe_delta_instruction_mismatch(section: SectionMapping) -> str | None:
+    # Unresolved References belong to find_unresolved_references, which ends the run instead.
+    if is_unresolved_reference(section):
+        return None
+    if (
+        section.instruction is InstructionKind.ADDS
+        and not parse_section_id(section.section_id).is_new
+    ):
+        return (
+            f"section {section.section_id} exists in the original contract, so its instruction "
+            "cannot be adds: only a new: section is added"
+        )
+    named = section.amendment_ref is not None
+    if named != (section.instruction is not InstructionKind.NONE):
+        return (
+            f"section {section.section_id} has instruction {section.instruction} "
+            f"{'with' if named else 'without'} an amendment_ref: in a delta map, a row has "
+            "adds, rewrites or removes exactly when an instruction names it"
+        )
+    return None
 
 
 def check_refs_grounded(
@@ -361,6 +439,25 @@ def compute_kind_agreement(kind: AmendmentKind, heuristic: KindHeuristic) -> int
     if heuristic is KindHeuristic.INCONCLUSIVE:
         return None
     return int(kind is AmendmentKind.DELTA)
+
+
+def compute_new_section_gap(context_map: ContextMap) -> int | None:
+    """1 when numbered delta new: Sections do not continue the original numbering, else 0.
+
+    Soft (decision 45): a legitimate Amendment may skip numbers, but a gap is how an invented
+    Section for an Unresolved Reference tends to look. Positional and sub-section new: IDs
+    carry no comparable number and are skipped; N/A when nothing is left to compare.
+    """
+    if context_map.amendment_kind is not AmendmentKind.DELTA:
+        return None
+    parts = [parse_section_id(section.section_id) for section in context_map.sections]
+    numbered = [p for p in parts if not p.is_positional]
+    original_max = max((p.numbers[0] for p in numbered if not p.is_new), default=None)
+    added = [p.numbers[0] for p in numbered if p.is_new and len(p.numbers) == 1]
+    if original_max is None or not added:
+        return None
+    contiguous = list(range(original_max + 1, original_max + 1 + len(added)))
+    return int(added != contiguous)
 
 
 def compute_other_topic_rate(changes: Sequence[Change]) -> float | None:

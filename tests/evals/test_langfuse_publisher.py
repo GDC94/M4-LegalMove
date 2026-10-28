@@ -119,7 +119,17 @@ def experiment() -> ExperimentRun:
         cases=(answered, review),
         runs={answered.case_id: case_run(), review.case_id: failed_run()},
         metrics=METRICS,
+        metadata={"judge_prompt_version": "judge-v9"},
     )
+
+
+def test_the_experiment_carries_the_run_metadata() -> None:
+    client = RecordingLangfuse()
+
+    LangfusePublisher(client).publish(experiment())
+
+    [call] = client.experiments
+    assert call["metadata"] == {"judge_prompt_version": "judge-v9"}
 
 
 def test_the_split_is_upserted_as_a_dataset_with_one_item_per_case() -> None:

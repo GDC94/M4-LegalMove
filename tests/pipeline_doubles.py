@@ -10,6 +10,7 @@ from models import (
     ContextMap,
     DocumentRole,
     ExtractionResult,
+    InstructionKind,
     ParsedContract,
     SectionMapping,
     SemanticRetries,
@@ -39,6 +40,7 @@ def context_map() -> ContextMap:
             SectionMapping(
                 section_id="1",
                 title="Precio",
+                instruction=InstructionKind.NONE,
                 original_ref="Cláusula Primera",
                 amendment_ref="Cláusula Primera",
                 purpose="Fija el precio.",

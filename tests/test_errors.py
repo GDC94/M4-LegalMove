@@ -9,6 +9,7 @@ from errors import (
     NeedsHumanReviewError,
     RetryFeedback,
     UnclassifiableAmendmentError,
+    UnresolvedReferenceError,
     UpstreamError,
     UsageError,
     ValidationIssue,
@@ -20,6 +21,7 @@ def test_human_review_errors_share_exit_code_ten() -> None:
         UnclassifiableAmendmentError,
         InvalidContextMapError,
         InvalidExtractionError,
+        UnresolvedReferenceError,
     ):
         assert issubclass(error_type, NeedsHumanReviewError)
         assert issubclass(error_type, LegalMoveError)
@@ -29,6 +31,16 @@ def test_human_review_errors_share_exit_code_ten() -> None:
 def test_contextualization_errors_name_their_stage() -> None:
     assert UnclassifiableAmendmentError.stage == "contextualization"
     assert InvalidContextMapError.stage == "contextualization"
+    assert UnresolvedReferenceError.stage == "contextualization"
+
+
+def test_unresolved_reference_carries_its_issues_and_a_sanitised_message() -> None:
+    issues = [ValidationIssue(code="unresolved_reference", path="sections[2]", message="x")]
+
+    error = UnresolvedReferenceError(issues)
+
+    assert error.issues == tuple(issues)
+    assert str(error) == "the amendment references 1 section the original contract does not have"
 
 
 def test_unclassifiable_amendment_carries_no_issues() -> None:

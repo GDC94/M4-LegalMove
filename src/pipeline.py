@@ -11,6 +11,7 @@ from checks import (
     compute_diff_agreement,
     compute_grounding_rate,
     compute_kind_agreement,
+    compute_new_section_gap,
     compute_other_topic_rate,
     detect_kind_heuristic,
 )
@@ -150,6 +151,7 @@ def record_soft_scores(run: ValidatedRun, span: StageSpan, tracer: PipelineTrace
     scores: Scores = {
         "diff_agreement": None if diff is None else diff.value,
         "kind_agreement": compute_kind_agreement(run.context_map.amendment_kind, heuristic),
+        "new_section_gap": compute_new_section_gap(run.context_map),
         "other_topic_rate": compute_other_topic_rate(run.extraction.changes),
     }
     span.set_metadata({**scores, **describe_coverage(diff)})

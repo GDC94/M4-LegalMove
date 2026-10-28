@@ -111,3 +111,17 @@ class InvalidExtractionError(NeedsHumanReviewError):
         issues = tuple(issues)
         codes = ", ".join(sorted({issue.code for issue in issues}))
         super().__init__(f"extraction is still invalid after one retry: {codes}", issues)
+
+
+class UnresolvedReferenceError(NeedsHumanReviewError):
+    """A delta instruction targets a Section the original lacks; it is never retried."""
+
+    stage = "contextualization"
+
+    def __init__(self, issues: Iterable[ValidationIssue]) -> None:
+        issues = tuple(issues)
+        noun = "section" if len(issues) == 1 else "sections"
+        super().__init__(
+            f"the amendment references {len(issues)} {noun} the original contract does not have",
+            issues,
+        )

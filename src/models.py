@@ -66,6 +66,15 @@ class AmendmentKind(StrEnum):
     UNKNOWN = "unknown"
 
 
+class InstructionKind(StrEnum):
+    """What an Amendment instruction does to one Section; `none` when no instruction names it."""
+
+    NONE = "none"
+    ADDS = "adds"
+    REWRITES = "rewrites"
+    REMOVES = "removes"
+
+
 class SectionIdParts(NamedTuple):
     """A canonical Section ID split into the facts the order checks compare."""
 
@@ -117,6 +126,8 @@ class SectionMapping(BaseModel):
 
     section_id: str
     title: str | None
+    # Before the refs, so the model commits to what the instruction does before mapping it.
+    instruction: InstructionKind
     original_ref: str | None
     amendment_ref: str | None
     purpose: str

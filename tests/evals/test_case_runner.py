@@ -11,10 +11,12 @@ from errors import (
     InvalidExtractionError,
     ObservabilityError,
     UnclassifiableAmendmentError,
+    UnresolvedReferenceError,
     ValidationIssue,
 )
 from eval_case import CaseRun, GoldenCase
 from eval_doubles import golden_case, review_case
+from judge import JudgeVerdict
 from main import Container
 from models import AmendmentKind, ChangeType, Topic
 from pipeline_doubles import AMENDMENT_TEXT, ORIGINAL_TEXT, StubStages
@@ -45,11 +47,11 @@ class Harness:
             root_metadata={"extraction_model": "gpt-4o"},
         )
 
-    def judge(self, summary: str, case: GoldenCase) -> float:
+    def judge(self, summary: str, case: GoldenCase) -> JudgeVerdict:
         self.judged.append((summary, case.case_id))
         if self.judge_error:
             raise self.judge_error
-        return 9.0
+        return JudgeVerdict(reasoning="Cubre todos los hechos.", score=9)
 
     def run(self, case: GoldenCase) -> CaseRun:
         return CaseRunner(compose=self.compose, judge=self.judge, session_id=SESSION)(case)
@@ -102,6 +104,7 @@ def test_the_judge_rates_the_published_summary_once() -> None:
     assert run.output is not None
     assert harness.judged == [(run.output.summary_of_the_change, "standard_delta_demo")]
     assert run.judge_score == 9.0
+    assert run.judge_reasoning == "Cubre todos los hechos."
 
 
 def test_a_case_expecting_human_review_is_never_judged() -> None:
@@ -121,6 +124,7 @@ def test_a_failed_judge_leaves_the_score_not_applicable() -> None:
 
     assert run.exit_code == 0
     assert run.judge_score is None
+    assert run.judge_reasoning is None
 
 
 def test_a_human_review_is_recorded_with_exit_10_and_its_issue_codes() -> None:
@@ -146,6 +150,19 @@ def test_an_unknown_amendment_is_recorded_as_an_unknown_kind() -> None:
 
     assert run.exit_code == 10
     assert run.amendment_kind is AmendmentKind.UNKNOWN
+
+
+def test_an_unresolved_reference_is_recorded_as_a_delta_with_its_issue_code() -> None:
+    # Only a delta map can raise it (checks.find_unresolved_references), so the kind is known.
+    issue = ValidationIssue("unresolved_reference", "sections[1]", "section new:11 ...")
+    harness = Harness(failures={"contextualization_agent": UnresolvedReferenceError([issue])})
+
+    run = harness.run(review_case())
+
+    assert run.exit_code == 10
+    assert run.error == "UnresolvedReferenceError"
+    assert run.issue_codes == ("unresolved_reference",)
+    assert run.amendment_kind is AmendmentKind.DELTA
 
 
 def test_an_unexpected_failure_is_exit_1_and_does_not_stop_the_eval() -> None:

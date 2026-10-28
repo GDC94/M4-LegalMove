@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,8 @@ class ReportHeader:
     split: str
     run_name: str
     dataset_name: str
+    judge_prompt_version: str
+    case_filter: str | None = None
 
 
 def build_report(
@@ -35,6 +38,8 @@ def build_report(
         "split": header.split,
         "run_name": header.run_name,
         "dataset_name": header.dataset_name,
+        "judge_prompt_version": header.judge_prompt_version,
+        "case_filter": header.case_filter,
         "experiment_url": None,
         "cases_total": len(scored),
         "global": describe_aggregates([scores for _, _, scores in scored]),
@@ -72,6 +77,7 @@ def describe_case(
         "exit_code": run.exit_code,
         "error": run.error,
         "trace_id": run.trace_id,
+        "judge_reasoning": run.judge_reasoning,
         "metrics": {name: None if ratio is None else ratio.value for name, ratio in scores.items()},
     }
 
@@ -94,14 +100,17 @@ def compare_with_baseline(report: Mapping[str, Any], baseline: Mapping[str, Any]
         reason = f"baseline split {baseline.get('split')} differs from {report['split']}"
         return {"compared": False, "reason": reason}
     current, before = report["global"], baseline.get("global", {})
-    deltas = global_deltas(current, before, "value")
-    evaluable_deltas = global_deltas(current, before, "evaluable")
+    judge_changed = baseline.get("judge_prompt_version") != report.get("judge_prompt_version")
+    excluded = {"judge_score"} if judge_changed else set()
+    deltas = global_deltas(current, before, "value", excluded)
+    evaluable_deltas = global_deltas(current, before, "evaluable", excluded)
     regressions = [
         *find_regressions(deltas),
         *(f"{name}.evaluable" for name, delta in evaluable_deltas.items() if delta < 0),
     ]
     return {
         "compared": True,
+        "judge_prompt_version_changed": judge_changed,
         "deltas": deltas,
         "evaluable_deltas": evaluable_deltas,
         "regressions": regressions,
@@ -109,11 +118,17 @@ def compare_with_baseline(report: Mapping[str, Any], baseline: Mapping[str, Any]
 
 
 def global_deltas(
-    current: Mapping[str, Any], baseline: Mapping[str, Any], field: str
+    current: Mapping[str, Any], baseline: Mapping[str, Any], field: str, excluded: AbstractSet[str]
 ) -> dict[str, float]:
-    """Only metrics both runs could evaluate; N/A on either side is no evidence either way."""
+    """Only metrics both runs could evaluate; N/A on either side is no evidence either way.
+
+    `excluded` drops metrics measured differently in each run, such as the Judge after a prompt
+    change: its delta would compare two graders, not two pipelines.
+    """
     deltas: dict[str, float] = {}
     for metric in METRICS:
+        if metric.name in excluded:
+            continue
         now = current.get(metric.name, {}).get(field)
         before = baseline.get(metric.name, {}).get(field)
         if now is not None and before is not None:

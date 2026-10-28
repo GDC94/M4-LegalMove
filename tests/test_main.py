@@ -25,6 +25,7 @@ from errors import (
     LegalMoveError,
     ObservabilityError,
     UnclassifiableAmendmentError,
+    UnresolvedReferenceError,
     UpstreamError,
     ValidationIssue,
 )
@@ -163,6 +164,7 @@ def test_a_business_error_still_flushes_the_trace() -> None:
         ("parse_amendment_contract", IllegibleDocumentError("12 illegible marks"), 6),
         ("contextualization_agent", UnclassifiableAmendmentError("kind is unknown"), 10),
         ("contextualization_agent", InvalidContextMapError([ISSUE]), 10),
+        ("contextualization_agent", UnresolvedReferenceError([ISSUE]), 10),
         ("extraction_agent", InvalidExtractionError([ISSUE]), 10),
     ],
 )

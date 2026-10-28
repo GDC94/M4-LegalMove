@@ -15,6 +15,7 @@ from models import (
     ContractChangeOutput,
     DocumentRole,
     ExtractionResult,
+    InstructionKind,
     ParsedContract,
     SectionIdParts,
     SectionMapping,
@@ -67,6 +68,7 @@ def make_mapping(section_id: str = "5", **overrides: object) -> SectionMapping:
     fields: dict[str, object] = {
         "section_id": section_id,
         "title": "Precio",
+        "instruction": "none",
         "original_ref": "Cláusula Quinta",
         "amendment_ref": "Cláusula Quinta",
         "purpose": "Fija el precio.",
@@ -135,6 +137,25 @@ def test_section_mapping_allows_missing_title_and_one_missing_ref() -> None:
 
     assert mapping.title is None
     assert mapping.original_ref is None
+
+
+def test_instruction_kinds_serialise_as_plain_strings() -> None:
+    assert [kind.value for kind in InstructionKind] == ["none", "adds", "rewrites", "removes"]
+
+
+def test_section_mapping_requires_its_instruction() -> None:
+    fields = make_mapping().model_dump()
+    del fields["instruction"]
+
+    with pytest.raises(ValidationError, match="instruction"):
+        SectionMapping.model_validate(fields)
+
+
+def test_section_mapping_commits_to_its_instruction_before_the_refs() -> None:
+    fields = list(SectionMapping.model_fields)
+
+    assert fields.index("instruction") < fields.index("original_ref")
+    assert make_mapping(instruction="adds").instruction is InstructionKind.ADDS
 
 
 def test_context_map_keeps_its_sections_in_the_given_order() -> None:

@@ -5,13 +5,19 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from errors import LegalMoveError, NeedsHumanReviewError, UnclassifiableAmendmentError
+from errors import (
+    LegalMoveError,
+    NeedsHumanReviewError,
+    UnclassifiableAmendmentError,
+    UnresolvedReferenceError,
+)
 from eval_case import CaseRun, ChangeRecord, GoldenCase
+from judge import JudgeVerdict
 from main import UNEXPECTED_EXIT_CODE, CliArguments, Container, RunContext, run_traced
 from models import AmendmentKind
 from pipeline import AnalysisResult
 
-JudgeSummary = Callable[[str, GoldenCase], float]
+JudgeSummary = Callable[[str, GoldenCase], JudgeVerdict]
 
 logger = logging.getLogger("legalmove.evals")
 
@@ -28,8 +34,12 @@ class CaseRunner:
         run = self.run_pipeline(case)
         if run.output is None or not case.expects_output:
             return run
-        score = self.judge_summary(run.output.summary_of_the_change, case)
-        return run.model_copy(update={"judge_score": score})
+        verdict = self.judge_summary(run.output.summary_of_the_change, case)
+        if verdict is None:
+            return run
+        return run.model_copy(
+            update={"judge_score": float(verdict.score), "judge_reasoning": verdict.reasoning}
+        )
 
     def run_pipeline(self, case: GoldenCase) -> CaseRun:
         """Same path as the CLI; a case failure is a result, a composition failure stops the run."""
@@ -42,7 +52,7 @@ class CaseRunner:
             return record_failure(case.case_id, error, context.trace_id)
         return record_success(case.case_id, result, context.trace_id)
 
-    def judge_summary(self, summary: str, case: GoldenCase) -> float | None:
+    def judge_summary(self, summary: str, case: GoldenCase) -> JudgeVerdict | None:
         """A Judge failure must not discard a paid pipeline run; its score is N/A instead."""
         try:
             return self.judge(summary, case)
@@ -82,12 +92,21 @@ def record_failure(case_id: str, error: Exception, trace_id: str | None) -> Case
             trace_id=trace_id,
         )
     issues = error.issues if isinstance(error, NeedsHumanReviewError) else ()
-    unknown = isinstance(error, UnclassifiableAmendmentError)
     return CaseRun(
         case_id=case_id,
         exit_code=error.exit_code,
         error=type(error).__name__,
         issue_codes=tuple(issue.code for issue in issues),
         trace_id=trace_id,
-        amendment_kind=AmendmentKind.UNKNOWN if unknown else None,
+        amendment_kind=kind_implied_by(error),
     )
+
+
+def kind_implied_by(error: LegalMoveError) -> AmendmentKind | None:
+    """The kind a Human Review error proves on its own, with no Context Map to read."""
+    if isinstance(error, UnclassifiableAmendmentError):
+        return AmendmentKind.UNKNOWN
+    # Only a delta map can hold an unresolved reference (checks.find_unresolved_references).
+    if isinstance(error, UnresolvedReferenceError):
+        return AmendmentKind.DELTA
+    return None

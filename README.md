@@ -19,7 +19,7 @@ LegalMove automates the comparison:
 3. **ExtractionAgent.** Reads the context map and both texts and reports each change (addition, removal or modification) with literal quotes as evidence.
 4. **Validation.** Deterministic checks (grounding of every quote, consistency, canonical order) gate the result; `ContractChangeOutput.model_validate()` produces the public JSON.
 
-The system fails closed. When it cannot answer with confidence (an `unknown` amendment, or an agent output that is still invalid after one corrective retry) it exits with code `10`, which means "send to human review". A successful JSON is printed only after the Langfuse trace is flushed.
+The system fails closed. When it cannot answer with confidence (an `unknown` amendment, a `delta` instruction that rewrites or removes a section the original contract does not have (`UnresolvedReferenceError`), or an agent output that is still invalid after one corrective retry) it exits with code `10`, which means "send to human review". A successful JSON is printed only after the Langfuse trace is flushed.
 
 ## Diagram
 
@@ -49,6 +49,7 @@ flowchart TD
     FLUSH -->|trace confirmed| OUT
     VAL -.->|fails · exit 4| ERR
     CTX -.->|unknown · exit 10| ERR
+    CTX -.->|unresolved reference · exit 10| ERR
     CTX -.->|invalid map ×2 · exit 10| ERR
     EXT -.->|invalid extraction ×2 · exit 10| ERR
     FLUSH -.->|fails · exit 5| ERR
@@ -59,7 +60,7 @@ flowchart TD
         S2["span parse_amendment_contract"]
         S3["span contextualization_agent"]
         S4["span extraction_agent"]
-        SC["span output_validation<br/>diff_agreement · kind_agreement · other_topic_rate"]
+        SC["span output_validation<br/>diff_agreement · kind_agreement · new_section_gap · other_topic_rate"]
     end
 
     PO -.- S1
@@ -197,6 +198,7 @@ stderr carries the logs and a final JSON line. On success it is `{"run_id": "...
 | `ObservabilityError` | `observability` | Langfuse rejects the keys at start-up, or the flush raises | `5` |
 | `IllegibleDocumentError` | `parse` | More `[ILLEGIBLE]` marks than `ILLEGIBLE_MAX_MARKS`, or the vision model returned empty text | `6` |
 | `UnclassifiableAmendmentError` | `contextualization` | `amendment_kind = unknown`; never retried | `10` |
+| `UnresolvedReferenceError` | `contextualization` | A `delta` instruction rewrites or removes a Section the original contract does not have (`issues` code `unresolved_reference`); never retried | `10` |
 | `InvalidContextMapError` | `contextualization` | The context map is still invalid after its semantic retry | `10` |
 | `InvalidExtractionError` | `extraction` | The extraction is still invalid after its semantic retry | `10` |
 
@@ -229,7 +231,7 @@ The root propagates `session_id` (from `--session-id`), `environment` (`APP_ENV`
 | `parse_*_contract` | `image_sha256`, bytes, dimensions | Masked parsed text | `cache_hit`, `illegible_count`, prompt version and hash |
 | `contextualization_agent` | Length of each text | Masked context map | `amendment_kind`, `kind_heuristic`, `context_retries`, prompt version |
 | `extraction_agent` | Section IDs of the map | Masked extraction result | `extraction_retries`, masked retry feedback, `schema_valid`, `consistency`, `grounding_rate` |
-| `output_validation` | — | Final `model_validate()` result | `diff_agreement` with its coverage, `kind_agreement`, `other_topic_rate` |
+| `output_validation` | — | Final `model_validate()` result | `diff_agreement` with its coverage, `kind_agreement`, `new_section_gap`, `other_topic_rate` |
 
 | Score | Values | Source |
 |---|---|---|
@@ -239,6 +241,7 @@ The root propagates `session_id` (from `--session-id`), `environment` (`APP_ENV`
 | `grounding_rate` | 0–1, N/A without changes | Quotes found / total quotes |
 | `diff_agreement` | 0–1, `restated` only | Jaccard over the sections `difflib` can segment |
 | `kind_agreement` | 0/1, N/A when the heuristic is inconclusive | Kind Heuristic against the ContextualizationAgent |
+| `new_section_gap` | 0/1, `delta` only; N/A without numbered `new:` and original Sections | 1 when the numbered `new:` Sections do not continue the original numbering without gaps |
 | `other_topic_rate` | 0–1, N/A without changes | Share of `Topic.other` |
 | `context_retries`, `extraction_retries` | 0 \| 1 | Semantic retries spent |
 

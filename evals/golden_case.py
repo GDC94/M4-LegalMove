@@ -194,6 +194,7 @@ KNOWN_ISSUE_CODES = frozenset(
         "empty_context_map",
         "empty_section_mapping",
         "inconsistent_extraction",
+        "instruction_mismatch",
         "missing_structural_change",
         "quote_rule_violation",
         "removed_quote_mismatch",
@@ -203,6 +204,7 @@ KNOWN_ISSUE_CODES = frozenset(
         "ungrounded_quote",
         "ungrounded_reference",
         "unparseable_output",
+        "unresolved_reference",
         "unresolved_section_reference",
         "untargeted_delta_change",
     }

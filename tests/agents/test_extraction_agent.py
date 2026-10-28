@@ -30,6 +30,7 @@ from models import (
     ContextMap,
     DocumentRole,
     ExtractionResult,
+    InstructionKind,
     ParsedContract,
     SectionMapping,
 )
@@ -49,10 +50,16 @@ def contract(role: DocumentRole, text: str) -> ParsedContract:
     return ParsedContract(role=role, source_path=f"{role}.png", image_sha256="a" * 64, text=text)
 
 
-def mapping(section_id: str, original_ref: str | None, amendment_ref: str | None) -> SectionMapping:
+def mapping(
+    section_id: str,
+    original_ref: str | None,
+    amendment_ref: str | None,
+    instruction: InstructionKind = InstructionKind.NONE,
+) -> SectionMapping:
     return SectionMapping(
         section_id=section_id,
         title=None,
+        instruction=instruction,
         original_ref=original_ref,
         amendment_ref=amendment_ref,
         purpose="Propósito.",
@@ -386,7 +393,12 @@ def test_a_delta_removal_quoting_its_instruction_is_accepted_end_to_end() -> Non
         amendment_kind=AmendmentKind.DELTA,
         sections=[
             mapping("1", "Cláusula Primera", None),
-            mapping("2", "Cláusula Segunda", "Déjase sin efecto la Cláusula Segunda"),
+            mapping(
+                "2",
+                "Cláusula Segunda",
+                "Déjase sin efecto la Cláusula Segunda",
+                InstructionKind.REMOVES,
+            ),
         ],
     )
     removal = {
@@ -594,7 +606,12 @@ def test_an_untargeted_delta_removal_is_retried_with_the_targeted_ids() -> None:
         amendment_kind=AmendmentKind.DELTA,
         sections=[
             mapping("1", "Cláusula Primera", None),
-            mapping("2", "Cláusula Segunda", "Déjase sin efecto la Cláusula Segunda"),
+            mapping(
+                "2",
+                "Cláusula Segunda",
+                "Déjase sin efecto la Cláusula Segunda",
+                InstructionKind.REMOVES,
+            ),
         ],
     )
     targeted = change(

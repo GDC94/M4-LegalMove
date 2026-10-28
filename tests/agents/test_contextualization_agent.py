@@ -23,8 +23,20 @@ from agents.contextualization_agent import (
     build_structured_context_models,
 )
 from checks import DELTA_MARKERS, normalize_for_grounding
-from errors import InvalidContextMapError, UnclassifiableAmendmentError, UpstreamError
-from models import AmendmentKind, ContextMap, DocumentRole, ParsedContract
+from errors import (
+    InvalidContextMapError,
+    UnclassifiableAmendmentError,
+    UnresolvedReferenceError,
+    UpstreamError,
+)
+from models import (
+    AmendmentKind,
+    ContextMap,
+    DocumentRole,
+    InstructionKind,
+    ParsedContract,
+    SectionMapping,
+)
 from observability import RecordingTracer
 from prompt_blocks import serialize_block
 
@@ -50,10 +62,16 @@ def request(
     )
 
 
-def row(section_id: str, original_ref: str | None, amendment_ref: str | None) -> dict[str, Any]:
+def row(
+    section_id: str,
+    original_ref: str | None,
+    amendment_ref: str | None,
+    instruction: str = "none",
+) -> dict[str, Any]:
     return {
         "section_id": section_id,
         "title": None,
+        "instruction": instruction,
         "original_ref": original_ref,
         "amendment_ref": amendment_ref,
         "purpose": "Propósito del bloque.",
@@ -303,6 +321,76 @@ def test_unknown_skips_map_checks_even_with_unusable_rows() -> None:
     assert len(model.calls) == 1
 
 
+DANGLING_AMENDMENT = "ADENDA\nModifícase la Cláusula Undécima."
+
+
+def dangling_payload(original_ref: str = "Cláusula Primera") -> dict[str, Any]:
+    """A delta map that invents new:11 for an instruction rewriting a Section the original lacks."""
+    return map_payload(
+        kind="delta",
+        rows=[
+            row("1", original_ref, None),
+            row("new:11", None, "Modifícase la Cláusula Undécima", "rewrites"),
+        ],
+    )
+
+
+def run_dangling(
+    *replies: dict[str, Any],
+) -> tuple[pytest.ExceptionInfo[Exception], RecordingStructuredModel, RecordingTracer]:
+    model = RecordingStructuredModel(*replies)
+    tracer = RecordingTracer()
+    agent = build_contextualization_stage(same_model(model), tracer)
+    with pytest.raises(UnresolvedReferenceError) as caught:
+        agent.invoke(request(amendment=DANGLING_AMENDMENT))
+    return caught, model, tracer
+
+
+def test_an_unresolved_reference_ends_in_human_review_without_retry() -> None:
+    caught, model, tracer = run_dangling(structured_reply(dangling_payload()))
+
+    assert len(model.calls) == 1
+    [issue] = caught.value.issues
+    assert (issue.code, issue.path) == ("unresolved_reference", "sections[1]")
+    assert "Undécima" not in f"{caught.value} {issue.message}"
+    stage = tracer.stages[0]
+    assert stage.metadata["context_retries"] == 0
+    assert stage.metadata["amendment_kind"] == "delta"
+    assert isinstance(stage.error, UnresolvedReferenceError)
+
+
+def test_an_unresolved_reference_on_an_ungrounded_map_gets_the_normal_retry() -> None:
+    caught, model, tracer = run_dangling(
+        structured_reply(dangling_payload("Cláusula Novena")), structured_reply(dangling_payload())
+    )
+
+    assert len(model.calls) == 2
+    assert "- ungrounded_reference at sections[0].original_ref:" in model.human_text(1)
+    assert "unresolved_reference" not in model.human_text(1)
+    assert [issue.code for issue in caught.value.issues] == ["unresolved_reference"]
+    assert tracer.stages[0].metadata["context_retries"] == 1
+
+
+def test_an_unresolved_reference_on_a_map_still_invalid_after_the_retry_is_invalid() -> None:
+    ungrounded = structured_reply(dangling_payload("Cláusula Novena"))
+    model = RecordingStructuredModel(ungrounded, ungrounded)
+    agent = build_contextualization_stage(same_model(model), RecordingTracer())
+
+    with pytest.raises(InvalidContextMapError) as caught:
+        agent.invoke(request(amendment=DANGLING_AMENDMENT))
+
+    assert [issue.code for issue in caught.value.issues] == ["ungrounded_reference"]
+
+
+def test_an_invalid_first_map_then_an_unresolved_reference_ends_in_human_review() -> None:
+    _, model, tracer = run_dangling(
+        structured_reply(ungrounded_payload()), structured_reply(dangling_payload())
+    )
+
+    assert len(model.calls) == 2
+    assert tracer.stages[0].metadata["context_retries"] == 1
+
+
 def test_unparseable_output_is_retried_with_feedback() -> None:
     first = unparseable_reply('{"reasoning": "corte')
 
@@ -361,7 +449,7 @@ def test_api_failure_becomes_upstream_error_without_retry() -> None:
 
 def test_span_records_lengths_kind_heuristic_retries_and_prompt_version() -> None:
     delta_amendment = "ADENDA\nDéjase sin efecto la Cláusula Segunda."
-    rows = [row("2", "Cláusula Segunda", "Déjase sin efecto la Cláusula Segunda")]
+    rows = [row("2", "Cláusula Segunda", "Déjase sin efecto la Cláusula Segunda", "removes")]
 
     context_map, _, tracer = run(
         structured_reply(map_payload(kind="delta", rows=rows)),
@@ -432,9 +520,23 @@ def test_stage_hands_the_pipeline_the_retry_it_spent() -> None:
     assert ("context_retries", 1) in tracer.scores
 
 
-def test_prompt_sends_a_reference_to_a_missing_section_to_unknown() -> None:
-    # T9 calibration: an instruction rewriting a clause the original lacks was mapped as new:
-    # and reported as added; plan §2.6 wants Human Review, never an invented Section.
-    assert CONTEXTUALIZATION_PROMPT_VERSION == "2"
-    assert "the Original Contract does not contain" in CONTEXTUALIZATION_SYSTEM_PROMPT
-    assert "only when the instruction explicitly adds" in CONTEXTUALIZATION_SYSTEM_PROMPT
+def test_prompt_v3_asks_for_each_row_instruction_instead_of_unknown() -> None:
+    # T11: the v2 rule sending a reference to a missing Section to unknown held in 1 of 2 runs.
+    # The map now states what each instruction does, and checks.py stops an unresolved one.
+    assert CONTEXTUALIZATION_PROMPT_VERSION == "3"
+    assert "return unknown rather than invent" not in CONTEXTUALIZATION_SYSTEM_PROMPT
+    for value in InstructionKind:
+        assert f"     - {value}: " in CONTEXTUALIZATION_SYSTEM_PROMPT
+    assert "Never call it adds" in CONTEXTUALIZATION_SYSTEM_PROMPT
+
+
+def test_prompt_v3_keeps_the_canonical_id_rules() -> None:
+    assert "IDs always follow the Original Contract's numbering" in CONTEXTUALIZATION_SYSTEM_PROMPT
+    assert "never go in the ID" in CONTEXTUALIZATION_SYSTEM_PROMPT
+
+
+def test_prompt_lists_the_row_fields_in_schema_order() -> None:
+    fields = list(SectionMapping.model_fields)
+    positions = [CONTEXTUALIZATION_SYSTEM_PROMPT.index(f"   - {field}: ") for field in fields[1:]]
+
+    assert positions == sorted(positions)

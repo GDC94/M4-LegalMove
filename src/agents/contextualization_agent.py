@@ -20,12 +20,19 @@ from agents.structured_output import (
     read_raw_output,
     render_retry_blocks,
 )
-from checks import build_feedback, check_context_map, detect_kind_heuristic
+from checks import (
+    build_feedback,
+    check_context_map,
+    detect_kind_heuristic,
+    find_unresolved_references,
+)
 from errors import (
     InvalidContextMapError,
     RetryFeedback,
     UnclassifiableAmendmentError,
+    UnresolvedReferenceError,
     UpstreamError,
+    ValidationIssue,
 )
 from models import AgentOutcome, AmendmentKind, ContextMap, ParsedContract, SemanticRetries
 from prompt_blocks import serialize_block
@@ -34,7 +41,7 @@ if TYPE_CHECKING:
     # Type-only: importing observability at runtime would load the Langfuse adapter here.
     from observability import PipelineTracer, StageSpan
 
-CONTEXTUALIZATION_PROMPT_VERSION = "2"
+CONTEXTUALIZATION_PROMPT_VERSION = "3"
 # No Spanish change-instruction phrasing here: the Kind Heuristic must stay an independent signal.
 CONTEXTUALIZATION_SYSTEM_PROMPT = """\
 You map the Sections of a Spanish-language Original Contract and its Amendment.
@@ -53,9 +60,6 @@ Fill the fields in this order:
 Contract.
    - unknown: you cannot tell with confidence, the text is unreadable, or it is not an \
 amendment of this contract. Never guess. For unknown, return no sections.
-   An instruction that rewrites, replaces or removes a Section the Original Contract does not \
-contain cannot be resolved: return unknown rather than invent that Section. A new: Section \
-comes from an instruction only when the instruction explicitly adds a Section to the contract.
 3. sections: one row per Section found in either document.
    - section_id: the canonical ID, independent of how the document writes it. "Cláusula \
 Quinta", "Cláusula 5ª", "5." and "Artículo V" are all 5; a subsection is 5.2. An unnumbered \
@@ -64,6 +68,17 @@ renumbered Section keeps its original ID. A Section that exists only in the Amen
 new: plus its number or position in the Amendment, such as new:8, new:5.2 or new:§7. Titles \
 never go in the ID.
    - title: the Section's title, or null.
+   - instruction: what the Amendment's instruction does to this Section.
+     - none: no instruction names this Section. Always none for restated.
+     - adds: an instruction adds this whole Section to the contract. Only a new: Section is \
+added.
+     - rewrites: an instruction gives this Section new wording or changes part of its text, \
+including a paragraph added to it or taken out of it.
+     - removes: an instruction takes this whole Section out of the contract.
+     An instruction may name a Section the Original Contract does not contain without adding \
+it, for example by rewriting or removing it. Still give that Section a row with new: plus the \
+number the instruction uses, and set instruction to what the instruction does. Never call it \
+adds and never leave the row out: the Section is not invented, it is reported as unresolved.
    - original_ref: the words that introduce the Section in the Original Contract, such as its \
 heading. Null for a new: Section.
    - amendment_ref: for restated, the words that introduce the Section in the Amendment, or \
@@ -77,6 +92,8 @@ checked against the text.
 - Every row has at least one ref, and no section_id repeats.
 - A row whose section_id does not start with new: must have an original_ref; a new: row must \
 not have one.
+- For delta, a row with an amendment_ref has instruction adds, rewrites or removes; a row \
+without one has none.
 - List the Original Contract's Sections first, in document order, then the new: Sections in \
 Amendment order.
 
@@ -114,11 +131,15 @@ class ContextualizationInput:
 
 @dataclass(frozen=True)
 class MapAttempt:
-    """One model call: its raw output, the map if it parsed, and every hard-check failure."""
+    """One model call: its raw output, the map if it parsed, and every hard-check failure.
+
+    `unresolved` holds the terminal issues that skip the retry; `feedback` feeds it.
+    """
 
     raw_output: str
     context_map: ContextMap | None
     feedback: tuple[RetryFeedback, ...]
+    unresolved: tuple[ValidationIssue, ...] = ()
 
 
 StructuredContextModels = StructuredModels
@@ -137,7 +158,7 @@ def build_contextualization_stage(
 
 
 class ContextualizationAgent:
-    """Runs the map with one semantic retry; Unknown and a second failure go to Human Review."""
+    """One semantic retry; Unknown, an Unresolved Reference or a second failure: Human Review."""
 
     def __init__(self, models: StructuredContextModels, tracer: PipelineTracer) -> None:
         self._models = models
@@ -157,7 +178,7 @@ class ContextualizationAgent:
     def _run_attempts(
         self, request: ContextualizationInput, span: StageSpan
     ) -> tuple[MapAttempt, SemanticRetries]:
-        """Unknown is a valid answer, so it never spends the retry."""
+        """Unknown and an unresolved reference are valid answers, so they never spend the retry."""
         attempt = self._attempt(self._models.attempt, request, "")
         retries: SemanticRetries = 1 if attempt.feedback else 0
         # Recorded before the retry call so a failing retry still leaves it in the trace.
@@ -212,8 +233,12 @@ def evaluate_reply(reply: StructuredReply, request: ContextualizationInput) -> M
     context_map, feedback = parse_context_map(reply)
     if context_map is None or context_map.amendment_kind is AmendmentKind.UNKNOWN:
         return MapAttempt(raw_output, context_map, feedback)
-    issues = check_context_map(context_map, request.original.text, request.amendment.text)
-    return MapAttempt(raw_output, context_map, tuple(issues))
+    issues = tuple(check_context_map(context_map, request.original.text, request.amendment.text))
+    if issues:
+        return MapAttempt(raw_output, context_map, issues)
+    # Only a clean map is trusted to report an Unresolved Reference: an ungrounded ref may be the
+    # hallucination behind it. Then, like unknown, a retry would see the same evidence.
+    return MapAttempt(raw_output, context_map, (), tuple(find_unresolved_references(context_map)))
 
 
 def parse_context_map(
@@ -243,4 +268,6 @@ def accept_attempt(attempt: MapAttempt, span: StageSpan) -> ContextMap:
         raise InvalidContextMapError(item.issue for item in attempt.feedback)
     if context_map.amendment_kind is AmendmentKind.UNKNOWN:
         raise UnclassifiableAmendmentError("amendment kind is unknown")
+    if attempt.unresolved:
+        raise UnresolvedReferenceError(attempt.unresolved)
     return context_map

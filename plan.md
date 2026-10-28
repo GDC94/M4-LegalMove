@@ -232,6 +232,7 @@ imagen ──► ParsedContract ×2 ──► ContextMap ──► ExtractionRes
 |---|---|---|
 | `section_id` | `str` | ID canónico (sección 2.4) |
 | `title` | `str \| None` | |
+| `instruction` | `InstructionKind` | `none` \| `adds` \| `rewrites` \| `removes`: qué hace la instrucción de la adenda sobre la sección; `none` en `restated` y en filas sin instrucción. Va antes de los refs (decisión 80) |
 | `original_ref` | `str \| None` | Cómo aparece en el original. `None` si la sección no existe ahí |
 | `amendment_ref` | `str \| None` | Cómo aparece en la adenda, o la instrucción que la referencia |
 | `purpose` | `str` | Propósito del bloque |
@@ -414,7 +415,7 @@ El texto de un contrato es **dato no confiable**: cualquiera puede escribir "ign
 
 **Regla: duro = un reintento semántico en su agente y luego revisión humana; blando = score.** Los retries de transporte son independientes (sección 5.1).
 
-La etapa `contextualization_agent` valida schema, gramática y orden de IDs, grounding de refs y la estructura mínima del mapa. Si falla, reintenta una vez con feedback; una segunda falla produce `InvalidContextMapError`. `amendment_kind=unknown` es una salida válida: termina directamente en `UnclassifiableAmendmentError` sin consumir ese retry.
+La etapa `contextualization_agent` valida schema, gramática y orden de IDs, grounding de refs y la estructura mínima del mapa. Si falla, reintenta una vez con feedback; una segunda falla produce `InvalidContextMapError`. `amendment_kind=unknown` es una salida válida: termina directamente en `UnclassifiableAmendmentError` sin consumir ese retry. Una referencia no resuelta (fila `new:` de `delta` marcada `rewrites` o `removes`) también es una salida válida, pero solo se evalúa sobre un mapa que pasó los demás checks duros. Si el mapa tiene otros errores, primero se usa el reintento normal; si el mapa limpio, sea el primero o el del reintento, tiene una referencia no resuelta, termina en `UnresolvedReferenceError` sin consumir más reintentos. Las demás incoherencias de `instruction` son el issue `instruction_mismatch` y reintentan.
 
 La etapa `extraction_agent` ejecuta sus validaciones duras y reintenta una sola vez:
 - schema;
@@ -456,6 +457,7 @@ Todos heredan de `LegalMoveError`. Cada error declara la etapa en la que ocurri�
 | `ObservabilityError` | observabilidad | no se puede inicializar o confirmar el flush de la traza | `5` |
 | `IllegibleDocumentError` | parse | las marcas `[ILLEGIBLE]` superan el umbral | `6` |
 | `UnclassifiableAmendmentError` | agente 1 | `amendment_kind = unknown` | `10` |
+| `UnresolvedReferenceError` | agente 1 | en un mapa por lo demás válido, una instrucción `delta` reescribe o elimina una sección que el original no tiene (fila `new:` marcada `rewrites` o `removes`); lleva `issues` con `code="unresolved_reference"`; no consume el reintento | `10` |
 | `InvalidContextMapError` | agente 1 | la validación semántica del mapa falla después del reintento; lleva `issues: list[ValidationIssue]` | `10` |
 | `InvalidExtractionError` | agente 2 | la validación dura falla después del reintento; lleva `issues: list[ValidationIssue]` | `10` |
 
@@ -599,6 +601,7 @@ Si una etapa falla, su span queda con `level="ERROR"` y el mensaje de error, y e
 | `grounding_rate` | numérico o N/A | 0–1 | Citas encontradas / citas totales; N/A cuando no hay cambios |
 | `diff_agreement` | numérico o N/A | 0–1, solo en `restated` | Jaccard sobre secciones segmentables; `1.0` si ambos conjuntos están vacíos y hubo cobertura; N/A sin secciones segmentables |
 | `kind_agreement` | booleano o N/A | 0/1 | Heurística `delta` contra el agente 1; N/A si la heurística es inconclusa |
+| `new_section_gap` | booleano o N/A | 0/1, solo `delta` | 1 si los `new:N` numerados no continúan sin huecos la numeración del original; N/A sin filas numeradas comparables |
 | `other_topic_rate` | numérico o N/A | 0–1 | Proporción de `Topic.other`; N/A cuando no hay cambios |
 | `context_retries` | numérico | 0 \| 1 | Retry semántico del mapa |
 | `extraction_retries` | numérico | 0 \| 1 | Retry semántico de la extracción |
@@ -1104,6 +1107,14 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 77 | El ExtractionAgent copia montos, porcentajes y plazos tal como los escribe la adenda, con el número entre paréntesis, y nombra por su título la sección agregada (`EXTRACTION_PROMPT_VERSION` 5) | El resumen público sale de las descripciones y perdía "(30)" en "treinta (30) días"; la cobertura pasó de 0,684 a 1,0 en `calibration` | 4.2, 6.6 | 2026-10-27 |
 | 78 | Una instrucción `delta` que reescribe o elimina una sección inexistente en el original lleva la adenda a `unknown` (`CONTEXTUALIZATION_PROMPT_VERSION` 2); es una mitigación blanda y el control duro queda para T11 | El pipeline inventaba `new:11` como `added`; con la regla derivó a revisión humana en 1 de 2 corridas a temperatura 0 | 2.3, 2.6 | 2026-10-27 |
 | 79 | En los casos que esperan cualquier error de revisión humana, `unknown` cuenta como acierto de `amendment_kind` | Derivar a revisión humana es la salida correcta de esos casos (decisión 75); contarlo como fallo castigaría el comportamiento buscado | 6.6 | 2026-10-27 |
+| 80 | `SectionMapping.instruction` (`InstructionKind`: `none \| adds \| rewrites \| removes`) es obligatorio y va antes de las refs; el prompt v3 del agente 1 define los cuatro valores y quita la regla que mandaba a `unknown` (`CONTEXTUALIZATION_PROMPT_VERSION` 3); supera la decisión 78 | La regla del prompt funcionó en 1 de 2 corridas; declarar qué hace cada instrucción permite verificar en código la referencia inexistente | 2.3, 2.6, 3.3 | 2026-10-28 |
+| 81 | En `delta`, una fila `new:` marcada `rewrites` o `removes` es una referencia no resuelta: `UnresolvedReferenceError` (exit `10`, issue `unresolved_reference`) sin consumir el reintento. Se evalúa solo sobre un mapa que pasó los demás checks; amplía la decisión 60 | Una sección nueva no se puede reescribir ni eliminar. Repetir la llamada no crea la sección faltante. Si el mapa tiene otros errores, una ref inventada puede ser la causa, así que primero corresponde el reintento normal | 4.4, 4.5 | 2026-10-28 |
+| 82 | Las demás incoherencias de `instruction` son el issue `instruction_mismatch`, con reintento normal: fila `new:` de `delta` marcada `none`; fila `delta` con `amendment_ref` e instrucción `none`, o con instrucción y sin `amendment_ref`; fila que no es `new:` marcada `adds`; cualquier instrucción distinta de `none` en `restated` | Son errores de llenado corregibles, no evidencia de una sección inexistente | 4.4 | 2026-10-28 |
+| 83 | Score blando `new_section_gap` (0/1, solo `delta`, N/A sin números comparables): los `new:N` numerados deben continuar sin huecos después del máximo del original; no bloquea | Señal barata ante una sección inventada; una adenda legítima puede saltear números (decisión 45) | 5.5 | 2026-10-28 |
+| 84 | `CaseRun` y el reporte guardan `judge_reasoning`. `JUDGE_PROMPT_VERSION` va en el encabezado del reporte y en la metadata del Experiment. Si la línea base no tiene la misma versión, `judge_score` queda fuera de la comparación y se registra `judge_prompt_version_changed` | Sin el razonamiento no se audita una nota baja; con dos jueces distintos, el delta compara jueces, no pipelines | 6.6, 6.7 | 2026-10-28 |
+| 85 | Prompt del juez `judge-v2`: un Key Fact ausente siempre es falla; la renumeración y los términos sin cambios del resumen de referencia son contexto, no contenido exigido | El juez v1 ponía 4 a resúmenes correctos de `injection` y `renumber` | 6.6 | 2026-10-28 |
+| 86 | `run_evals.py --case <case_id>` corre un solo caso del split elegido y rechaza (exit `2`) uno que no pertenezca a ese split. El run_name lleva el sufijo `-<case_id>`, el reporte por defecto es `outputs/eval_report-<run_name>.json`, el encabezado registra `case_filter` y no se compara contra la línea base | Repetir el caso `dangling` ≥ 5 veces sin pagar el split completo, sin pisar reportes, sin regresiones falsas y sin tocar `validation` | 6.7 | 2026-10-28 |
+| 87 | Un `CaseRun` que termina en `UnresolvedReferenceError` registra `amendment_kind = delta` | Solo un mapa `delta` produce ese error; el tipo se conoce sin leer el mapa | 6.6 | 2026-10-28 |
 
 ## 9. Diagrama de LegalMove pipeline
 

@@ -64,6 +64,7 @@ class CaseRun(BaseModel):
     parsed_original: str | None = None
     parsed_amendment: str | None = None
     judge_score: float | None = None
+    judge_reasoning: str | None = None
 
 
 def read_expected(case_dir: Path) -> dict[str, Any]:

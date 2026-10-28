@@ -1,7 +1,7 @@
 """Port that publishes a Split as a Langfuse Dataset and one eval run as its Experiment."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from eval_case import CaseRun, GoldenCase
@@ -17,6 +17,8 @@ class ExperimentRun:
     cases: tuple[GoldenCase, ...]
     runs: Mapping[str, CaseRun]
     metrics: tuple[Metric, ...]
+    # Prompt versions and the like, attached to the Experiment run as plain strings.
+    metadata: Mapping[str, str] = field(default_factory=dict)
 
 
 class ExperimentPublisher(Protocol):

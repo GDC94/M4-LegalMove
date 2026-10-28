@@ -100,25 +100,32 @@ def test_expected_error_accepts_human_review_errors_and_issue_codes(expected_err
 
 
 @pytest.mark.parametrize(
-    "expected_error", ["IllegibleDocumentError", "UpstreamError", "unresolved_reference"]
+    "expected_error", ["IllegibleDocumentError", "UpstreamError", "dangling_clause"]
 )
 def test_expected_error_rejects_anything_the_pipeline_cannot_report(expected_error: str) -> None:
     with pytest.raises(ValidationError, match="expected_error"):
         CaseSpec.model_validate(declaration(expected_error=expected_error))
 
 
-def issue_code_literals() -> set[str]:
-    """First literal argument of every call that builds a ValidationIssue code in src."""
+def issue_code_literal(node: ast.Call) -> str | None:
+    """The code a builder call passes first, or a direct ValidationIssue's code= keyword."""
     builders = {"build_feedback", "ungrounded_feedback", "PydanticCustomError"}
+    name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
+    if name in builders and node.args and isinstance(node.args[0], ast.Constant):
+        return str(node.args[0].value)
+    if name == "ValidationIssue":
+        code = next((kw.value for kw in node.keywords if kw.arg == "code"), None)
+        return str(code.value) if isinstance(code, ast.Constant) else None
+    return None
+
+
+def issue_code_literals() -> set[str]:
+    """Every literal ValidationIssue code built in src."""
     codes: set[str] = set()
     for path in SRC.rglob("*.py"):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if not isinstance(node, ast.Call) or not node.args:
-                continue
-            name = getattr(node.func, "id", None) or getattr(node.func, "attr", None)
-            first = node.args[0]
-            if name in builders and isinstance(first, ast.Constant):
-                codes.add(str(first.value))
+            if isinstance(node, ast.Call) and (code := issue_code_literal(node)) is not None:
+                codes.add(code)
     return codes
 
 

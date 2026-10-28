@@ -13,8 +13,10 @@ from checks import (
     compute_diff_agreement,
     compute_grounding_rate,
     compute_kind_agreement,
+    compute_new_section_gap,
     compute_other_topic_rate,
     detect_kind_heuristic,
+    find_unresolved_references,
     is_changed_by_diff,
     is_grounded,
     normalize_for_grounding,
@@ -26,6 +28,7 @@ from models import (
     ChangeType,
     ContextMap,
     ExtractionResult,
+    InstructionKind,
     SectionMapping,
     Topic,
 )
@@ -52,12 +55,14 @@ def mapping(
     section_id: str,
     original_ref: str | None = "",
     amendment_ref: str | None = "",
+    instruction: InstructionKind = InstructionKind.NONE,
 ) -> SectionMapping:
     """Default refs point at the matching heading; pass None to leave a side empty."""
     heading = f"Cláusula {ORDINALS.get(section_id, 'Cuarta')}"
     return SectionMapping(
         section_id=section_id,
         title=None,
+        instruction=instruction,
         original_ref=heading if original_ref == "" else original_ref,
         amendment_ref=heading if amendment_ref == "" else amendment_ref,
         purpose="Propósito.",
@@ -200,6 +205,135 @@ def test_public_issue_messages_never_quote_the_ref_but_retry_detail_does() -> No
 
 def test_a_classified_amendment_needs_at_least_one_section() -> None:
     assert codes(context_map(kind=AmendmentKind.DELTA)) == ["empty_context_map"]
+
+
+# --- Instructions and unresolved references (T11) ---
+
+INSTRUCTED_ORIGINAL = "CONTRATO\nCláusula Primera — Objeto.\nCláusula Segunda — Plazo."
+INSTRUCTED_AMENDMENT = (
+    "ADENDA\nPRIMERO. Modifícase la Cláusula Segunda.\n"
+    "SEGUNDO. Modifícase la Cláusula Undécima.\nTERCERO. Incorpórase la Cláusula Tercera."
+)
+
+
+def delta_row(
+    section_id: str, instruction: InstructionKind, amendment_ref: str | None
+) -> SectionMapping:
+    original_ref = None if section_id.startswith("new:") else f"Cláusula {ORDINALS[section_id]}"
+    return mapping(section_id, original_ref, amendment_ref, instruction)
+
+
+def delta_codes(*sections: SectionMapping) -> list[str]:
+    context = context_map(*sections, kind=AmendmentKind.DELTA)
+    return [
+        item.issue.code
+        for item in check_context_map(context, INSTRUCTED_ORIGINAL, INSTRUCTED_AMENDMENT)
+    ]
+
+
+def test_a_delta_map_with_matching_instructions_has_no_issues() -> None:
+    context = context_map(
+        delta_row("1", InstructionKind.NONE, None),
+        delta_row("2", InstructionKind.REWRITES, "Modifícase la Cláusula Segunda"),
+        delta_row("new:3", InstructionKind.ADDS, "Incorpórase la Cláusula Tercera"),
+        kind=AmendmentKind.DELTA,
+    )
+
+    assert check_context_map(context, INSTRUCTED_ORIGINAL, INSTRUCTED_AMENDMENT) == []
+    assert find_unresolved_references(context) == []
+
+
+@pytest.mark.parametrize("instruction", [InstructionKind.REWRITES, InstructionKind.REMOVES])
+def test_a_delta_new_section_rewritten_or_removed_is_unresolved(
+    instruction: InstructionKind,
+) -> None:
+    context = context_map(
+        delta_row("1", InstructionKind.NONE, None),
+        delta_row("new:11", instruction, "Modifícase la Cláusula Undécima"),
+        kind=AmendmentKind.DELTA,
+    )
+
+    [issue] = find_unresolved_references(context)
+
+    assert (issue.code, issue.path) == ("unresolved_reference", "sections[1]")
+
+
+def test_an_unresolved_map_reference_message_names_only_the_canonical_id() -> None:
+    context = context_map(
+        delta_row("new:11", InstructionKind.REWRITES, "Modifícase la Cláusula Undécima"),
+        kind=AmendmentKind.DELTA,
+    )
+
+    [issue] = find_unresolved_references(context)
+
+    assert "new:11" in issue.message
+    assert "Undécima" not in issue.message
+    assert "Modifícase" not in issue.message
+
+
+def test_restated_new_sections_are_never_unresolved_references() -> None:
+    assert find_unresolved_references(valid_map()) == []
+
+
+def test_a_delta_row_named_by_an_instruction_needs_an_instruction_kind() -> None:
+    codes_found = delta_codes(
+        delta_row("1", InstructionKind.NONE, None),
+        delta_row("2", InstructionKind.NONE, "Modifícase la Cláusula Segunda"),
+    )
+
+    assert codes_found == ["instruction_mismatch"]
+
+
+def test_a_delta_new_section_without_an_instruction_is_retried_not_unresolved() -> None:
+    context = context_map(
+        delta_row("1", InstructionKind.NONE, None),
+        delta_row("new:11", InstructionKind.NONE, "Modifícase la Cláusula Undécima"),
+        kind=AmendmentKind.DELTA,
+    )
+
+    issues = check_context_map(context, INSTRUCTED_ORIGINAL, INSTRUCTED_AMENDMENT)
+
+    assert find_unresolved_references(context) == []
+    assert [(item.issue.code, item.issue.path) for item in issues] == [
+        ("instruction_mismatch", "sections[1].instruction")
+    ]
+
+
+def test_a_delta_instruction_needs_the_excerpt_that_names_its_section() -> None:
+    codes_found = delta_codes(
+        delta_row("1", InstructionKind.REWRITES, None),
+        delta_row("2", InstructionKind.REWRITES, "Modifícase la Cláusula Segunda"),
+    )
+
+    assert codes_found == ["instruction_mismatch"]
+
+
+@pytest.mark.parametrize("kind", [AmendmentKind.DELTA, AmendmentKind.RESTATED])
+def test_only_a_new_section_can_be_added(kind: AmendmentKind) -> None:
+    context = context_map(
+        delta_row("1", InstructionKind.NONE, None),
+        delta_row("2", InstructionKind.ADDS, "Modifícase la Cláusula Segunda"),
+        kind=kind,
+    )
+
+    issues = check_context_map(context, INSTRUCTED_ORIGINAL, INSTRUCTED_AMENDMENT)
+
+    assert [(item.issue.code, item.issue.path) for item in issues] == [
+        ("instruction_mismatch", "sections[1].instruction")
+    ]
+
+
+def test_a_restated_row_never_carries_an_instruction() -> None:
+    context = context_map(
+        mapping("1"), mapping("2", instruction=InstructionKind.REWRITES), mapping("3")
+    )
+
+    issues = check_context_map(context, ORIGINAL, AMENDMENT)
+
+    assert [(item.issue.code, item.issue.path) for item in issues] == [
+        ("instruction_mismatch", "sections[1].instruction")
+    ]
+    assert "section 2" in issues[0].issue.message
 
 
 def test_all_issues_are_reported_together_for_the_single_retry() -> None:
@@ -695,6 +829,44 @@ def test_other_topic_rate_is_the_share_of_other_topics() -> None:
 
     assert compute_other_topic_rate(extraction(other, price_change()).changes) == 0.5
     assert compute_other_topic_rate(extraction(price_change()).changes) == 0.0
+
+
+def gap_map(*section_ids: str, kind: AmendmentKind = AmendmentKind.DELTA) -> ContextMap:
+    return context_map(
+        *(mapping(sid, None if sid.startswith("new:") else "x", "y") for sid in section_ids),
+        kind=kind,
+    )
+
+
+@pytest.mark.parametrize(
+    ("section_ids", "expected"),
+    [
+        (("1", "2", "3", "new:4"), 0),
+        (("1", "2", "3", "new:4", "new:5"), 0),
+        (("1", "2", "3", "new:11"), 1),
+        (("1", "2", "3", "new:4", "new:6"), 1),
+        (("1", "2", "3", "new:3"), 1),
+        (("1", "2.1", "3", "new:4", "new:§5", "new:4.2"), 0),
+    ],
+)
+def test_new_section_gap_flags_new_numbers_that_skip_the_original_numbering(
+    section_ids: tuple[str, ...], expected: int
+) -> None:
+    assert compute_new_section_gap(gap_map(*section_ids)) == expected
+
+
+@pytest.mark.parametrize(
+    "context",
+    [
+        gap_map("1", "2", "new:7", kind=AmendmentKind.RESTATED),
+        gap_map("1", "2", "3"),
+        gap_map("1", "new:§4", "new:3.1"),
+        gap_map("§1", "§2", "new:3"),
+    ],
+    ids=["restated", "no-new-sections", "no-numbered-new", "no-numbered-original"],
+)
+def test_new_section_gap_is_not_applicable_without_numbers_to_compare(context: ContextMap) -> None:
+    assert compute_new_section_gap(context) is None
 
 
 def test_other_topic_rate_is_not_applicable_without_changes() -> None:

@@ -8,7 +8,7 @@ paged /api/public/dataset-items) and `Langfuse.run_experiment` with `Evaluation`
 import logging
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import contextmanager
-from typing import Any, Protocol
+from typing import Any, NotRequired, Protocol, TypedDict, Unpack
 
 from langfuse import Evaluation
 from langfuse.api import DatasetItem
@@ -28,6 +28,21 @@ from metrics import Metric
 logger = logging.getLogger("legalmove.evals")
 
 EXPERIMENT_DESCRIPTION = "LegalMove golden set: pipeline runs graded by the plan §6.6 checks"
+
+
+class ExperimentRunOptions(TypedDict):
+    """Mirrors the subset of `Langfuse.run_experiment`'s keyword-only signature we call.
+
+    A parameter object, so the port stays under the 5-argument limit while mypy still checks
+    the real client against every keyword.
+    """
+
+    name: str
+    run_name: NotRequired[str | None]
+    data: ExperimentData
+    task: TaskFunction
+    evaluators: NotRequired[list[EvaluatorFunction]]
+    metadata: NotRequired[dict[str, str] | None]
 
 
 class DatasetWithItems(Protocol):
@@ -55,15 +70,7 @@ class ExperimentClient(Protocol):
 
     def get_dataset(self, name: str) -> DatasetWithItems: ...
 
-    def run_experiment(
-        self,
-        *,
-        name: str,
-        run_name: str | None = ...,
-        data: ExperimentData,
-        task: TaskFunction,
-        evaluators: list[EvaluatorFunction] = ...,
-    ) -> ExperimentResult: ...
+    def run_experiment(self, **options: Unpack[ExperimentRunOptions]) -> ExperimentResult: ...
 
     def flush(self) -> None: ...
 
@@ -126,6 +133,7 @@ class LangfusePublisher:
                     data=items,
                     task=build_replay_task(experiment.runs),
                     evaluators=build_evaluators(experiment.metrics, experiment.cases),
+                    metadata=dict(experiment.metadata),
                 )
         finally:
             with translate_sdk_errors("flush"):

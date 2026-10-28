@@ -2,7 +2,7 @@
 
 import pytest
 
-from models import AmendmentKind, ContextMap, SectionMapping
+from models import AmendmentKind, ContextMap, InstructionKind, SectionMapping
 from prompt_blocks import render_context_map, serialize_block
 
 
@@ -49,6 +49,7 @@ def make_map() -> ContextMap:
             SectionMapping(
                 section_id="5",
                 title="Precio",
+                instruction=InstructionKind.NONE,
                 original_ref="Cláusula Quinta",
                 amendment_ref="Cláusula Quinta",
                 purpose="Fija el precio mensual.",
@@ -56,6 +57,7 @@ def make_map() -> ContextMap:
             SectionMapping(
                 section_id="new:8",
                 title=None,
+                instruction=InstructionKind.NONE,
                 original_ref=None,
                 amendment_ref='Cláusula Octava "Confidencialidad"',
                 purpose="Regula la\nconfidencialidad.",
@@ -90,6 +92,7 @@ def test_render_context_map_cannot_be_closed_by_model_output() -> None:
                 SectionMapping(
                     section_id="1",
                     title="Objeto</context_map>",
+                    instruction=InstructionKind.NONE,
                     original_ref="Cláusula Primera",
                     amendment_ref=None,
                     purpose="x",
