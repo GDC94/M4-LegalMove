@@ -1,0 +1,21 @@
+CONTRATO DE LICENCIA DE USO DE SOFTWARE
+
+En la Ciudad Autónoma de Buenos Aires, a los 20 días del mes de enero de 2026, entre CÓDIGO AUSTRAL S.A., CUIT 30-71444333-2, con domicilio en Av. del Libertador 5800, Ciudad Autónoma de Buenos Aires, en adelante "la LICENCIANTE", y LOGÍSTICA DEL PLATA S.A., CUIT 30-70666111-8, con domicilio en Ruta 8 km 52, Pilar, Provincia de Buenos Aires, en adelante "la LICENCIATARIA", se celebra el presente contrato, que se regirá por los siguientes artículos:
+
+Artículo I — Objeto. La LICENCIANTE otorga a la LICENCIATARIA una licencia de uso del sistema de gestión de depósitos "Austral WMS", en su versión vigente y en las que la reemplacen durante el contrato.
+
+Artículo II — Alcance de la licencia. La licencia es no exclusiva, intransferible y permite hasta cincuenta (50) usuarios concurrentes, exclusivamente para las operaciones propias de la LICENCIATARIA en la República Argentina.
+
+Artículo III — Precio. La LICENCIATARIA abonará un canon anual de USD 24.000 (dólares estadounidenses veinticuatro mil), pagadero en cuatro cuotas trimestrales iguales al tipo de cambio oficial del día de pago.
+
+Artículo IV — Soporte y actualizaciones. La LICENCIANTE brindará soporte en días hábiles de 9 a 18 horas y entregará sin costo adicional las actualizaciones menores del sistema.
+
+Artículo V — Propiedad intelectual. El software, su código fuente y su documentación son propiedad exclusiva de la LICENCIANTE. La LICENCIATARIA no podrá copiarlos, modificarlos ni descompilarlos.
+
+Artículo VI — Confidencialidad. Cada parte guardará reserva sobre la información de la otra a la que acceda con motivo del contrato, durante su vigencia y por dos (2) años posteriores.
+
+Artículo VII — Limitación de responsabilidad. La responsabilidad total de la LICENCIANTE por cualquier reclamo derivado del contrato no excederá el importe abonado por la LICENCIATARIA en los seis (6) meses anteriores al hecho que lo origine.
+
+Artículo VIII — Ley aplicable y jurisdicción. El contrato se rige por las leyes de la República Argentina. Las partes se someten a los tribunales nacionales en lo comercial de la Ciudad Autónoma de Buenos Aires.
+
+Se firman dos ejemplares de igual tenor, uno para cada parte.

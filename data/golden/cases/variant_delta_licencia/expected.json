@@ -1,0 +1,37 @@
+{
+  "base": "licencia_software",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "delta",
+  "declaration_sha256": "e4ec17798e81fdd2f0aee51da1b32151675d07f1c85653b4cc01c39232198eb5",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "6",
+      "new:9"
+    ],
+    "topics_touched": [
+      "confidentiality",
+      "obligations"
+    ],
+    "summary_of_the_change": "El Artículo VI extiende la obligación de confidencialidad posterior al contrato de dos (2) a cinco (5) años. Se agrega el Artículo IX, que permite a la LICENCIANTE verificar una vez por año, con diez (10) días hábiles de aviso, que no se exceda la cantidad de usuarios concurrentes licenciada."
+  },
+  "changes": [
+    {
+      "section_id": "6",
+      "change_type": "modified",
+      "topic": "confidentiality"
+    },
+    {
+      "section_id": "new:9",
+      "change_type": "added",
+      "topic": "obligations"
+    }
+  ],
+  "key_facts": [
+    "cinco (5) años",
+    "una vez por año"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

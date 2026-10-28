@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from eval_case import CaseRun
 from eval_doubles import case_run, failed_run, golden_case, review_case
 from metrics import (
     METRICS,
@@ -170,6 +171,29 @@ def test_another_human_review_keeps_the_declared_kind_as_the_truth() -> None:
     assert score_amendment_kind(failed_run(), case) == Ratio(0, 1)
 
 
+@pytest.mark.parametrize("kind", ["unknown", "delta"])
+def test_any_human_review_accepts_unknown_or_the_declared_kind(kind: str) -> None:
+    # Decision 79: a dangling delta may rightly stop as unknown on its way to Human Review.
+    case = review_case(amendment_kind="delta", expected_error="NeedsHumanReviewError")
+    run = failed_run(error="UnclassifiableAmendmentError", amendment_kind=kind)
+
+    assert score_amendment_kind(run, case) == Ratio(1, 1)
+
+
+def test_any_human_review_misses_unknown_when_the_run_never_reached_human_review() -> None:
+    case = review_case(amendment_kind="delta", expected_error="NeedsHumanReviewError")
+    run = failed_run(exit_code=1, error="RuntimeError", amendment_kind="unknown")
+
+    assert score_amendment_kind(run, case) == Ratio(0, 1)
+
+
+def test_any_human_review_still_misses_another_declared_kind() -> None:
+    case = review_case(amendment_kind="delta", expected_error="NeedsHumanReviewError")
+    run = case_run(case_id="boundary_unknown_demo", amendment_kind="restated")
+
+    assert score_amendment_kind(run, case) == Ratio(0, 1)
+
+
 def test_amendment_kind_is_not_applicable_when_no_kind_was_produced() -> None:
     run = failed_run(exit_code=6, error="IllegibleDocumentError", amendment_kind=None)
 
@@ -286,6 +310,39 @@ def test_key_facts_match_after_unicode_case_and_space_normalization() -> None:
     assert score_key_facts(run, case) == Ratio(1, 1)
 
 
+def summary_run(summary: str) -> CaseRun:
+    return case_run(
+        output={
+            "sections_changed": ["3"],
+            "topics_touched": ["price_payment"],
+            "summary_of_the_change": summary,
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    ("fact", "summary"),
+    [
+        ("$ 1.150.000", "El alquiler sube a $1.150.000 por mes."),
+        ("$1.150.000", "El alquiler sube a $ 1.150.000 por mes."),
+        ("99,9 %", "La disponibilidad pasa al 99,9% mensual."),
+        ("99,9%", "La disponibilidad pasa al 99,9\u00a0% mensual."),
+        ("veinte por ciento (20 %)", "Podrá subalquilar el veinte por ciento (20%)."),
+    ],
+)
+def test_key_facts_ignore_spacing_around_currency_and_percent_signs(
+    fact: str, summary: str
+) -> None:
+    assert score_key_facts(summary_run(summary), golden_case(key_facts=[fact])) == Ratio(1, 1)
+
+
+def test_key_facts_spacing_tolerance_is_not_fuzzy_matching() -> None:
+    case = golden_case(key_facts=["$ 1.150.000", "99,9 %"])
+    run = summary_run("El alquiler sube a 1.150.000 pesos y la disponibilidad al 99,5 %.")
+
+    assert score_key_facts(run, case) == Ratio(0, 2)
+
+
 def test_key_facts_are_not_applicable_without_declared_facts() -> None:
     assert score_key_facts(case_run(), golden_case(key_facts=[])) is None
 
@@ -329,6 +386,31 @@ def test_human_review_accepts_an_issue_code_as_the_expected_error() -> None:
 )
 def test_human_review_misses(overrides: dict[str, object]) -> None:
     assert score_human_review(failed_run(**overrides), review_case()) == Ratio(0, 1)
+
+
+@pytest.mark.parametrize(
+    "error", ["InvalidContextMapError", "InvalidExtractionError", "UnclassifiableAmendmentError"]
+)
+def test_any_human_review_accepts_every_human_review_error(error: str) -> None:
+    # Plan §2.6: a dangling reference must end in "error o revisión humana", whichever one.
+    case = review_case(expected_error="NeedsHumanReviewError")
+
+    assert score_human_review(failed_run(error=error), case) == Ratio(1, 1)
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"exit_code": 6, "error": "IllegibleDocumentError"},
+        {"exit_code": 5, "error": "UpstreamError"},
+        {"exit_code": 10, "error": "UnexpectedError"},
+    ],
+    ids=["illegible", "upstream", "not a human review error"],
+)
+def test_any_human_review_still_needs_a_human_review_error(overrides: dict[str, object]) -> None:
+    case = review_case(expected_error="NeedsHumanReviewError")
+
+    assert score_human_review(failed_run(**overrides), case) == Ratio(0, 1)
 
 
 def test_an_answer_where_a_human_review_was_expected_is_a_miss() -> None:

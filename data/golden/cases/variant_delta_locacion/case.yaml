@@ -1,0 +1,27 @@
+# Combined changes in the table layout: a shorter notice period and a partial sublease permit.
+base: locacion_oficina
+amendment_kind: delta
+category: variant
+split: validation
+template: table
+seed: 231
+mutations:
+  - op: modify
+    section: "8"
+    topic: termination
+    phrasing: reformulase
+    text: >-
+      Cumplidos seis (6) meses de locación, la LOCATARIA podrá rescindir el contrato con un preaviso de treinta (30) días, abonando una indemnización de un mes y medio de alquiler si lo hace durante el primer año.
+  - op: modify
+    section: "6"
+    topic: assignment
+    phrasing: modificase
+    text: >-
+      El inmueble se destinará exclusivamente a oficina profesional. La LOCATARIA podrá subalquilar hasta el veinte por ciento (20 %) de la superficie a profesionales asociados, previa notificación escrita a la LOCADORA.
+degradations:
+  - {op: jpeg, amount: 70}
+key_facts:
+  - treinta (30) días
+  - veinte por ciento (20 %)
+reference_summary: >-
+  La Cláusula Sexta deja de prohibir todo subalquiler: la LOCATARIA podrá subalquilar hasta el veinte por ciento (20 %) de la superficie a profesionales asociados, con notificación escrita a la LOCADORA. La Cláusula Octava reduce el preaviso de rescisión anticipada de sesenta (60) a treinta (30) días.

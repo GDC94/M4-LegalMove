@@ -28,7 +28,9 @@ from golden_text import (
     build_delta_document,
     build_original_document,
     build_restated_document,
+    build_unrelated_document,
     document_text,
+    insert_after_preamble,
 )
 from models import AmendmentKind, ChangeType, ContractChangeOutput, parse_section_id
 
@@ -133,6 +135,16 @@ def ensure_not_reviewed(case_dir: Path) -> None:
 
 
 def build_amendment_document(case: CaseSpec, base: BaseContract) -> Document:
+    """The page the pipeline reads as the Amendment, with its injection if the case declares one."""
+    if case.unrelated_document is not None:
+        return build_unrelated_document(case.unrelated_document)
+    document = build_changing_document(case, base)
+    if case.injection is None:
+        return document
+    return insert_after_preamble(document, case.injection)
+
+
+def build_changing_document(case: CaseSpec, base: BaseContract) -> Document:
     if case.amendment_kind is AmendmentKind.RESTATED:
         return build_restated_document(base, case.mutations)
     return build_delta_document(base, case.mutations, case.seed)

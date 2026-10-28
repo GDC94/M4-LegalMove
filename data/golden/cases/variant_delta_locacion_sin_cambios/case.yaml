@@ -1,0 +1,14 @@
+# An Amendment without changes: it rewrites the Cláusula Quinta with its same text and ratifies
+# the Cláusula Segunda. Both lists must come back empty.
+base: locacion_oficina
+amendment_kind: delta
+category: variant
+split: validation
+template: one_column
+seed: 221
+mutations:
+  - {op: noop, section: "5", phrasing: reformulase}
+  - {op: noop, section: "2", phrasing: ratifican}
+degradations: []
+key_facts: []
+reference_summary: No se identificaron cambios.

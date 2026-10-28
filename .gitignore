@@ -2,4 +2,6 @@
 .venv/
 .cache/
 __pycache__/
-outputs/eval_report.json
+# Local eval reports; only the committed baseline is tracked.
+outputs/*
+!outputs/baseline.json

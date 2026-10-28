@@ -1,0 +1,33 @@
+# Combined changes with Cláusula numbering on the centered-heading layout, lightly tilted.
+base: locacion_oficina
+amendment_kind: restated
+category: variant
+split: validation
+template: roman_articles
+seed: 211
+mutations:
+  - op: modify
+    section: "3"
+    topic: price_payment
+    text: >-
+      El alquiler mensual es de $ 1.150.000 (pesos un millón ciento cincuenta mil), pagadero por adelantado del 1 al 10 de cada mes en la cuenta bancaria que indique la LOCADORA.
+  - op: modify
+    section: "4"
+    topic: price_payment
+    text: >-
+      El alquiler se actualizará cada cuatro (4) meses según la variación del índice de precios al consumidor publicado por el INDEC.
+  - op: add
+    section: "new:9"
+    title: Cocheras
+    topic: object_scope
+    text: >-
+      Las dos cocheras corresponden a las unidades 12 y 13 del subsuelo y solo podrán usarse para vehículos de la LOCATARIA o de su personal.
+degradations:
+  - {op: rotate, amount: -0.6}
+  - {op: jpeg, amount: 80}
+key_facts:
+  - "$ 1.150.000"
+  - cuatro (4) meses
+  - cocheras
+reference_summary: >-
+  El alquiler mensual de la Cláusula Tercera sube de $ 900.000 a $ 1.150.000. La Cláusula Cuarta acorta la actualización por IPC de cada seis (6) a cada cuatro (4) meses. Se agrega la Cláusula Novena, que asigna las cocheras a las unidades 12 y 13 del subsuelo para uso exclusivo de vehículos de la LOCATARIA o de su personal.

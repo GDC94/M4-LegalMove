@@ -17,13 +17,20 @@ GOLDEN = Path(__file__).resolve().parents[2] / "data" / "golden"
 SRC = Path(__file__).resolve().parents[2] / "src"
 
 
-def test_calibration_holds_the_three_reviewed_standard_cases() -> None:
+def test_calibration_holds_the_ten_reviewed_cases() -> None:
     cases = load_split(GOLDEN, SplitName.CALIBRATION)
 
     assert [case.case_id for case in cases] == [
+        "boundary_delta_servicios_identical",
+        "boundary_delta_suministro_dangling",
+        "boundary_delta_suministro_injection",
+        "boundary_restated_servicios_renumber",
+        "boundary_unknown_servicios",
         "standard_delta_servicios",
         "standard_delta_suministro",
         "standard_restated_servicios",
+        "variant_delta_servicios",
+        "variant_restated_suministro",
     ]
     assert {case.split for case in cases} == {SplitName.CALIBRATION}
 
@@ -93,7 +100,7 @@ def test_expected_error_accepts_human_review_errors_and_issue_codes(expected_err
 
 
 @pytest.mark.parametrize(
-    "expected_error", ["IllegibleDocumentError", "NeedsHumanReviewError", "unresolved_reference"]
+    "expected_error", ["IllegibleDocumentError", "UpstreamError", "unresolved_reference"]
 )
 def test_expected_error_rejects_anything_the_pipeline_cannot_report(expected_error: str) -> None:
     with pytest.raises(ValidationError, match="expected_error"):

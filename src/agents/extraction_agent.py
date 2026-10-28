@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     # Type-only: importing observability at runtime would load the Langfuse adapter here.
     from observability import PipelineTracer, StageSpan
 
-EXTRACTION_PROMPT_VERSION = "3"
+EXTRACTION_PROMPT_VERSION = "5"
 TOPIC_LINES = "\n".join(
     f"     - {topic.value}: {description}" for topic, description in TOPIC_DESCRIPTIONS.items()
 )
@@ -71,7 +71,10 @@ paragraph, item or sentence added or removed inside it.
    - topic: exactly one of these values:
 {TOPIC_LINES}
    - description: one sentence, in Spanish, stating what changed, with the old and new values \
-when there are any.
+when there are any. For an added Section, name it by its title and state what it establishes, \
+with its figures. Write amounts, percentages, quantities and periods exactly as the Amendment \
+writes them, in every value you mention: keep the number in parentheses that follows a number \
+in words and keep currency signs; write "diez (10) días", never "diez días" or "10 días".
    - original_quote: the words of the Original Contract that prove the Change. Null for added.
    - amendment_quote: the words of the Amendment that prove the Change. Required for added and \
 modified. For removed: when amendment_kind is delta, the instruction that removes the \

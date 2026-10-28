@@ -4,7 +4,7 @@
 
 **Fase:** 2 — golden set y evaluación
 
-**Bloqueado por:** T9
+**Bloqueado por:** T9, T11
 
 ## Resumen
 

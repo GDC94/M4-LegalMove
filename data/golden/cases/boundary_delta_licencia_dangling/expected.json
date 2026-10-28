@@ -1,0 +1,19 @@
+{
+  "base": "licencia_software",
+  "split": "validation",
+  "category": "boundary",
+  "amendment_kind": "delta",
+  "declaration_sha256": "818b34023ebd94cec731c34ef173d16de26d0f18fddc400acf34802905458883",
+  "expected_error": "NeedsHumanReviewError",
+  "output": null,
+  "changes": [
+    {
+      "section_id": "2",
+      "change_type": "modified",
+      "topic": "object_scope"
+    }
+  ],
+  "key_facts": [],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

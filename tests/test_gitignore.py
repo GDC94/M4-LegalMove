@@ -29,6 +29,7 @@ def is_ignored_by_git(relative_path: str) -> bool:
         ".venv/bin/python",
         "src/__pycache__/main.cpython-314.pyc",
         "outputs/eval_report.json",
+        "outputs/calibration_run1.json",
     ],
 )
 def test_path_is_ignored(relative_path: str) -> None:

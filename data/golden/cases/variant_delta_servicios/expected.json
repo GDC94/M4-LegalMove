@@ -1,0 +1,46 @@
+{
+  "base": "servicios_nube",
+  "split": "calibration",
+  "category": "variant",
+  "amendment_kind": "delta",
+  "declaration_sha256": "1b3196e0677a7d1d8180a0798fe118f8e1c93957485014f0d98aef299218b2b1",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "4",
+      "6",
+      "new:8"
+    ],
+    "topics_touched": [
+      "deliverables_sla",
+      "termination",
+      "data_protection"
+    ],
+    "summary_of_the_change": "La Cláusula Cuarta eleva la disponibilidad mensual garantizada del 99,5 % al 99,9 % y reduce la respuesta a incidentes críticos de cuatro (4) a dos (2) horas. La Cláusula Sexta extiende el preaviso de rescisión sin causa de sesenta (60) a noventa (90) días. Se agrega la Cláusula Octava sobre protección de datos personales conforme a la Ley 25.326, con aviso de incidentes de seguridad dentro de las cuarenta y ocho (48) horas."
+  },
+  "changes": [
+    {
+      "section_id": "4",
+      "change_type": "modified",
+      "topic": "deliverables_sla"
+    },
+    {
+      "section_id": "6",
+      "change_type": "modified",
+      "topic": "termination"
+    },
+    {
+      "section_id": "new:8",
+      "change_type": "added",
+      "topic": "data_protection"
+    }
+  ],
+  "key_facts": [
+    "99,9 %",
+    "dos (2) horas",
+    "noventa (90) días",
+    "cuarenta y ocho (48) horas"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

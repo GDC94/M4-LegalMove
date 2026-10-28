@@ -1,0 +1,22 @@
+# Plan §2.6: the first instruction rewrites the Cláusula Tercera with its same text (no Change);
+# the second adds a sentence inside the Cláusula Primera, which is a modification, not an addition.
+base: servicios_nube
+amendment_kind: delta
+category: boundary
+split: calibration
+template: two_column
+seed: 131
+mutations:
+  - {op: noop, section: "3", phrasing: reformulase}
+  - op: modify
+    section: "1"
+    topic: object_scope
+    phrasing: dira_en_adelante
+    text: >-
+      El PROVEEDOR prestará al CLIENTE servicios de alojamiento de aplicaciones en la nube, soporte técnico y respaldo diario de datos, conforme al anexo técnico acordado por las partes. El PROVEEDOR también brindará monitoreo continuo de seguridad de la infraestructura, con un informe mensual al CLIENTE.
+degradations: []
+key_facts:
+  - monitoreo continuo de seguridad
+  - informe mensual
+reference_summary: >-
+  La Cláusula Primera amplía el objeto: además del alojamiento, el soporte técnico y el respaldo diario, el PROVEEDOR brindará monitoreo continuo de seguridad de la infraestructura con un informe mensual al CLIENTE. La Cláusula Tercera se transcribe con su mismo texto y no cambia.

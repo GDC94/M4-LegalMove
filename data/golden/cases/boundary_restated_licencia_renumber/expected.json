@@ -1,0 +1,30 @@
+{
+  "base": "licencia_software",
+  "split": "validation",
+  "category": "boundary",
+  "amendment_kind": "restated",
+  "declaration_sha256": "ba6ee30bf8376f77603e12ee96250d86bb9bea9de92a16f11a00c723a06f9f2c",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "new:5"
+    ],
+    "topics_touched": [
+      "obligations"
+    ],
+    "summary_of_the_change": "Se agrega un nuevo Artículo V por el que la LICENCIANTE capacita sin cargo a hasta diez (10) usuarios de la LICENCIATARIA durante el primer mes de vigencia. Los Artículos V a VIII del original pasan a numerarse VI a IX sin cambios en su texto."
+  },
+  "changes": [
+    {
+      "section_id": "new:5",
+      "change_type": "added",
+      "topic": "obligations"
+    }
+  ],
+  "key_facts": [
+    "capacitación",
+    "diez (10) usuarios"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

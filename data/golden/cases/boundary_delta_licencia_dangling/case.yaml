@@ -1,0 +1,26 @@
+# Plan §2.6: the second instruction rewrites an Artículo XI the original does not have. The run
+# must end in Human Review instead of inventing a Section.
+base: licencia_software
+amendment_kind: delta
+category: boundary
+split: validation
+template: table
+seed: 441
+mutations:
+  - op: modify
+    section: "2"
+    topic: object_scope
+    phrasing: dira_en_adelante
+    text: >-
+      La licencia es no exclusiva, intransferible y permite hasta sesenta y cinco (65) usuarios concurrentes, exclusivamente para las operaciones propias de la LICENCIATARIA en la República Argentina.
+  - op: dangling
+    section: "11"
+    title: Soporte premium
+    phrasing: pase_a_decir
+    text: >-
+      La LICENCIANTE brindará soporte las veinticuatro (24) horas, todos los días del año, para los incidentes críticos.
+degradations: []
+key_facts: []
+reference_summary: >-
+  La adenda amplía la licencia del Artículo II de cincuenta (50) a sesenta y cinco (65) usuarios concurrentes e instruye modificar un Artículo XI que el contrato original no tiene, por lo que el caso se deriva a revisión humana.
+expected_error: NeedsHumanReviewError

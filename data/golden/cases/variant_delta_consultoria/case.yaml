@@ -1,0 +1,28 @@
+# Edits inside retained Sections: a sentence added to the Cláusula Quinta and a phrase dropped
+# from the Cláusula Primera. Both are modifications, never additions or removals.
+base: consultoria_profesional
+amendment_kind: delta
+category: variant
+split: validation
+template: two_column
+seed: 521
+mutations:
+  - op: modify
+    section: "5"
+    topic: confidentiality
+    phrasing: modificase
+    text: >-
+      La CONSULTORA mantendrá en reserva toda la información comercial y financiera de la EMPRESA y no la utilizará para fines ajenos al contrato. Esta obligación se mantendrá durante tres (3) años posteriores a la finalización del contrato.
+  - op: modify
+    section: "1"
+    topic: object_scope
+    phrasing: dira_en_adelante
+    text: >-
+      La CONSULTORA asesorará a la EMPRESA en el rediseño de sus procesos de exportación, incluyendo un diagnóstico inicial y un plan de mejora.
+degradations:
+  - {op: jpeg, amount: 75}
+key_facts:
+  - tres (3) años
+  - implementación
+reference_summary: >-
+  La Cláusula Primera deja fuera del objeto el acompañamiento de la implementación: la CONSULTORA solo hará el diagnóstico inicial y el plan de mejora. La Cláusula Quinta agrega que la obligación de confidencialidad se mantiene durante tres (3) años posteriores a la finalización del contrato.

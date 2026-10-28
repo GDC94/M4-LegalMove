@@ -1,0 +1,29 @@
+{
+  "base": "consultoria_profesional",
+  "split": "validation",
+  "category": "boundary",
+  "amendment_kind": "restated",
+  "declaration_sha256": "71eaf45566003b2c4c22024e69fe3d44265a2554f7fa994665f9ffd460078514",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "4"
+    ],
+    "topics_touched": [
+      "term_duration"
+    ],
+    "summary_of_the_change": "La Cláusula Cuarta pasa de permitir la prórroga del contrato (\"podrá prorrogarse\") a exigirla (\"deberá prorrogarse\") por acuerdo escrito de las partes; la duración de ocho (8) meses no cambia."
+  },
+  "changes": [
+    {
+      "section_id": "4",
+      "change_type": "modified",
+      "topic": "term_duration"
+    }
+  ],
+  "key_facts": [
+    "deberá prorrogarse"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

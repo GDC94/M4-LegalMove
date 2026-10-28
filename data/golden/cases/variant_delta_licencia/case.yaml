@@ -1,0 +1,27 @@
+# Article-numbered delta on the centered-heading layout: one modification and one addition.
+base: licencia_software
+amendment_kind: delta
+category: variant
+split: validation
+template: roman_articles
+seed: 421
+mutations:
+  - op: modify
+    section: "6"
+    topic: confidentiality
+    phrasing: pase_a_decir
+    text: >-
+      Cada parte guardará reserva sobre la información de la otra a la que acceda con motivo del contrato, durante su vigencia y por cinco (5) años posteriores.
+  - op: add
+    section: "new:9"
+    title: Verificación de uso
+    topic: obligations
+    phrasing: incorporase
+    text: >-
+      La LICENCIANTE podrá verificar una vez por año, con aviso previo de diez (10) días hábiles, que la cantidad de usuarios concurrentes no exceda la licenciada.
+degradations: []
+key_facts:
+  - cinco (5) años
+  - una vez por año
+reference_summary: >-
+  El Artículo VI extiende la obligación de confidencialidad posterior al contrato de dos (2) a cinco (5) años. Se agrega el Artículo IX, que permite a la LICENCIANTE verificar una vez por año, con diez (10) días hábiles de aviso, que no se exceda la cantidad de usuarios concurrentes licenciada.

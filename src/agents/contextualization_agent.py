@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     # Type-only: importing observability at runtime would load the Langfuse adapter here.
     from observability import PipelineTracer, StageSpan
 
-CONTEXTUALIZATION_PROMPT_VERSION = "1"
+CONTEXTUALIZATION_PROMPT_VERSION = "2"
 # No Spanish change-instruction phrasing here: the Kind Heuristic must stay an independent signal.
 CONTEXTUALIZATION_SYSTEM_PROMPT = """\
 You map the Sections of a Spanish-language Original Contract and its Amendment.
@@ -53,6 +53,9 @@ Fill the fields in this order:
 Contract.
    - unknown: you cannot tell with confidence, the text is unreadable, or it is not an \
 amendment of this contract. Never guess. For unknown, return no sections.
+   An instruction that rewrites, replaces or removes a Section the Original Contract does not \
+contain cannot be resolved: return unknown rather than invent that Section. A new: Section \
+comes from an instruction only when the instruction explicitly adds a Section to the contract.
 3. sections: one row per Section found in either document.
    - section_id: the canonical ID, independent of how the document writes it. "Cláusula \
 Quinta", "Cláusula 5ª", "5." and "Artículo V" are all 5; a subsection is 5.2. An unnumbered \

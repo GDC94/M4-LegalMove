@@ -526,10 +526,6 @@ def test_system_prompt_says_section_ids_are_the_bare_bracketed_ids() -> None:
     assert "without the brackets or the title" in EXTRACTION_SYSTEM_PROMPT
 
 
-def test_prompt_version_was_bumped_for_the_delta_target_rule() -> None:
-    assert EXTRACTION_PROMPT_VERSION == "3"
-
-
 def labelled_payload() -> dict[str, Any]:
     labelled = extraction_payload()
     labelled["changes"][0]["section_id"] = "[2] Precio"
@@ -662,3 +658,13 @@ def test_stage_hands_the_pipeline_the_retry_it_spent() -> None:
 
     assert outcome.retries == 1
     assert ("extraction_retries", 1) in tracer.scores
+
+
+def test_prompt_keeps_figures_as_the_amendment_writes_them() -> None:
+    # T9 calibration: descriptions dropped the numeral in "treinta (30) días", so the public
+    # Summary lost the figure Compliance reads.
+    # Run 2: "exactly as written" alone still lost "(2)" in "dos (2) horas"; v5 shows the form.
+    assert EXTRACTION_PROMPT_VERSION == "5"
+    assert "exactly as the Amendment writes them" in EXTRACTION_SYSTEM_PROMPT
+    assert 'write "diez (10) días", never "diez días"' in EXTRACTION_SYSTEM_PROMPT
+    assert "name it by its title" in EXTRACTION_SYSTEM_PROMPT

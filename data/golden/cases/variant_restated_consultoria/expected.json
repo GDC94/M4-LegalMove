@@ -1,0 +1,45 @@
+{
+  "base": "consultoria_profesional",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "restated",
+  "declaration_sha256": "9d28cbf50b9d1d45b75ca0231d0f5c6d9ff0a2f9df951229214236577cdca14f",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "3",
+      "4",
+      "6"
+    ],
+    "topics_touched": [
+      "price_payment",
+      "term_duration",
+      "intellectual_property"
+    ],
+    "summary_of_the_change": "El plazo de pago de los honorarios de la Cláusula Tercera pasa de quince (15) a treinta (30) días corridos desde la factura. La duración de la Cláusula Cuarta pasa de ocho (8) a doce (12) meses. Se elimina la Cláusula Sexta, que daba a la EMPRESA la propiedad intelectual de los informes y planes de la CONSULTORA."
+  },
+  "changes": [
+    {
+      "section_id": "3",
+      "change_type": "modified",
+      "topic": "price_payment"
+    },
+    {
+      "section_id": "4",
+      "change_type": "modified",
+      "topic": "term_duration"
+    },
+    {
+      "section_id": "6",
+      "change_type": "removed",
+      "topic": "intellectual_property"
+    }
+  ],
+  "key_facts": [
+    "treinta (30) días",
+    "doce (12) meses",
+    "propiedad intelectual"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

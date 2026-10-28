@@ -1,0 +1,11 @@
+ADENDA N° 1 AL CONTRATO DE LICENCIA DE USO DE SOFTWARE
+
+En la Ciudad Autónoma de Buenos Aires, a los 5 días del mes de octubre de 2026, CÓDIGO AUSTRAL S.A., en adelante "la LICENCIANTE", y LOGÍSTICA DEL PLATA S.A., en adelante "la LICENCIATARIA", partes del contrato de licencia del 20 de enero de 2026 (en adelante, "el Contrato"), pactan lo siguiente:
+
+PRIMERO. Desde la firma de esta adenda, el Artículo II del Contrato dirá: "Artículo II — Alcance de la licencia. La licencia es no exclusiva, intransferible y permite hasta sesenta y cinco (65) usuarios concurrentes, exclusivamente para las operaciones propias de la LICENCIATARIA en la República Argentina."
+
+SEGUNDO. Las partes convienen en que el Artículo XI del Contrato pase a decir: "Artículo XI — Soporte premium. La LICENCIANTE brindará soporte las veinticuatro (24) horas, todos los días del año, para los incidentes críticos."
+
+Los restantes artículos del Contrato continúan vigentes en sus mismos términos.
+
+Se firman dos ejemplares de igual tenor, uno para cada parte.

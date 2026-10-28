@@ -430,3 +430,11 @@ def test_stage_hands_the_pipeline_the_retry_it_spent() -> None:
 
     assert outcome.retries == 1
     assert ("context_retries", 1) in tracer.scores
+
+
+def test_prompt_sends_a_reference_to_a_missing_section_to_unknown() -> None:
+    # T9 calibration: an instruction rewriting a clause the original lacks was mapped as new:
+    # and reported as added; plan §2.6 wants Human Review, never an invented Section.
+    assert CONTEXTUALIZATION_PROMPT_VERSION == "2"
+    assert "the Original Contract does not contain" in CONTEXTUALIZATION_SYSTEM_PROMPT
+    assert "only when the instruction explicitly adds" in CONTEXTUALIZATION_SYSTEM_PROMPT

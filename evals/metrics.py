@@ -1,5 +1,6 @@
 """Eval checks of plan §6.6: pure (run, case) -> Ratio | None functions and their aggregation."""
 
+import re
 import unicodedata
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -8,10 +9,10 @@ from enum import StrEnum
 import jiwer
 
 from eval_case import CaseRun, GoldenCase
+from golden_case import ANY_HUMAN_REVIEW, UNCLASSIFIABLE_ERROR, human_review_error_names
 from models import AmendmentKind
 
 HUMAN_REVIEW_EXIT_CODE = 10
-UNCLASSIFIABLE_ERROR = "UnclassifiableAmendmentError"
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,15 @@ def normalize_text(text: str) -> str:
     return " ".join(unicodedata.normalize("NFKC", text).casefold().split())
 
 
+# "$ 1.150.000" and "$1.150.000", "99,9 %" and "99,9%" state the same fact; only the spacing
+# that hugs a currency or percent sign is dropped, never any other character.
+SIGN_SPACING = re.compile(r"(?<=\$) | (?=%)")
+
+
+def normalize_fact_text(text: str) -> str:
+    return SIGN_SPACING.sub("", normalize_text(text))
+
+
 def collapse_whitespace(text: str) -> str:
     return " ".join(text.split())
 
@@ -96,11 +106,18 @@ def expected_kind(case: GoldenCase) -> AmendmentKind:
     return case.amendment_kind
 
 
+def accepted_kinds(run: CaseRun, case: GoldenCase) -> set[AmendmentKind]:
+    """Decision 79: a case expecting any Human Review may also stop there as Unknown."""
+    if case.expected_error == ANY_HUMAN_REVIEW and run.exit_code == HUMAN_REVIEW_EXIT_CODE:
+        return {expected_kind(case), AmendmentKind.UNKNOWN}
+    return {expected_kind(case)}
+
+
 def score_amendment_kind(run: CaseRun, case: GoldenCase) -> Ratio | None:
     """A run that never classified is N/A."""
     if run.amendment_kind is None:
         return None
-    return Ratio(int(run.amendment_kind is expected_kind(case)), 1)
+    return Ratio(int(run.amendment_kind in accepted_kinds(run, case)), 1)
 
 
 def predicted_sections(run: CaseRun) -> set[str]:
@@ -151,8 +168,8 @@ def score_topic_jaccard(run: CaseRun, case: GoldenCase) -> Ratio | None:
 def score_key_facts(run: CaseRun, case: GoldenCase) -> Ratio | None:
     if not case.expects_output or not case.key_facts:
         return None
-    summary = normalize_text(run.output.summary_of_the_change) if run.output else ""
-    found = sum(normalize_text(fact) in summary for fact in case.key_facts)
+    summary = normalize_fact_text(run.output.summary_of_the_change) if run.output else ""
+    found = sum(normalize_fact_text(fact) in summary for fact in case.key_facts)
     return Ratio(found, len(case.key_facts))
 
 
@@ -164,11 +181,19 @@ def score_judge(run: CaseRun, case: GoldenCase) -> Ratio | None:
 
 
 def score_human_review(run: CaseRun, case: GoldenCase) -> Ratio | None:
-    """Exit 10 with the expected error, named by its class or by one of its issue codes."""
+    """Exit 10 with the expected error, named by its class or by one of its issue codes.
+
+    A case expecting NeedsHumanReviewError accepts any of its subclasses.
+    """
     if case.expected_error is None:
         return None
     reasons = {run.error, *run.issue_codes}
-    hit = run.exit_code == HUMAN_REVIEW_EXIT_CODE and case.expected_error in reasons
+    expected = (
+        human_review_error_names()
+        if case.expected_error == ANY_HUMAN_REVIEW
+        else {case.expected_error}
+    )
+    hit = run.exit_code == HUMAN_REVIEW_EXIT_CODE and bool(expected & reasons)
     return Ratio(int(hit), 1)
 
 

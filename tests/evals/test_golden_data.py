@@ -1,4 +1,4 @@
-"""The committed golden set: base contracts, templates and six Standard cases (plan §6.4, §6.5)."""
+"""The committed golden set: base contracts, templates and its 24 cases (plan §6.4, §6.5)."""
 
 import json
 from collections import Counter, defaultdict
@@ -10,20 +10,31 @@ import pytest
 import yaml
 
 from checks import KindHeuristic, detect_kind_heuristic
-from generate_golden import GOLDEN_ROOT, TEST_PAIRS, derive_case_expected, derive_expected
+from generate_golden import (
+    GOLDEN_ROOT,
+    PAIR_FILES,
+    TEST_PAIRS,
+    build_amendment_document,
+    derive_case_expected,
+    derive_expected,
+    is_reviewed,
+)
 from golden_case import (
     BaseContract,
     CaseSpec,
+    DegradationOp,
+    MutationOp,
     SplitName,
     TemplateName,
     load_base_contract,
     load_case_spec,
 )
 from golden_text import (
+    PHRASINGS,
     block_text,
     build_delta_instructions,
+    document_text,
     render_delta_text,
-    render_restated_text,
 )
 from models import AmendmentKind
 
@@ -113,9 +124,10 @@ def test_some_delta_amendment_escapes_the_heuristic_entirely() -> None:
 
 
 def test_restated_amendments_carry_no_heuristic_marker() -> None:
+    # The whole page, injection included: a marker there would grade the heuristic, not the case.
     for case, base in map(load, CASE_DIRS):
         if case.amendment_kind == "restated":
-            text = render_restated_text(base, case.mutations)
+            text = document_text(build_amendment_document(case, base))
             assert detect_kind_heuristic(text) is KindHeuristic.INCONCLUSIVE, case.base
 
 
@@ -176,3 +188,124 @@ def test_derive_case_expected_hashes_the_case_yaml_bytes() -> None:
     assert (
         declared["declaration_sha256"] == sha256((case_dir / "case.yaml").read_bytes()).hexdigest()
     )
+
+
+# --- T9: full coverage (plan §2.6, §6.5) ---
+
+
+def cases_in(category: str) -> list[tuple[CaseSpec, BaseContract]]:
+    return [pair for pair in map(load, CASE_DIRS) if pair[0].category == category]
+
+
+def test_the_golden_set_has_24_cases_6_standard_9_variant_9_boundary() -> None:
+    categories = Counter(case.category for case, _ in map(load, CASE_DIRS))
+
+    assert categories == {"standard": 6, "variant": 9, "boundary": 9}
+
+
+@pytest.mark.parametrize(
+    ("category", "kinds"),
+    [
+        ("variant", {AmendmentKind.RESTATED: 4, AmendmentKind.DELTA: 5}),
+        # Plan §6.5 counts 4 restated and 5 delta; the unknown case takes one delta slot,
+        # since a document that is not an Amendment has neither kind.
+        ("boundary", {AmendmentKind.RESTATED: 4, AmendmentKind.DELTA: 4, AmendmentKind.UNKNOWN: 1}),
+    ],
+)
+def test_each_category_mixes_restated_and_delta(
+    category: str, kinds: dict[AmendmentKind, int]
+) -> None:
+    assert Counter(case.amendment_kind for case, _ in cases_in(category)) == kinds
+
+
+def test_ten_calibration_and_fourteen_validation_cases() -> None:
+    splits = Counter(base.split for _, base in map(load, CASE_DIRS))
+
+    assert splits == {SplitName.CALIBRATION: 10, SplitName.VALIDATION: 14}
+
+
+def is_internal_edit(case: CaseSpec, base: BaseContract) -> bool:
+    """A modify that adds or drops a paragraph or sentence and keeps the rest of the Section."""
+    bodies = {str(section.number): section.body for section in base.sections}
+    return any(
+        mutation.op is MutationOp.MODIFY
+        and mutation.text is not None
+        and mutation.section in bodies
+        and (bodies[mutation.section] in mutation.text or mutation.text in bodies[mutation.section])
+        for mutation in case.mutations
+    )
+
+
+def is_identical_rewrite(case: CaseSpec) -> bool:
+    """A delta noop worded as a modification: the clause is rewritten with the same text."""
+    return case.amendment_kind == "delta" and any(
+        mutation.op is MutationOp.NOOP
+        and PHRASINGS[MutationOp.NOOP].get(mutation.phrasing or "")
+        in PHRASINGS[MutationOp.MODIFY].values()
+        for mutation in case.mutations
+    )
+
+
+SCAN_DEGRADATIONS = {DegradationOp.BLUR, DegradationOp.NOISE, DegradationOp.DOWNSCALE}
+
+
+def adversarial_categories(case: CaseSpec, base: BaseContract) -> set[str]:
+    ops = {mutation.op for mutation in case.mutations}
+    detected = {
+        "injection": case.injection is not None,
+        "dangling_reference": MutationOp.DANGLING in ops,
+        "identical_rewrite": is_identical_rewrite(case),
+        "internal_paragraph": is_internal_edit(case, base),
+        "renumbering": MutationOp.RENUMBER in ops,
+        "degradation": bool(SCAN_DEGRADATIONS & {d.op for d in case.degradations}),
+        "unknown": case.amendment_kind == "unknown",
+    }
+    return {name for name, present in detected.items() if present}
+
+
+ADVERSARIAL = {
+    "injection",
+    "dangling_reference",
+    "identical_rewrite",
+    "internal_paragraph",
+    "renumbering",
+    "degradation",
+    "unknown",
+}
+
+
+def covered(pairs: list[tuple[CaseSpec, BaseContract]]) -> set[str]:
+    return set().union(*(adversarial_categories(case, base) for case, base in pairs))
+
+
+def test_variant_and_boundary_cases_cover_every_adversarial_category() -> None:
+    assert covered(cases_in("variant") + cases_in("boundary")) == ADVERSARIAL
+
+
+def test_calibration_covers_every_adversarial_category_so_tuning_sees_each_one() -> None:
+    calibration = [pair for pair in map(load, CASE_DIRS) if pair[1].split is SplitName.CALIBRATION]
+
+    assert covered(calibration) == ADVERSARIAL
+
+
+@pytest.mark.parametrize("case_dir", CASE_DIRS, ids=lambda path: path.name)
+def test_every_case_is_generated(case_dir: Path) -> None:
+    assert all((case_dir / name).is_file() for name in (*PAIR_FILES, "expected.json"))
+
+
+def test_every_case_is_reviewed() -> None:
+    pending = [case_dir.name for case_dir in CASE_DIRS if not is_reviewed(case_dir)]
+
+    assert pending == []
+
+
+def test_dangling_cases_accept_any_human_review() -> None:
+    # Plan §2.6: "error o revisión humana"; the pipeline may stop at the map or the extraction.
+    dangling = [
+        case
+        for case, _ in map(load, CASE_DIRS)
+        if any(mutation.op is MutationOp.DANGLING for mutation in case.mutations)
+    ]
+
+    assert dangling
+    assert {case.expected_error for case in dangling} == {"NeedsHumanReviewError"}

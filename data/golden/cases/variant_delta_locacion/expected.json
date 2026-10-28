@@ -1,0 +1,37 @@
+{
+  "base": "locacion_oficina",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "delta",
+  "declaration_sha256": "a2d811e4d16ea6f72d86fae4701e70ee8f26f344104bc01719d9078ce66b8e08",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "6",
+      "8"
+    ],
+    "topics_touched": [
+      "assignment",
+      "termination"
+    ],
+    "summary_of_the_change": "La Cláusula Sexta deja de prohibir todo subalquiler: la LOCATARIA podrá subalquilar hasta el veinte por ciento (20 %) de la superficie a profesionales asociados, con notificación escrita a la LOCADORA. La Cláusula Octava reduce el preaviso de rescisión anticipada de sesenta (60) a treinta (30) días."
+  },
+  "changes": [
+    {
+      "section_id": "6",
+      "change_type": "modified",
+      "topic": "assignment"
+    },
+    {
+      "section_id": "8",
+      "change_type": "modified",
+      "topic": "termination"
+    }
+  ],
+  "key_facts": [
+    "treinta (30) días",
+    "veinte por ciento (20 %)"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

@@ -1,0 +1,13 @@
+ADENDA N° 1 AL CONTRATO DE PRESTACIÓN DE SERVICIOS
+
+En la Ciudad Autónoma de Buenos Aires, a los 15 días del mes de septiembre de 2026, NUBESUR S.A., CUIT 30-71234567-9, en adelante "el PROVEEDOR", y COMERCIAL ANDINA S.R.L., CUIT 30-70987654-3, en adelante "el CLIENTE", partes del contrato de prestación de servicios celebrado el 3 de marzo de 2026 (en adelante, "el Contrato"), acuerdan la presente adenda:
+
+PRIMERO. Desde la firma de esta adenda, la Cláusula Cuarta del Contrato dirá: "Cláusula Cuarta — Niveles de servicio. El PROVEEDOR garantiza una disponibilidad mensual del 99,9 % y una respuesta a incidentes críticos dentro de las dos (2) horas de reportados."
+
+SEGUNDO. Modifícase la Cláusula Sexta del Contrato con el siguiente texto: "Cláusula Sexta — Rescisión. Cualquiera de las partes podrá rescindir el contrato sin expresión de causa mediante notificación fehaciente cursada con noventa (90) días de anticipación, sin derecho a indemnización alguna."
+
+TERCERO. Las partes suman al Contrato, como Cláusula Octava, el texto que sigue: "Cláusula Octava — Protección de datos personales. El PROVEEDOR tratará los datos personales del CLIENTE solo para prestar los servicios, conforme a la Ley 25.326, y le notificará cualquier incidente de seguridad dentro de las cuarenta y ocho (48) horas de detectado."
+
+Las demás cláusulas del Contrato que no hayan sido modificadas por la presente adenda mantienen plena vigencia.
+
+En prueba de conformidad, se firman dos ejemplares de un mismo tenor y a un solo efecto.

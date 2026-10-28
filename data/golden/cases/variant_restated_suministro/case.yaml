@@ -1,0 +1,32 @@
+# Combined changes on another layout: two modifications and an addition, light JPEG artifacts.
+base: suministro_envases
+amendment_kind: restated
+category: variant
+split: calibration
+template: two_column
+seed: 311
+mutations:
+  - op: modify
+    section: "3"
+    topic: price_payment
+    text: >-
+      El precio es de $ 465 (pesos cuatrocientos sesenta y cinco) por unidad, más IVA, y se ajustará trimestralmente según el índice de precios mayoristas del INDEC.
+  - op: modify
+    section: "7"
+    topic: term_duration
+    text: >-
+      El contrato rige por veinticuatro (24) meses desde su firma y se renueva automáticamente por períodos de seis (6) meses, salvo aviso en contrario con treinta (30) días de anticipación.
+  - op: add
+    section: "new:9"
+    title: Seguro de transporte
+    topic: insurance
+    text: >-
+      El PROVEEDOR asegurará cada pedido contra robo y daños durante el transporte hasta su descarga en la planta del COMPRADOR.
+degradations:
+  - {op: jpeg, amount: 75}
+key_facts:
+  - "$ 465"
+  - veinticuatro (24) meses
+  - seguro
+reference_summary: >-
+  El precio por unidad de la cláusula 3 sube de $ 420 a $ 465 más IVA, con el mismo ajuste trimestral. La vigencia de la cláusula 7 pasa de dieciocho (18) a veinticuatro (24) meses, con la misma renovación automática. Se agrega la cláusula 9, que obliga al PROVEEDOR a asegurar cada pedido contra robo y daños durante el transporte.

@@ -695,7 +695,9 @@ data/golden/
 
 **`case.yaml` declara:**
 - contrato base, `amendment_kind`, categoría y split;
-- mutaciones: `modify` / `add` / `remove` / `renumber` / `noop`, cada una con su sección, el texto nuevo y su `Topic`;
+- mutaciones: `modify` / `add` / `remove` / `renumber` / `noop` / `dangling`, cada una con su sección, el texto nuevo y su `Topic`; `dangling` es una instrucción `delta` sobre una sección que el original no tiene y no es un cambio;
+- `injection` opcional: un párrafo no confiable después del preámbulo de la adenda;
+- `unrelated_document` para los casos `unknown`: un documento que no es una adenda;
 - degradaciones y semilla;
 - `key_facts` obligatorios para el resumen;
 - un resumen de referencia escrito a mano;
@@ -727,8 +729,8 @@ Al final se completan `reviewed_by` y `reviewed_at` en `expected.json` (y en el 
 |---|---|---|---|
 | Standard | 3 | 3 | 1-3 cambios claros en un escaneo limpio |
 | Variant | 4 | 5 | Layouts distintos, otros tipos de contrato, "N/A", cambios combinados, adenda sin cambios |
-| Boundary | 4 | 5 | Imagen degradada, separadores ambiguos, "podrá" → "deberá", renumeración, inyección, referencia inexistente, cláusula reescrita igual, párrafo agregado/eliminado dentro de una sección, adenda `unknown` |
-| **Total** | **11** | **13** | **24 casos** |
+| Boundary | 4 | 4 + 1 `unknown` | Imagen degradada, separadores ambiguos, "podrá" → "deberá", renumeración, inyección, referencia inexistente, cláusula reescrita igual, párrafo agregado/eliminado dentro de una sección, adenda `unknown` |
+| **Total** | **11** | **12 + 1 `unknown`** | **24 casos** |
 
 - **Splits:** alrededor de 10 casos en `calibration` (para ajustar prompts y umbrales) y 14 en `validation`. La asignación es por familia de contrato base, no por PNG individual; `validation` nunca se usa para ajustar nada.
 - **`data/test_contracts/`:** los 2 pares que pide la consigna, uno `restated` y otro `delta`, con su README. En la fase 1 se renderizan de forma mínima (ver abajo); en la fase 2 los casos Standard los reemplazan.
@@ -1096,6 +1098,12 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 71 | `auth_check()` al inicializar el tracer; la entrega posterior al `flush()` es best-effort; acota la decisión 53 | Langfuse no propaga los errores de exportación OTLP, así que `flush()` no puede confirmar la entrega | 5.7 | 2026-10-26 |
 | 72 | El generador de golden renderiza con Playwright y 4 plantillas HTML (`one_column`, `two_column`, `table`, `roman_articles`); `render_plain.py` solo conserva las constantes de página y la fuente compartidas y pierde su CLI; supera la "plantilla plain posterior" de la decisión 34 | El ticket T7 fija 4 plantillas HTML; mantener la CLI de la fase 1 pisaría los PNG de los pares generados desde los golden Standard | 6.4, 6.5 | 2026-10-27 |
 | 73 | El Experiment de Langfuse reproduce corridas ya hechas y `connect_langfuse` es el único constructor del cliente | No se paga dos veces; el reporte sobrevive a una falla de Langfuse; el SDK guarda un resource manager por clave pública y el primer cliente fija mask, media y environment. Costo: el Experiment no muestra latencia ni costo del pipeline, el `trace_id` real vive en el output del item y enlazar la traza real exigiría el endpoint deprecado `dataset-run-items` | 5.6, 6.7 | 2026-10-27 |
+| 74 | Boundary queda en 4 `restated`, 4 `delta` y 1 `unknown`; la fábrica suma `dangling`, `injection` y `unrelated_document` | `unknown` no es `restated` ni `delta` y necesita su propio lugar sin pasar de 24 casos | 6.4, 6.5 | 2026-10-27 |
+| 75 | Un caso golden puede esperar cualquier error de revisión humana (`NeedsHumanReviewError`) en lugar de un error puntual; los casos de referencia inexistente lo usan | La §2.6 acepta "error o revisión humana" y más de una etapa puede frenar correctamente esa adenda | 2.6, 6.6 | 2026-10-27 |
+| 76 | La cobertura de `key_facts` ignora el espacio pegado a `$` y a `%` | "$ 1.850.000" y "$1.850.000" son el mismo dato; no es coincidencia difusa | 6.6 | 2026-10-27 |
+| 77 | El ExtractionAgent copia montos, porcentajes y plazos tal como los escribe la adenda, con el número entre paréntesis, y nombra por su título la sección agregada (`EXTRACTION_PROMPT_VERSION` 5) | El resumen público sale de las descripciones y perdía "(30)" en "treinta (30) días"; la cobertura pasó de 0,684 a 1,0 en `calibration` | 4.2, 6.6 | 2026-10-27 |
+| 78 | Una instrucción `delta` que reescribe o elimina una sección inexistente en el original lleva la adenda a `unknown` (`CONTEXTUALIZATION_PROMPT_VERSION` 2); es una mitigación blanda y el control duro queda para T11 | El pipeline inventaba `new:11` como `added`; con la regla derivó a revisión humana en 1 de 2 corridas a temperatura 0 | 2.3, 2.6 | 2026-10-27 |
+| 79 | En los casos que esperan cualquier error de revisión humana, `unknown` cuenta como acierto de `amendment_kind` | Derivar a revisión humana es la salida correcta de esos casos (decisión 75); contarlo como fallo castigaría el comportamiento buscado | 6.6 | 2026-10-27 |
 
 ## 9. Diagrama de LegalMove pipeline
 

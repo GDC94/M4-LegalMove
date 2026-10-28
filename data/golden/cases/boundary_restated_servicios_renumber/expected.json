@@ -1,0 +1,30 @@
+{
+  "base": "servicios_nube",
+  "split": "calibration",
+  "category": "boundary",
+  "amendment_kind": "restated",
+  "declaration_sha256": "1d447af39caaa2af026566f7bec28b1d2b8c610982075f704a8e454e67022ccb",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "new:3"
+    ],
+    "topics_touched": [
+      "object_scope"
+    ],
+    "summary_of_the_change": "Se agrega una nueva Cláusula Tercera, por la que el PROVEEDOR migra sin cargo las aplicaciones del CLIENTE a su infraestructura durante los primeros treinta (30) días y le entrega un informe de migración. Las cláusulas Tercera a Séptima del original pasan a numerarse Cuarta a Octava sin cambios en su texto."
+  },
+  "changes": [
+    {
+      "section_id": "new:3",
+      "change_type": "added",
+      "topic": "object_scope"
+    }
+  ],
+  "key_facts": [
+    "migración",
+    "treinta (30) días"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

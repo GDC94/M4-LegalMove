@@ -1,0 +1,31 @@
+# Plan §2.4 renumbering on a degraded scan: a new Section 3 shifts the original 3 to 7 down
+# by one with the same text. Only new:3 is a Change.
+base: servicios_nube
+amendment_kind: restated
+category: boundary
+split: calibration
+template: one_column
+seed: 121
+mutations:
+  - op: add
+    section: "new:3"
+    after: "2"
+    title: Migración inicial
+    topic: object_scope
+    text: >-
+      Durante los primeros treinta (30) días de vigencia, el PROVEEDOR migrará sin cargo las aplicaciones del CLIENTE a su infraestructura y le entregará un informe de migración.
+  - {op: renumber, section: "3", number: 4}
+  - {op: renumber, section: "4", number: 5}
+  - {op: renumber, section: "5", number: 6}
+  - {op: renumber, section: "6", number: 7}
+  - {op: renumber, section: "7", number: 8}
+degradations:
+  - {op: rotate, amount: 1.2}
+  - {op: blur, amount: 1.1}
+  - {op: noise, amount: 0.12}
+  - {op: jpeg, amount: 45}
+key_facts:
+  - migración
+  - treinta (30) días
+reference_summary: >-
+  Se agrega una nueva Cláusula Tercera, por la que el PROVEEDOR migra sin cargo las aplicaciones del CLIENTE a su infraestructura durante los primeros treinta (30) días y le entrega un informe de migración. Las cláusulas Tercera a Séptima del original pasan a numerarse Cuarta a Octava sin cambios en su texto.

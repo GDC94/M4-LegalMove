@@ -1,0 +1,29 @@
+{
+  "base": "suministro_envases",
+  "split": "calibration",
+  "category": "boundary",
+  "amendment_kind": "delta",
+  "declaration_sha256": "69a1aeb8c96ae84f0447634c4ff4fcfd95b47f1f79016a87678bc74d7773b622",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "4"
+    ],
+    "topics_touched": [
+      "deliverables_sla"
+    ],
+    "summary_of_the_change": "El plazo de entrega de la cláusula 4 se reduce de diez (10) a siete (7) días hábiles desde la orden de compra, con el flete a cargo del PROVEEDOR."
+  },
+  "changes": [
+    {
+      "section_id": "4",
+      "change_type": "modified",
+      "topic": "deliverables_sla"
+    }
+  ],
+  "key_facts": [
+    "siete (7) días hábiles"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

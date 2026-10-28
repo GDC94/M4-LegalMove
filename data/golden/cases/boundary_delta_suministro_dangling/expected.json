@@ -1,0 +1,19 @@
+{
+  "base": "suministro_envases",
+  "split": "calibration",
+  "category": "boundary",
+  "amendment_kind": "delta",
+  "declaration_sha256": "983f17273a59b95ea39d380f49be0bb2799011b9ebdce9ac613614cef3ef49ec",
+  "expected_error": "NeedsHumanReviewError",
+  "output": null,
+  "changes": [
+    {
+      "section_id": "2",
+      "change_type": "modified",
+      "topic": "obligations"
+    }
+  ],
+  "key_facts": [],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

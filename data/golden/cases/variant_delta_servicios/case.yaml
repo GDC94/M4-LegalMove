@@ -1,0 +1,37 @@
+# Combined changes in the table layout; the addition uses a phrasing the Kind Heuristic does
+# not know, the termination change uses one it knows.
+base: servicios_nube
+amendment_kind: delta
+category: variant
+split: calibration
+template: table
+seed: 111
+mutations:
+  - op: modify
+    section: "4"
+    topic: deliverables_sla
+    phrasing: dira_en_adelante
+    text: >-
+      El PROVEEDOR garantiza una disponibilidad mensual del 99,9 % y una respuesta a incidentes críticos dentro de las dos (2) horas de reportados.
+  - op: modify
+    section: "6"
+    topic: termination
+    phrasing: modificase
+    text: >-
+      Cualquiera de las partes podrá rescindir el contrato sin expresión de causa mediante notificación fehaciente cursada con noventa (90) días de anticipación, sin derecho a indemnización alguna.
+  - op: add
+    section: "new:8"
+    title: Protección de datos personales
+    topic: data_protection
+    phrasing: suman
+    text: >-
+      El PROVEEDOR tratará los datos personales del CLIENTE solo para prestar los servicios, conforme a la Ley 25.326, y le notificará cualquier incidente de seguridad dentro de las cuarenta y ocho (48) horas de detectado.
+degradations:
+  - {op: rotate, amount: 0.4}
+key_facts:
+  - 99,9 %
+  - dos (2) horas
+  - noventa (90) días
+  - cuarenta y ocho (48) horas
+reference_summary: >-
+  La Cláusula Cuarta eleva la disponibilidad mensual garantizada del 99,5 % al 99,9 % y reduce la respuesta a incidentes críticos de cuatro (4) a dos (2) horas. La Cláusula Sexta extiende el preaviso de rescisión sin causa de sesenta (60) a noventa (90) días. Se agrega la Cláusula Octava sobre protección de datos personales conforme a la Ley 25.326, con aviso de incidentes de seguridad dentro de las cuarenta y ocho (48) horas.

@@ -1,0 +1,29 @@
+# A heavily degraded restated scan: low resolution, blur, noise, tilt and JPEG artifacts.
+base: locacion_oficina
+amendment_kind: restated
+category: boundary
+split: validation
+template: two_column
+seed: 241
+mutations:
+  - op: modify
+    section: "7"
+    topic: obligations
+    text: >-
+      Las reparaciones menores, las expensas ordinarias y las expensas extraordinarias están a cargo de la LOCATARIA. Las reparaciones estructurales están a cargo de la LOCADORA.
+  - op: modify
+    section: "8"
+    topic: termination
+    text: >-
+      Cumplidos seis (6) meses de locación, la LOCATARIA podrá rescindir el contrato con un preaviso de noventa (90) días, abonando una indemnización de un mes y medio de alquiler si lo hace durante el primer año.
+degradations:
+  - {op: downscale, amount: 0.55}
+  - {op: blur, amount: 0.9}
+  - {op: noise, amount: 0.14}
+  - {op: rotate, amount: -1.0}
+  - {op: jpeg, amount: 40}
+key_facts:
+  - expensas extraordinarias
+  - noventa (90) días
+reference_summary: >-
+  La Cláusula Séptima traslada las expensas extraordinarias de la LOCADORA a la LOCATARIA. La Cláusula Octava extiende el preaviso de rescisión anticipada de sesenta (60) a noventa (90) días.

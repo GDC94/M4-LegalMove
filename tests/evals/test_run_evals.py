@@ -233,9 +233,10 @@ def test_the_publisher_connects_before_the_first_case_and_every_case_gets_a_fres
 
     report = run_evals.evaluate_split(arguments)
 
-    assert events == ["publisher", "compose", "compose", "compose"]
-    assert len({id(budget) for budget in budgets}) == 3
-    assert report["cases_total"] == 3
+    calibration_cases = 10
+    assert events == ["publisher", *["compose"] * calibration_cases]
+    assert len({id(budget) for budget in budgets}) == calibration_cases
+    assert report["cases_total"] == calibration_cases
 
 
 def test_an_unexpected_failure_exits_1_with_the_type_only(monkeypatch: pytest.MonkeyPatch) -> None:

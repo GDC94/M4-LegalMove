@@ -1,0 +1,37 @@
+{
+  "base": "consultoria_profesional",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "delta",
+  "declaration_sha256": "d6d2e5e923ee04289ae385e676cda4be7207ff4159eca4507b2e538c32af3a1b",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "1",
+      "5"
+    ],
+    "topics_touched": [
+      "object_scope",
+      "confidentiality"
+    ],
+    "summary_of_the_change": "La Cláusula Primera deja fuera del objeto el acompañamiento de la implementación: la CONSULTORA solo hará el diagnóstico inicial y el plan de mejora. La Cláusula Quinta agrega que la obligación de confidencialidad se mantiene durante tres (3) años posteriores a la finalización del contrato."
+  },
+  "changes": [
+    {
+      "section_id": "1",
+      "change_type": "modified",
+      "topic": "object_scope"
+    },
+    {
+      "section_id": "5",
+      "change_type": "modified",
+      "topic": "confidentiality"
+    }
+  ],
+  "key_facts": [
+    "tres (3) años",
+    "implementación"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

@@ -1,0 +1,26 @@
+# Plan §2.6: the second instruction rewrites a clause 11 the original does not have. The run
+# must end in Human Review instead of inventing a Section.
+base: suministro_envases
+amendment_kind: delta
+category: boundary
+split: calibration
+template: table
+seed: 331
+mutations:
+  - op: modify
+    section: "2"
+    topic: obligations
+    phrasing: reformulase
+    text: >-
+      El COMPRADOR emitirá órdenes de compra mensuales por un mínimo de veinticinco mil (25.000) unidades, con al menos cinco (5) días hábiles de anticipación.
+  - op: dangling
+    section: "11"
+    title: Penalidad por rescisión
+    phrasing: modificase
+    text: >-
+      La parte que rescinda el contrato antes de su vencimiento abonará a la otra una penalidad equivalente a dos (2) meses de compras promedio.
+degradations: []
+key_facts: []
+reference_summary: >-
+  La adenda eleva el pedido mínimo mensual de la cláusula 2 de veinte mil (20.000) a veinticinco mil (25.000) unidades e instruye modificar una cláusula 11 que el contrato original no tiene, por lo que el caso se deriva a revisión humana.
+expected_error: NeedsHumanReviewError

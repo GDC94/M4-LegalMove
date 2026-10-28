@@ -1,0 +1,37 @@
+{
+  "base": "licencia_software",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "restated",
+  "declaration_sha256": "d4b7b721d94d45b5835886bd92bd8c3bfb51ba842ebc65ca7761c16a44a38978",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "3",
+      "4"
+    ],
+    "topics_touched": [
+      "price_payment",
+      "deliverables_sla"
+    ],
+    "summary_of_the_change": "El canon anual del Artículo III sube de USD 24.000 a USD 27.600, en las mismas cuatro cuotas trimestrales. El Artículo IV conserva su título pero su texto pasa a ser \"N/A.\", de modo que la LICENCIANTE deja de comprometer soporte en días hábiles y actualizaciones menores sin costo."
+  },
+  "changes": [
+    {
+      "section_id": "3",
+      "change_type": "modified",
+      "topic": "price_payment"
+    },
+    {
+      "section_id": "4",
+      "change_type": "modified",
+      "topic": "deliverables_sla"
+    }
+  ],
+  "key_facts": [
+    "USD 27.600",
+    "soporte"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

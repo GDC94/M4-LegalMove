@@ -1,0 +1,25 @@
+# Plan §2.6 and decision 60: the second page is a maintenance notice under the contract, not
+# an Amendment. The run must classify it Unknown and end in Human Review.
+base: servicios_nube
+amendment_kind: unknown
+category: boundary
+split: calibration
+template: one_column
+seed: 141
+mutations: []
+unrelated_document:
+  title: AVISO DE MANTENIMIENTO PROGRAMADO
+  paragraphs:
+    - Ciudad Autónoma de Buenos Aires, 20 de septiembre de 2026.
+    - Señores COMERCIAL ANDINA S.R.L., Calle Belgrano 567, Mendoza.
+    - >-
+      NUBESUR S.A. informa que el sábado 4 de octubre de 2026, entre las 2 y las 6 horas, realizará tareas de mantenimiento programado en su plataforma de alojamiento. Durante ese lapso las aplicaciones del CLIENTE podrán no estar disponibles.
+    - >-
+      Este aviso se cursa conforme al contrato de prestación de servicios del 3 de marzo de 2026 y no altera ninguna de sus cláusulas. Ante cualquier consulta, puede escribir a soporte@nubesur.com.ar.
+    - Atentamente, Mesa de Ayuda de NUBESUR S.A.
+degradations:
+  - {op: jpeg, amount: 80}
+key_facts: []
+reference_summary: >-
+  El documento es un aviso de mantenimiento programado de NUBESUR S.A. y no una adenda del contrato, por lo que el caso se deriva a revisión humana.
+expected_error: UnclassifiableAmendmentError

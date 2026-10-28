@@ -1,0 +1,24 @@
+# "N/A": the Artículo IV keeps its heading but its text becomes "N/A.", a modification of a
+# Section present in both documents, not a removal.
+base: licencia_software
+amendment_kind: restated
+category: variant
+split: validation
+template: two_column
+seed: 411
+mutations:
+  - op: modify
+    section: "3"
+    topic: price_payment
+    text: >-
+      La LICENCIATARIA abonará un canon anual de USD 27.600 (dólares estadounidenses veintisiete mil seiscientos), pagadero en cuatro cuotas trimestrales iguales al tipo de cambio oficial del día de pago.
+  - op: modify
+    section: "4"
+    topic: deliverables_sla
+    text: N/A.
+degradations: []
+key_facts:
+  - USD 27.600
+  - soporte
+reference_summary: >-
+  El canon anual del Artículo III sube de USD 24.000 a USD 27.600, en las mismas cuatro cuotas trimestrales. El Artículo IV conserva su título pero su texto pasa a ser "N/A.", de modo que la LICENCIANTE deja de comprometer soporte en días hábiles y actualizaciones menores sin costo.

@@ -1,0 +1,44 @@
+{
+  "base": "locacion_oficina",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "restated",
+  "declaration_sha256": "93ae0011a94590dbfe75ff619eaf9122fef4a19f2fac8d9296e1db8acee1e090",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "3",
+      "4",
+      "new:9"
+    ],
+    "topics_touched": [
+      "price_payment",
+      "object_scope"
+    ],
+    "summary_of_the_change": "El alquiler mensual de la Cláusula Tercera sube de $ 900.000 a $ 1.150.000. La Cláusula Cuarta acorta la actualización por IPC de cada seis (6) a cada cuatro (4) meses. Se agrega la Cláusula Novena, que asigna las cocheras a las unidades 12 y 13 del subsuelo para uso exclusivo de vehículos de la LOCATARIA o de su personal."
+  },
+  "changes": [
+    {
+      "section_id": "3",
+      "change_type": "modified",
+      "topic": "price_payment"
+    },
+    {
+      "section_id": "4",
+      "change_type": "modified",
+      "topic": "price_payment"
+    },
+    {
+      "section_id": "new:9",
+      "change_type": "added",
+      "topic": "object_scope"
+    }
+  ],
+  "key_facts": [
+    "$ 1.150.000",
+    "cuatro (4) meses",
+    "cocheras"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-27"
+}

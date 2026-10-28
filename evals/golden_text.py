@@ -5,7 +5,14 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from itertools import pairwise
 
-from golden_case import BaseContract, GoldenCaseError, Mutation, MutationOp, Numbering
+from golden_case import (
+    BaseContract,
+    GoldenCaseError,
+    Mutation,
+    MutationOp,
+    Numbering,
+    UnrelatedDocument,
+)
 from models import parse_section_id
 
 FEMININE_ORDINALS = (
@@ -20,13 +27,14 @@ INSTRUCTION_LEADS = (
 
 # Delta instruction phrasings. Each op mixes Kind Heuristic markers with phrasings the heuristic
 # does not know, so the golden set never grades the heuristic with its own vocabulary (plan §6.4).
+MODIFY_PHRASINGS = {
+    "modificase": 'Modifícase {ref} del Contrato con el siguiente texto: "{quote}"',
+    "pase_a_decir": 'Las partes convienen en que {ref} del Contrato pase a decir: "{quote}"',
+    "dira_en_adelante": 'Desde la firma de esta adenda, {ref} del Contrato dirá: "{quote}"',
+    "reformulase": 'Reformúlase {ref} del Contrato en estos términos: "{quote}"',
+}
 PHRASINGS: dict[MutationOp, dict[str, str]] = {
-    MutationOp.MODIFY: {
-        "modificase": 'Modifícase {ref} del Contrato con el siguiente texto: "{quote}"',
-        "pase_a_decir": 'Las partes convienen en que {ref} del Contrato pase a decir: "{quote}"',
-        "dira_en_adelante": 'Desde la firma de esta adenda, {ref} del Contrato dirá: "{quote}"',
-        "reformulase": 'Reformúlase {ref} del Contrato en estos términos: "{quote}"',
-    },
+    MutationOp.MODIFY: MODIFY_PHRASINGS,
     MutationOp.ADD: {
         "incorporase": 'Incorpórase al Contrato, como {name}, el siguiente texto: "{quote}"',
         "agregase": 'Agrégase al Contrato, como {name}, el siguiente texto: "{quote}"',
@@ -46,7 +54,11 @@ PHRASINGS: dict[MutationOp, dict[str, str]] = {
         "ratifican": (
             'Las partes ratifican {ref} del Contrato, que conserva el siguiente texto: "{quote}"'
         ),
+        # Plan §2.6: the same wording as a modification, quoting the unchanged text.
+        "reformulase": MODIFY_PHRASINGS["reformulase"],
     },
+    # A dangling reference reads exactly like a modification of a Section that does not exist.
+    MutationOp.DANGLING: MODIFY_PHRASINGS,
 }
 
 
@@ -158,6 +170,14 @@ def amend_noop(sections: list[AmendedSection], mutation: Mutation) -> list[Amend
     return sections
 
 
+def amend_dangling(sections: list[AmendedSection], mutation: Mutation) -> list[AmendedSection]:
+    if any(section.origin == mutation.section for section in sections):
+        raise GoldenCaseError(
+            f"dangling section {mutation.section} exists in the base contract; declare a modify"
+        )
+    return sections
+
+
 def amend_add(sections: list[AmendedSection], mutation: Mutation) -> list[AmendedSection]:
     position = len(sections)
     if mutation.after is not None:
@@ -173,6 +193,7 @@ AMENDERS: dict[MutationOp, Amend] = {
     MutationOp.REMOVE: amend_remove,
     MutationOp.RENUMBER: amend_renumber,
     MutationOp.NOOP: amend_noop,
+    MutationOp.DANGLING: amend_dangling,
 }
 
 
@@ -205,16 +226,23 @@ def choose_phrasing(mutation: Mutation, index: int, seed: int) -> str:
     return phrasings[mutation.phrasing]
 
 
+def declared_section_fields(numbering: Numbering, mutation: Mutation) -> dict[str, str]:
+    """Fields of a Section the original lacks: its number comes from the declared ID."""
+    number = parse_section_id(mutation.section).numbers[0]
+    title, body = mutation.title or "", mutation.text or ""
+    return {
+        "ref": section_ref(numbering, number),
+        "name": section_name(numbering, number),
+        "title": title,
+        "quote": f"{section_heading(numbering, number, title)} {body}",
+    }
+
+
 def instruction_fields(base: BaseContract, mutation: Mutation) -> dict[str, str]:
     """The placeholders a phrasing may use: ref, name, title and the quoted Section text."""
     numbering = base.numbering
-    if mutation.op is MutationOp.ADD:
-        number = parse_section_id(mutation.section).numbers[0]
-        title, body = mutation.title or "", mutation.text or ""
-        return {
-            "name": section_name(numbering, number),
-            "quote": f"{section_heading(numbering, number, title)} {body}",
-        }
+    if mutation.op in {MutationOp.ADD, MutationOp.DANGLING}:
+        return declared_section_fields(numbering, mutation)
     original = base.sections[find_section(original_sections(base), mutation.section)]
     number = mutation.number or original.number
     title = mutation.title or original.title
@@ -255,3 +283,13 @@ def build_delta_document(base: BaseContract, mutations: Sequence[Mutation], seed
 
 def render_delta_text(base: BaseContract, mutations: Sequence[Mutation], seed: int) -> str:
     return document_text(build_delta_document(base, mutations, seed))
+
+
+def insert_after_preamble(document: Document, body: str) -> Document:
+    """An unnumbered paragraph between the preamble and the first Section or instruction."""
+    preamble, *rest = document.blocks
+    return replace(document, blocks=(preamble, Block(None, body), *rest))
+
+
+def build_unrelated_document(unrelated: UnrelatedDocument) -> Document:
+    return Document(unrelated.title, tuple(Block(None, body) for body in unrelated.paragraphs))

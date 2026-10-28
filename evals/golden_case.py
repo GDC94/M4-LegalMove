@@ -8,7 +8,7 @@ from typing import Literal, Self
 import yaml
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
-from errors import NeedsHumanReviewError
+from errors import NeedsHumanReviewError, UnclassifiableAmendmentError
 from models import AmendmentKind, Topic, check_section_id, parse_section_id
 
 
@@ -104,6 +104,8 @@ class MutationOp(StrEnum):
     REMOVE = "remove"
     RENUMBER = "renumber"
     NOOP = "noop"
+    # A delta instruction aimed at a Section the original lacks (plan §2.6); never a Change.
+    DANGLING = "dangling"
 
 
 REQUIRED_FIELDS: dict[MutationOp, frozenset[str]] = {
@@ -112,6 +114,7 @@ REQUIRED_FIELDS: dict[MutationOp, frozenset[str]] = {
     MutationOp.REMOVE: frozenset({"topic"}),
     MutationOp.RENUMBER: frozenset({"number"}),
     MutationOp.NOOP: frozenset(),
+    MutationOp.DANGLING: frozenset({"title", "text"}),
 }
 # Optional fields each op may declare besides its required ones; anything else is a typo or a
 # truth the generator would silently ignore.
@@ -121,6 +124,7 @@ OPTIONAL_FIELDS: dict[MutationOp, frozenset[str]] = {
     MutationOp.REMOVE: frozenset({"phrasing"}),
     MutationOp.RENUMBER: frozenset({"phrasing"}),
     MutationOp.NOOP: frozenset({"phrasing"}),
+    MutationOp.DANGLING: frozenset({"phrasing"}),
 }
 DECLARABLE_FIELDS = frozenset({"title", "text", "topic", "number", "after", "phrasing"})
 
@@ -180,6 +184,9 @@ def human_review_error_names() -> frozenset[str]:
     return frozenset(names)
 
 
+# The base class name as expected_error means "any Human Review error" (plan §2.6).
+ANY_HUMAN_REVIEW = NeedsHumanReviewError.__name__
+
 # Every ValidationIssue code src can emit; a test rebuilds this set from src so it cannot drift.
 KNOWN_ISSUE_CODES = frozenset(
     {
@@ -202,13 +209,25 @@ KNOWN_ISSUE_CODES = frozenset(
 )
 
 
+UNCLASSIFIABLE_ERROR = UnclassifiableAmendmentError.__name__
+
+
+class UnrelatedDocument(BaseModel):
+    """What an Unknown case shows instead of an Amendment: a document that amends nothing."""
+
+    model_config = Frozen
+
+    title: str
+    paragraphs: tuple[str, ...]
+
+
 class CaseSpec(BaseModel):
     """The case.yaml declaration: the source of truth every artifact is derived from."""
 
     model_config = Frozen
 
     base: str
-    amendment_kind: Literal[AmendmentKind.RESTATED, AmendmentKind.DELTA]
+    amendment_kind: Literal[AmendmentKind.RESTATED, AmendmentKind.DELTA, AmendmentKind.UNKNOWN]
     category: Literal["standard", "variant", "boundary"]
     split: SplitName
     template: TemplateName
@@ -218,16 +237,48 @@ class CaseSpec(BaseModel):
     key_facts: tuple[str, ...]
     reference_summary: str
     expected_error: str | None = None
+    # Untrusted text placed in the Amendment to test the prompt-injection defense (plan §4.3).
+    injection: str | None = None
+    unrelated_document: UnrelatedDocument | None = None
 
     @field_validator("expected_error")
     @classmethod
     def check_expected_error(cls, value: str | None) -> str | None:
-        """A Human Review error name or issue code; a typo would make the case unwinnable."""
-        if value is not None and value not in human_review_error_names() | KNOWN_ISSUE_CODES:
+        """A Human Review error name, any of them, or an issue code; a typo is unwinnable."""
+        accepted = human_review_error_names() | KNOWN_ISSUE_CODES | {ANY_HUMAN_REVIEW}
+        if value is not None and value not in accepted:
             raise ValueError(
-                "expected_error must name a NeedsHumanReviewError subclass or a known issue code"
+                "expected_error must name NeedsHumanReviewError, a subclass or a known issue code"
             )
         return value
+
+    @model_validator(mode="after")
+    def check_kind_declarations(self) -> Self:
+        if self.amendment_kind is AmendmentKind.UNKNOWN:
+            check_unknown_case(self)
+        elif self.unrelated_document is not None:
+            raise ValueError("only an unknown case declares an unrelated_document")
+        if any(mutation.op is MutationOp.DANGLING for mutation in self.mutations):
+            check_dangling_case(self)
+        return self
+
+
+def check_unknown_case(case: CaseSpec) -> None:
+    """Decision 60: an Unknown Amendment goes straight to Human Review and changes nothing."""
+    if case.unrelated_document is None:
+        raise ValueError("an unknown case needs the unrelated_document it shows")
+    if case.expected_error != UNCLASSIFIABLE_ERROR:
+        raise ValueError(f"an unknown case expects {UNCLASSIFIABLE_ERROR}")
+    if case.mutations or case.injection is not None:
+        raise ValueError("an unknown case declares no mutations and no injection")
+
+
+def check_dangling_case(case: CaseSpec) -> None:
+    """Plan §2.6: a reference to a missing Section ends in a Human Review, not an output."""
+    if case.amendment_kind is not AmendmentKind.DELTA:
+        raise ValueError("only a delta amendment can reference a missing section")
+    if case.expected_error is None:
+        raise ValueError("a dangling reference needs the expected_error it ends in")
 
 
 def load_case_spec(path: Path) -> CaseSpec:
