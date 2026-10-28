@@ -88,6 +88,7 @@ _Avoid_: update, edit, amendment (reserved for the document)
 
 **Topic**:
 The legal or commercial category of a Change, taken from a closed taxonomy. `other` is allowed and monitored.
+It is chosen by what the changed words regulate, not by the Section title: training or onboarding a party must provide is `deliverables_sla`, `obligations` covers only duties no more specific Topic covers, and `assignment` covers assignment, subcontracting, subletting and transfer of use.
 _Avoid_: category, tag, tópico, subject
 
 **Quote**:

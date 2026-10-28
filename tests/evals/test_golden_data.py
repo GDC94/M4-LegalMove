@@ -1,4 +1,4 @@
-"""The committed golden set: base contracts, templates and its 24 cases (plan §6.4, §6.5)."""
+"""The committed golden set: base contracts, templates and its 39 cases (plan §6.4, §6.5)."""
 
 import json
 from collections import Counter, defaultdict
@@ -51,8 +51,13 @@ def standard_cases() -> list[tuple[CaseSpec, BaseContract]]:
     return [pair for pair in map(load, CASE_DIRS) if pair[0].category == "standard"]
 
 
-def test_there_are_five_to_eight_base_contracts() -> None:
-    assert 5 <= len(BASES) <= 8
+def split_cases(split: SplitName) -> list[tuple[CaseSpec, BaseContract]]:
+    return [pair for pair in map(load, CASE_DIRS) if pair[1].split is split]
+
+
+def test_there_are_eight_base_contracts() -> None:
+    # Plan §6.4 caps the base contracts at 8; the T12 holdout adds the last three families.
+    assert len(BASES) == 8
 
 
 @pytest.mark.parametrize("path", BASES, ids=lambda path: path.stem)
@@ -75,8 +80,8 @@ def test_there_are_four_html_templates() -> None:
         assert filled.lstrip().startswith("<!doctype html>")
 
 
-def test_six_standard_cases_three_restated_three_delta() -> None:
-    kinds = Counter(case.amendment_kind for case, _ in standard_cases())
+def test_calibration_has_six_standard_cases_three_restated_three_delta() -> None:
+    kinds = Counter(case.amendment_kind for case, _ in cases_in("standard"))
 
     assert kinds == {AmendmentKind.RESTATED: 3, AmendmentKind.DELTA: 3}
 
@@ -91,12 +96,13 @@ def test_standard_cases_change_one_to_three_sections() -> None:
         assert 1 <= len(derive_expected(case, base, "")["changes"]) <= 3
 
 
-def test_every_family_stays_in_one_split() -> None:
+def test_every_family_stays_in_one_split_and_both_splits_are_used() -> None:
     splits: defaultdict[str, set[str]] = defaultdict(set)
     for case, base in map(load, CASE_DIRS):
         splits[base.family].add(derive_expected(case, base, "")["split"])
 
     assert all(len(split) == 1 for split in splits.values()), dict(splits)
+    assert set().union(*splits.values()) == set(SplitName)
 
 
 # Decisions 59 and 92: blind validation run 1 missed two targets, so the families it showed
@@ -175,6 +181,25 @@ def test_pair_cases_keep_the_truth_the_integration_tests_assert(
     assert output["topics_touched"] == topics
 
 
+@pytest.mark.parametrize(
+    ("case_id", "section"),
+    [
+        ("boundary_restated_licencia_renumber", "new:5"),
+        ("boundary_restated_servicios_renumber", "new:3"),
+    ],
+)
+def test_added_training_and_onboarding_sections_are_deliverables(
+    case_id: str, section: str
+) -> None:
+    # Decision 96: a Section a party must provide (training, a migration) is deliverables_sla.
+    expected = json.loads((GOLDEN_ROOT / "cases" / case_id / "expected.json").read_text("utf-8"))
+
+    assert expected["changes"] == [
+        {"section_id": section, "change_type": "added", "topic": "deliverables_sla"}
+    ]
+    assert expected["output"]["topics_touched"] == ["deliverables_sla"]
+
+
 def without_review(expected: dict[str, object]) -> dict[str, object]:
     return {key: value for key, value in expected.items() if not key.startswith("reviewed_")}
 
@@ -205,19 +230,21 @@ def test_derive_case_expected_hashes_the_case_yaml_bytes() -> None:
 
 
 def cases_in(category: str) -> list[tuple[CaseSpec, BaseContract]]:
-    return [pair for pair in map(load, CASE_DIRS) if pair[0].category == category]
+    """Calibration cases of one category: the split that carries the full §6.5 table."""
+    return [pair for pair in split_cases(SplitName.CALIBRATION) if pair[0].category == category]
 
 
-def test_the_golden_set_has_24_cases_6_standard_9_variant_9_boundary() -> None:
-    categories = Counter(case.category for case, _ in map(load, CASE_DIRS))
+def test_calibration_has_25_cases_6_standard_10_variant_9_boundary() -> None:
+    # Decision 98: the §6.5 table plus one restated Variant without changes on a stamped scan.
+    categories = Counter(case.category for case, _ in split_cases(SplitName.CALIBRATION))
 
-    assert categories == {"standard": 6, "variant": 9, "boundary": 9}
+    assert categories == {"standard": 6, "variant": 10, "boundary": 9}
 
 
 @pytest.mark.parametrize(
     ("category", "kinds"),
     [
-        ("variant", {AmendmentKind.RESTATED: 4, AmendmentKind.DELTA: 5}),
+        ("variant", {AmendmentKind.RESTATED: 5, AmendmentKind.DELTA: 5}),
         # Plan §6.5 counts 4 restated and 5 delta; the unknown case takes one delta slot,
         # since a document that is not an Amendment has neither kind.
         ("boundary", {AmendmentKind.RESTATED: 4, AmendmentKind.DELTA: 4, AmendmentKind.UNKNOWN: 1}),
@@ -229,11 +256,32 @@ def test_each_category_mixes_restated_and_delta(
     assert Counter(case.amendment_kind for case, _ in cases_in(category)) == kinds
 
 
-def test_every_case_is_calibration_until_the_new_holdout() -> None:
-    # Decision 92: the 14 validation cases moved to calibration; T12 adds the fresh holdout.
+def test_the_golden_set_has_25_calibration_and_14_validation_cases() -> None:
+    # Decision 93: run 1's cases stay in calibration and T12 adds a 14-case holdout; decision 98
+    # adds a restated case without changes to calibration.
     splits = Counter(base.split for _, base in map(load, CASE_DIRS))
 
-    assert splits == {SplitName.CALIBRATION: 24}
+    assert splits == {SplitName.CALIBRATION: 25, SplitName.VALIDATION: 14}
+
+
+def test_calibration_has_an_unchanged_amendment_of_each_kind_and_one_is_degraded() -> None:
+    # Decision 98: the missing_text_change guard must stay quiet when only the scan differs, so
+    # calibration holds a restated amendment without changes on a stamped, noisy scan.
+    unchanged = [
+        case
+        for case, base in split_cases(SplitName.CALIBRATION)
+        if not derive_expected(case, base, "")["changes"] and case.expected_error is None
+    ]
+
+    assert {case.amendment_kind for case in unchanged} == {
+        AmendmentKind.RESTATED,
+        AmendmentKind.DELTA,
+    }
+    restated = [case for case in unchanged if case.amendment_kind is AmendmentKind.RESTATED]
+    assert any(
+        {DegradationOp.STAMP, DegradationOp.NOISE} <= {d.op for d in case.degradations}
+        for case in restated
+    )
 
 
 def is_internal_edit(case: CaseSpec, base: BaseContract) -> bool:
@@ -298,6 +346,61 @@ def test_calibration_covers_every_adversarial_category_so_tuning_sees_each_one()
     calibration = [pair for pair in map(load, CASE_DIRS) if pair[1].split is SplitName.CALIBRATION]
 
     assert covered(calibration) == ADVERSARIAL
+
+
+def scan_kind(case: CaseSpec) -> str:
+    return "degraded" if case.degradations else "clean"
+
+
+def composition(pairs: list[tuple[CaseSpec, BaseContract]]) -> Counter[tuple[object, ...]]:
+    """Each case as category, kind, scan and adversarial categories; the family is left out."""
+    return Counter(
+        (
+            case.category,
+            case.amendment_kind,
+            scan_kind(case),
+            tuple(sorted(adversarial_categories(case, base))),
+        )
+        for case, base in pairs
+    )
+
+
+VALIDATION_RUN_1 = Path(__file__).parents[2] / "outputs" / "validation_run1.json"
+
+
+def validation_run_1_cases() -> list[tuple[CaseSpec, BaseContract]]:
+    report = json.loads(VALIDATION_RUN_1.read_text(encoding="utf-8"))
+    return [load(GOLDEN_ROOT / "cases" / case["case_id"]) for case in report["cases"]]
+
+
+def test_validation_run_1_cases_stay_in_calibration() -> None:
+    cases = validation_run_1_cases()
+
+    assert len(cases) == 14
+    assert {base.split for _, base in cases} == {SplitName.CALIBRATION}
+
+
+def test_the_holdout_mirrors_the_composition_of_validation_run_1() -> None:
+    # Decision 93: the new holdout is compared case by case against run 1, so it repeats the
+    # category, kind, scan and adversarial categories of each run-1 case.
+    holdout = split_cases(SplitName.VALIDATION)
+
+    assert composition(holdout) == composition(validation_run_1_cases())
+
+
+def test_the_holdout_covers_every_adversarial_category_of_validation_run_1() -> None:
+    run_1 = covered(validation_run_1_cases())
+
+    assert run_1
+    assert covered(split_cases(SplitName.VALIDATION)) == run_1
+
+
+def test_the_holdout_uses_three_families_never_seen_before() -> None:
+    families = {base.family for _, base in split_cases(SplitName.VALIDATION)}
+    calibration = {base.family for _, base in split_cases(SplitName.CALIBRATION)}
+
+    assert len(families) == 3
+    assert not families & (calibration | SEEN_IN_VALIDATION_RUN_1)
 
 
 @pytest.mark.parametrize("case_dir", CASE_DIRS, ids=lambda path: path.name)

@@ -3,14 +3,14 @@
   "split": "calibration",
   "category": "boundary",
   "amendment_kind": "restated",
-  "declaration_sha256": "1d447af39caaa2af026566f7bec28b1d2b8c610982075f704a8e454e67022ccb",
+  "declaration_sha256": "1eca995a129b25cb10a9628e02b39bd45d21b71c024043bfaa04265c5c745d79",
   "expected_error": null,
   "output": {
     "sections_changed": [
       "new:3"
     ],
     "topics_touched": [
-      "object_scope"
+      "deliverables_sla"
     ],
     "summary_of_the_change": "Se agrega una nueva Cláusula Tercera, por la que el PROVEEDOR migra sin cargo las aplicaciones del CLIENTE a su infraestructura durante los primeros treinta (30) días y le entrega un informe de migración. Las cláusulas Tercera a Séptima del original pasan a numerarse Cuarta a Octava sin cambios en su texto."
   },
@@ -18,7 +18,7 @@
     {
       "section_id": "new:3",
       "change_type": "added",
-      "topic": "object_scope"
+      "topic": "deliverables_sla"
     }
   ],
   "key_facts": [

@@ -1,0 +1,30 @@
+{
+  "base": "transporte_carga",
+  "split": "validation",
+  "category": "boundary",
+  "amendment_kind": "restated",
+  "declaration_sha256": "09b5f1478f1efd595f12ff3ef45de444a4ef134bb23c91f34a6cf7c7fc492e76",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "new:5"
+    ],
+    "topics_touched": [
+      "price_payment"
+    ],
+    "summary_of_the_change": "Se agrega un nuevo Artículo V por el que la CARGADORA abona $ 45.000 por cada hora de espera del camión en destino que exceda las tres (3) horas desde su llegada. Los Artículos V a VIII del original pasan a numerarse VI a IX sin cambios en su texto."
+  },
+  "changes": [
+    {
+      "section_id": "new:5",
+      "change_type": "added",
+      "topic": "price_payment"
+    }
+  ],
+  "key_facts": [
+    "$ 45.000",
+    "tres (3) horas"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}

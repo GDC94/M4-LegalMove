@@ -1,0 +1,30 @@
+{
+  "base": "distribucion_comercial",
+  "split": "validation",
+  "category": "boundary",
+  "amendment_kind": "restated",
+  "declaration_sha256": "d9d67021472e2f3a8029d4d4c63f2ca2f1709ff486369b761c210694c66ccf7b",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "4"
+    ],
+    "topics_touched": [
+      "term_duration"
+    ],
+    "summary_of_the_change": "La Cláusula Cuarta reemplaza la prórroga por acuerdo escrito por una prórroga automática por períodos iguales, salvo que una de las partes comunique lo contrario con treinta (30) días de anticipación; la duración de doce (12) meses no cambia."
+  },
+  "changes": [
+    {
+      "section_id": "4",
+      "change_type": "modified",
+      "topic": "term_duration"
+    }
+  ],
+  "key_facts": [
+    "se prorrogará automáticamente",
+    "treinta (30) días"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}

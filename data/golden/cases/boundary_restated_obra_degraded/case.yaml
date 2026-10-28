@@ -1,0 +1,29 @@
+# A heavily degraded restated scan: low resolution, blur, noise, tilt and JPEG artifacts.
+base: obra_remodelacion
+amendment_kind: restated
+category: boundary
+split: validation
+template: two_column
+seed: 841
+mutations:
+  - op: modify
+    section: "2"
+    topic: term_duration
+    text: >-
+      La obra se ejecutará en ciento veinte (120) días corridos desde la entrega del local, que la COMITENTE hará el 1 de junio de 2026.
+  - op: modify
+    section: "7"
+    topic: warranties
+    text: >-
+      La CONTRATISTA garantiza los trabajos contra vicios ocultos durante veinticuatro (24) meses desde la recepción definitiva de la obra.
+degradations:
+  - {op: downscale, amount: 0.55}
+  - {op: blur, amount: 0.9}
+  - {op: noise, amount: 0.14}
+  - {op: rotate, amount: 1.0}
+  - {op: jpeg, amount: 40}
+key_facts:
+  - ciento veinte (120) días
+  - veinticuatro (24) meses
+reference_summary: >-
+  La Cláusula Segunda extiende el plazo de obra de noventa (90) a ciento veinte (120) días corridos desde la entrega del local. La Cláusula Séptima amplía la garantía contra vicios ocultos de doce (12) a veinticuatro (24) meses desde la recepción definitiva.

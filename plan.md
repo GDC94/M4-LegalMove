@@ -351,8 +351,8 @@ Alternativas descartadas:
 | `price_payment` | Precio, forma de pago, moneda, ajustes |
 | `term_duration` | Plazo, vigencia, renovación |
 | `termination` | Rescisión, resolución, preaviso |
-| `obligations` | Obligaciones generales de las partes |
-| `deliverables_sla` | Entregables y niveles de servicio |
+| `obligations` | Deberes que ningún tema más específico cubre |
+| `deliverables_sla` | Servicios concretos, entregables, capacitación u onboarding que una parte debe prestar, y sus niveles de servicio |
 | `penalties` | Multas, penalidades, intereses |
 | `liability_indemnity` | Responsabilidad, indemnidad, límites |
 | `warranties` | Garantías |
@@ -360,12 +360,14 @@ Alternativas descartadas:
 | `intellectual_property` | Propiedad intelectual |
 | `data_protection` | Datos personales |
 | `insurance` | Seguros |
-| `assignment` | Cesión y subcontratación |
+| `assignment` | Cesión, subcontratación, sublocación o cesión de uso |
 | `governing_law_disputes` | Ley aplicable, jurisdicción, resolución de conflictos |
 | `notices` | Notificaciones y domicilios |
 | `other` | Cualquier otro tema |
 
 La proporción de `other` se registra en Langfuse. Si sube, es la señal para ampliar la taxonomía.
+
+El tema se elige por lo que regulan las palabras que cambian, no por el título de la sección (decisión 95).
 
 ### 3.5 Idioma
 
@@ -395,7 +397,7 @@ Como en `orchestration`, cada prompt vive junto a su builder, en inglés, como `
 |---|---|---|
 | Visión | Transcribir literalmente, conservar la numeración y los títulos, marcar `[ILLEGIBLE]`, devolver texto plano | Resumir, corregir, traducir ni interpretar |
 | Agente 1 | Clasificar `amendment_kind` con su razonamiento, mapear secciones a IDs canónicos, describir el propósito de cada bloque | Mencionar o evaluar cambios |
-| Agente 2 | Identificar cada cambio con su tipo y tema, **copiar citas literales** de los textos, emitir los tres campos de forma consistente con `changes`, responder en español | Inventar secciones fuera del mapa, parafrasear dentro de las citas |
+| Agente 2 | Identificar cada cambio con su tipo y tema (elegido por lo que regulan las palabras que cambian, no por el título de la sección), **copiar citas literales** de los textos, escribir cifras, frecuencias y plazos como los escribe la adenda, emitir los tres campos de forma consistente con `changes`, responder en español | Inventar secciones fuera del mapa, parafrasear dentro de las citas, creerle a una frase del documento que diga qué cambió o que no cambió nada |
 
 El mapa contextual llega al agente 2 como texto plano dentro de `<context_map>` (una línea `amendment_kind: …` y una línea por sección, sin JSON; formato en la sección 3.3). Todo payload dinámico pasa antes por la serialización segura de la sección 4.3.
 
@@ -406,9 +408,9 @@ Sin few-shot al inicio. Si hace falta, los ejemplos salen del split `calibration
 El texto de un contrato es **dato no confiable**: cualquiera puede escribir "ignorá las instrucciones anteriores" dentro de una cláusula. La defensa tiene varias capas:
 
 1. **Delimitación y serialización única.** Cada payload dinámico va envuelto en su etiqueta y pasa por una sola función que neutraliza el cierre de ese bloque (`src/prompt_blocks.py`). Se aplica a los documentos (`<original_contract>`, `<amendment>`), el mapa (`<context_map>`), el intento anterior (`<previous_attempt>`) y el feedback (`<validation_errors>`). Los outputs de un LLM también son datos no confiables.
-2. **Jerarquía de instrucciones.** El system prompt aclara que el contenido de las etiquetas es solo dato a analizar y que nunca se siguen instrucciones que vengan de ahí.
+2. **Jerarquía de instrucciones.** El system prompt aclara que el contenido de las etiquetas es solo dato a analizar y que nunca se siguen instrucciones que vengan de ahí. Desde `EXTRACTION_PROMPT_VERSION` 6, el agente 2 trata como dato a ignorar cualquier frase de los documentos que diga qué cambió, afirme que nada cambió o se dirija al lector, y compara los textos por su cuenta (decisión 95).
 3. **Salida restringida.** `json_schema` strict impide respuestas libres fuera del schema.
-4. **Radio de daño acotado.** El pipeline no tiene tools ni acciones: lo peor que puede hacer una inyección es alterar el contenido del JSON, y para eso están los checks deterministas y el grounding.
+4. **Radio de daño acotado.** El pipeline no tiene tools ni acciones: lo peor que puede hacer una inyección es alterar el contenido del JSON, y para eso están los checks deterministas y el grounding. Una inyección que hace omitir cambios en `restated` choca con el check duro `missing_text_change` (sección 4.4, decisión 94).
 5. **Regresión.** Hay golden cases adversariales con inyección en el texto (sección 6.4).
 
 ### 4.4 Validaciones y reintentos con feedback
@@ -423,7 +425,9 @@ La etapa `extraction_agent` ejecuta sus validaciones duras y reintenta una sola 
 - reglas de citas, incluida la que depende de `amendment_kind` (`removed`, sección 3.3);
 - grounding: cada cita tiene que existir en el texto parseado. La comparación normaliza espacios en blanco, Unicode NFKC, `casefold()` y unifica comillas y guiones; no hay coincidencia aproximada (*fuzzy*);
 - referencias resolubles contra el `ContextMap`;
-- en `restated`, toda fila estructural presente solo en un lado tiene su `added` o `removed` correspondiente.
+- en `restated`, toda fila estructural presente solo en un lado tiene su `added` o `removed` correspondiente;
+- en `restated`, un resultado sin cambios no puede convivir con una sección emparejada cuyo texto difiere: se segmenta con `segment_document`, se normaliza como el grounding y se compara por palabras (no con `DIFF_RATIO_THRESHOLD`); solo dispara si la diferencia no la explican marcas `[ILLEGIBLE]` ni el texto final (cierre, firmas, fecha) que arrastra la última sección. Es el issue `missing_text_change`; el detalle del reintento nombra las secciones y cita las palabras distintas (`'podrá' -> 'deberá'`) hasta 80 caracteres por sección, y más allá solo nombra la sección para no volver a citar texto inyectado (decisión 94).
+- un cambio `modified` sobre una sección cuyo texto es el mismo en ambos documentos no es un cambio: se comparan los segmentos de `segment_document` (en `delta`, el texto que sigue a la instrucción) con el mismo veredicto que el punto anterior, que solo afirma "igual" sin dudas, tolerando las comillas y el encabezado repetido de una reformulación citada; si la sección no se segmenta en ambos lados, no se dispara. Es el issue `unchanged_text_reported` y el detalle del reintento nombra la sección y dice que su texto es idéntico (decisión 99).
 
 **Cualquier** cita sin grounding es una falla dura (sin umbral). El `grounding_rate` se registra igual como score.
 
@@ -438,7 +442,7 @@ El error público y el feedback interno son contratos distintos:
 | `ValidationIssue` | `code`, `path`, `message` sanitizado | No | stderr, sobre de error |
 | `RetryFeedback` | código, path y detalle correctivo | Solo la cita estrictamente necesaria | nuevo prompt y traza enmascarada |
 
-Es **un solo** reintento para todas las causas juntas, no uno por causa.
+Es **un solo** reintento para todas las causas juntas, no uno por causa. Si el único error del modelo es de consistencia (`inconsistent_extraction`), los campos ya validaron y los checks de extracción corren igual, así el reintento también lleva sus issues (decisión 100).
 
 Los errores de red y de rate limit los maneja aparte `LLM_MAX_RETRIES`; el presupuesto total del pipeline puede impedir un nuevo intento aunque todavía queden retries locales (sección 5.1).
 
@@ -459,7 +463,7 @@ Todos heredan de `LegalMoveError`. Cada error declara la etapa en la que ocurri�
 | `UnclassifiableAmendmentError` | agente 1 | `amendment_kind = unknown` | `10` |
 | `UnresolvedReferenceError` | agente 1 | en un mapa por lo demás válido, una instrucción `delta` reescribe o elimina una sección que el original no tiene (fila `new:` marcada `rewrites` o `removes`); lleva `issues` con `code="unresolved_reference"`; no consume el reintento | `10` |
 | `InvalidContextMapError` | agente 1 | la validación semántica del mapa falla después del reintento; lleva `issues: list[ValidationIssue]` | `10` |
-| `InvalidExtractionError` | agente 2 | la validación dura falla después del reintento; lleva `issues: list[ValidationIssue]` | `10` |
+| `InvalidExtractionError` | agente 2 | la validación dura falla después del reintento; lleva `issues: list[ValidationIssue]`, por ejemplo `missing_text_change` cuando un `restated` sin cambios tiene secciones con texto distinto o `unchanged_text_reported` cuando se reporta `modified` una sección de texto idéntico | `10` |
 
 Los errores con **exit code `10`** heredan de `NeedsHumanReviewError`. Para el sistema que consume la CLI, el código `10` significa una sola cosa: "derivar a revisión humana". El motivo concreto viaja como `issues`, sin texto documental. Los checks pueden usar excepciones internas específicas; al cruzar la frontera del agente se traducen a `ValidationIssue`, por ejemplo con `code="unresolved_section_reference"`.
 
@@ -733,9 +737,9 @@ Al final se completan `reviewed_by` y `reviewed_at` en `expected.json` (y en el 
 | Standard | 3 | 3 | 1-3 cambios claros en un escaneo limpio |
 | Variant | 4 | 5 | Layouts distintos, otros tipos de contrato, "N/A", cambios combinados, adenda sin cambios |
 | Boundary | 4 | 4 + 1 `unknown` | Imagen degradada, separadores ambiguos, "podrá" → "deberá", renumeración, inyección, referencia inexistente, cláusula reescrita igual, párrafo agregado/eliminado dentro de una sección, adenda `unknown` |
-| **Total** | **11** | **12 + 1 `unknown`** | **24 casos** |
+| **Total** | **11** | **12 + 1 `unknown`** | **24 casos de `calibration`** (más 1 Variant `restated` sin cambios, decisión 98, y 14 del holdout de `validation`, decisión 93) |
 
-- **Splits:** alrededor de 10 casos en `calibration` (para ajustar prompts y umbrales) y 14 en `validation`. La asignación es por familia de contrato base, no por PNG individual; `validation` nunca se usa para ajustar nada. Tras la validación ciega 1 (decisión 92) los 24 casos están en `calibration` y `validation` queda vacío hasta el holdout nuevo de T12.
+- **Splits:** la tabla describe `calibration` (para ajustar prompts y umbrales) y la cobertura se exige por split. Tras la validación ciega 1 (decisión 92) sus 14 casos pasan a `calibration`, que queda con 24 casos y la tabla completa. Desde T12, `validation` es un holdout de 14 casos de 3 familias contractuales nuevas con la misma composición que la validación ciega 1 (decisión 93); el golden set suma 39 casos con el caso 25 de `calibration`: `variant_restated_consultoria_sin_cambios`, una adenda `restated` sin cambios con sello y ruido leve, que mide que `missing_text_change` no confunda ruido de OCR con un cambio (decisión 98). La asignación es por familia de contrato base, no por PNG individual; `validation` nunca se usa para ajustar nada.
 - **`data/test_contracts/`:** los 2 pares que pide la consigna, uno `restated` y otro `delta`, con su README. En la fase 1 se renderizan de forma mínima (ver abajo); en la fase 2 los casos Standard los reemplazan.
 
 **Fase 1: pares mínimos.** Un único contrato base de servicios, en español, de una página y 7 cláusulas numeradas ("Cláusula Primera" a "Cláusula Séptima"):
@@ -761,7 +765,7 @@ Los umbrales son **objetivos iniciales**. Se ajustan exclusivamente con `calibra
 | Resumen | Juez LLM (`JUDGE_MODEL`, distinto del evaluado), escala 1-10 | media ≥ 7 |
 | Grounding | `grounding_rate` medio | ≥ 0.95 |
 | Casos sin cambios | Listas vacías | 100 % |
-| Inyección | Cambios inventados por la inyección | 0 |
+| Inyección | Cambios inventados u omitidos por la inyección | 0 |
 | Revisión humana | Exit code `10` con el error esperado | 100 % |
 
 ### 6.7 Ejecución de las evals
@@ -770,7 +774,7 @@ Los umbrales son **objetivos iniciales**. Se ajustan exclusivamente con `calibra
 - El task del Experiment reproduce cada `CaseRun` ya registrado; los checks son los evaluadores y un resultado N/A no emite score.
 - Agregación: micro (numeradores y denominadores sumados) para CER, exactitud de `amendment_kind`, P/R, `change_type`, `key_facts` y `human_review`; media por caso para el Jaccard de temas y el juez.
 - El CER colapsa los espacios y une ambas páginas contra sus `source_*.txt`. `expected_error` se cumple con exit `10` y el nombre del error o uno de sus códigos de issue.
-- Escribe `outputs/eval_report.json` con las métricas globales, por categoría, por `amendment_kind` y por caso.
+- Escribe `outputs/eval_report.json` con las métricas globales, por categoría, por `amendment_kind` y por caso. Cada caso trae además el bloque `predicted` (`sections_changed`, `topics_touched`, `summary` y `changes` con `section_id`, `change_type` y `topic`), `null` si la corrida terminó en error (decisión 97).
 - Compara contra `outputs/baseline.json`, solo si es del mismo split, y marca las regresiones: un movimiento en la dirección peor que supera la tolerancia (`1e-9` en los ratios; `0.25` puntos en la media del juez, que no es determinista a temperatura 0) o una caída en el conteo de casos evaluables.
 - Publica el set como **Dataset de Langfuse** y cada corrida como un **Experiment**, con los checks como evaluadores. Es el patrón de `observability/experiments.py` de `orchestration`.
 - Los checks de las evals son funciones puras `(resultado, caso) -> score`, separadas del adaptador de Langfuse.
@@ -801,8 +805,8 @@ T1 a T3 se demuestran con tests de integración y trazas en Langfuse; T4 es el p
 ### 6.9 Control de versiones
 
 - `git init` en T0, rama `main`, commits convencionales y un commit por ticket en verde.
-- `.gitignore`: `.env`, `.venv/`, `.cache/`, `__pycache__/` y `outputs/eval_report.json`.
-- `outputs/baseline.json` y las imágenes se commitean.
+- `.gitignore`: `.env`, `.venv/`, `.cache/`, `__pycache__/` y `outputs/*`, salvo las excepciones de la línea siguiente.
+- `outputs/baseline.json` (copia de la validación ciega 2, decisión 101), `outputs/validation_run1.json`, `outputs/validation_run2.json` y las imágenes se commitean.
 - ~~El remoto público de GitHub se crea al cerrar T4.~~ Superado: el autor creó el remoto público `https://github.com/GDC94/M4-LegalMove` el 2026-10-25. `origin` se agrega en T0 y cada ticket cerrado se pushea. Se pushea **siempre con la cuenta GDC94** (la máquina tiene una segunda cuenta de `gh`; `gh auth status` debe mostrar GDC94 activa antes de cada push).
 - **CI mínimo** desde T4, en `.github/workflows/ci.yml`: en cada push y pull request instala con `uv sync` y corre `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy src` y `uv run pytest`. No corre tests de integración ni evals: CI no tiene secretos de OpenAI ni de Langfuse, y las imágenes de golden están commiteadas, no se regeneran. Antes de T4 no hay remoto y "CI" en este plan significa ese workflow.
 - **Forma de trabajo por ticket** (también en `CLAUDE.md`): un ticket por vez y el ticket gana sobre el plan si difieren; TDD estricto con el test en rojo mostrado antes de la implementación; cierre con unit tests, comando de estilo y criterios de aceptación en verde, y un commit convencional; el autor revisa cada ticket cerrado antes de empezar el siguiente; los cambios al plan se discuten en el chat antes de escribirse.
@@ -932,6 +936,7 @@ _Avoid_: update, edit, amendment (reserved for the document)
 
 **Topic**:
 The legal or commercial category of a Change, taken from a closed taxonomy. `other` is allowed and monitored.
+It is chosen by what the changed words regulate, not by the Section title: training or onboarding a party must provide is `deliverables_sla`, `obligations` covers only duties no more specific Topic covers, and `assignment` covers assignment, subcontracting, subletting and transfer of use.
 _Avoid_: category, tag, tópico, subject
 
 **Quote**:
@@ -1120,6 +1125,15 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 90 | El reporte agrupa además por escaneo (`by_scan`: `clean` sin degradaciones, `degraded` con alguna) y el CER se contrasta por grupo: ≤ 0.02 en limpias y ≤ 0.08 en degradadas | §6.6 fija dos objetivos de CER y ni el global ni `by_category` separan limpias de degradadas | 6.6, 6.7 | 2026-10-28 |
 | 91 | `grounding_rate`, "listas vacías" e "inyección" de §6.6 no tienen umbral automático en el reporte de evals: el primero es un score del pipeline en Langfuse y los otros dos se leen en las métricas por caso | No inventar métricas nuevas del pipeline en T10 | 6.6 | 2026-10-28 |
 | 92 | La validación ciega 1 (14 casos) no alcanzó `topic_jaccard` (0,667) ni `key_facts_coverage` (0,897); por la decisión 59 sus casos pasan a `calibration`, T10 cierra sin `outputs/baseline.json` y la línea base se congela con la única corrida de un holdout nuevo de familias contractuales nunca vistas (T12) | Congelar una línea base de casos que pasan a calibración no serviría: la comparación solo vale en el mismo split | 6.7, 6.9 | 2026-10-28 |
+| 93 | El holdout de T12 tiene 14 casos de 3 familias contractuales nuevas con la misma composición que la validación ciega 1; el golden set pasa a 38 casos y la cobertura de §6.5 se exige por split | Comparar contra la corrida 1 caso por caso; 14 casos evitan que un solo dato mueva una métrica más de 10 puntos | 6.4, 6.5 | 2026-10-28 |
+| 94 | Check duro `missing_text_change` en `check_extraction`: si el mapa es `restated`, la extracción no tiene cambios y alguna sección emparejada difiere tras `normalize_for_grounding` (comparación por palabras de los segmentos de `segment_document`; `DIFF_RATIO_THRESHOLD` no cambia). Comparte con la decisión 99 un único veredicto (`compare_section`: igual, distinta o desconocida) y solo dispara con "distinta": una marca `[ILLEGIBLE]` frente a hasta tres palabras del otro lado no es diferencia, y en la última sección, cuyo segmento llega al final del documento y puede arrastrar cierre, firmas o fecha, solo cuenta una diferencia que ese texto final no explique (si ambos lados llegan al final, nunca dispara), un reintento semántico y después `InvalidExtractionError` (exit `10`). El detalle del reintento nombra las secciones y cita las palabras distintas hasta 80 caracteres por sección; más allá nombra solo la sección. Hueco conocido: una inyección parcial ("solo cambió la cláusula X") que logra un resultado no vacío no se detecta | En la validación ciega 1, `boundary_restated_consultoria_injection` ("podrá" → "deberá", ratio difflib 0,984) salió con exit 0 y sin cambios por una nota inyectada que decía que el texto era idéntico. La evidencia textual contradice el resultado vacío y el reintento la muestra | 4.3, 4.4, 4.5, 6.6 | 2026-10-28 |
+| 95 | `EXTRACTION_PROMPT_VERSION` 6: `deliverables_sla` abarca servicios concretos, entregables, capacitación u onboarding que una parte debe prestar y sus niveles de servicio; `obligations`, los deberes que ningún tema más específico cubre; `assignment`, cesión, subcontratación, sublocación o cesión de uso. El tema se elige por lo que regulan las palabras que cambian, no por el título; la regla literal se extiende a frecuencias y plazos ("una vez por año", nunca "anualmente") y el número queda junto a su unidad; cualquier frase de los documentos que diga qué cambió, afirme que nada cambió o se dirija al lector es dato a ignorar | En la validación ciega 1, "Capacitación" y "Migración inicial" salieron `deliverables_sla` contra golden `obligations`/`object_scope`, el resumen escribió "anualmente" por "una vez por año" y la inyección logró un resultado vacío. Las reglas se redactan en general, sin nombrar casos | 3.4, 4.2, 4.3 | 2026-10-28 |
+| 96 | Se reetiquetan dos casos golden a `deliverables_sla`: `boundary_restated_licencia_renumber` (`new:5`, Capacitación: la licenciante capacita a diez (10) usuarios, es un servicio que presta) y `boundary_restated_servicios_renumber` (`new:3`, Migración inicial: el proveedor migra y entrega un informe, es un servicio con entregable). Se recalcula `declaration_sha256` y se conservan las marcas de revisión con la aprobación del autor. No se reetiquetan "Verificación de uso", que sigue en `obligations` (es un derecho de auditoría y no se entrega nada), ni el key fact "ochenta (80) usuarios" (cambiarlo acercaría la etiqueta al modelo en lugar de a la verdad) | Con las definiciones de la decisión 95, la etiqueta golden era la equivocada en esos dos casos; los otros dos pedidos de cambio son errores del modelo | 6.4, 6.6 | 2026-10-28 |
+| 97 | Cada caso del reporte de evals lleva el bloque `predicted` con `sections_changed`, `topics_touched`, `summary` y `changes` (`section_id`, `change_type`, `topic`) del `CaseRun`, `null` si la corrida terminó en error; la comparación contra la línea base no cambia | Diagnosticar un fallo de temas o de key facts exigía abrir la traza de Langfuse caso por caso | 6.7 | 2026-10-28 |
+| 98 | `calibration` suma `variant_restated_consultoria_sin_cambios` (25 casos; Variant con 5 `restated` y 5 `delta`): adenda `restated` sin cambios de `consultoria_profesional`, plantilla `two_column`, sello "COPIA" y ruido leve; listas vacías y resumen "No se identificaron cambios." Queda sin `reviewed_by`/`reviewed_at` hasta su revisión independiente | El check de la decisión 94 compara texto exacto y el OCR de un escaneo degradado puede diferir sin cambios reales: este caso mide ese falso positivo antes de la corrida del holdout | 6.5 | 2026-10-28 |
+| 99 | Check duro `unchanged_text_reported` en `check_extraction`: un cambio `modified` sobre una sección cuyos segmentos (`segment_document`; en `delta`, el texto que sigue a `amendment_ref`) son iguales tras `normalize_for_grounding` y sin marcas `[ILLEGIBLE]` no es un cambio. Usa el mismo veredicto que la decisión 94 y solo dispara con "igual": una marca `[ILLEGIBLE]` que ocupa el lugar de palabras deja el veredicto en "desconocida". Se toleran las comillas de una reformulación citada (también la forma `"texto".`) y el encabezado repetido; después de la comilla de cierre solo puede venir puntuación y, a lo sumo, el ordinal suelto de la instrucción siguiente; también se aceptan las instrucciones siguientes sin fila propia en el mapa: la cola se parte en tramos que empiezan con un ordinal ("segundo.", "décimo primero.", "3.") y es segura solo si empieza con uno y cada tramo nombra al menos una sección, todas resueltas por la etiqueta de su `original_ref` ("cláusula quinta", "artículo v") a filas distintas de la comparada, sin marcadores de `DELTA_MARKERS` después de la última sección nombrada (ahí queda la fórmula de cierre). Si un tramo no nombra ninguna, nombra la misma o una que el mapa no resuelve, o hay texto antes del primer ordinal, no dispara. Se comparan los segmentos, no las citas del modelo; si la sección no se segmenta en ambos lados no se dispara. Un issue por sección, reintento normal y después `InvalidExtractionError` (exit `10`). El detalle nombra la sección y dice que su texto es idéntico, sin citarlo. No aplica a `added` ni `removed` | En la corrida de calibración T12, `variant_delta_locacion_sin_cambios` ("Reformúlese la Cláusula Quinta … en estos términos:" seguido del mismo texto) salió con exit 0 y un `modified` inventado cuya descripción admitía que el texto permanecía igual. Ante la duda no dispara: callar un cambio real en el reintento sería peor que dejar pasar uno inventado | 4.4, 4.5 | 2026-10-28 |
+| 100 | Si `ExtractionResult.model_validate` falla solo con `inconsistent_extraction`, el agente igual corre `check_extraction` sobre los campos ya validados (`model_construct` sin el validador de modelo) y suma sus issues al feedback del único reintento, salvo el `section_order` de `sections_changed` cuando el error de Consistency ya nombra ese corte de orden | En `boundary_restated_licencia_renumber` el reintento solo llevó el corte de orden de `sections_changed`; el `removed` de una sección presente en ambos lados (`change_type_mismatch`) no se informó, el reintento arregló el orden y la corrida terminó en exit `10`. §4.4 ya pedía un reintento para todas las causas juntas | 4.4 | 2026-10-28 |
+| 101 | La validación ciega 2 (14 casos, 3 familias nuevas) cumple 9 de 10 objetivos; `key_facts_coverage` da 0,862. Se congela igual como `outputs/baseline.json` con el incumplimiento visible en el README y sin afirmar generalización en key facts; la métrica se corrige en T13 solo con `calibration` y se valida con un holdout futuro | Los 4 hechos faltantes están en el resumen con otras palabras (el juez los encontró todos); repetir la decisión 59 exigiría superar el tope de 8 contratos base y el defecto de la métrica se repetiría; re-puntuar esta corrida sería cambiar la regla después de ver el resultado | 6.6, 6.7, 6.9 | 2026-10-28 |
 
 ## 9. Diagrama de LegalMove pipeline
 

@@ -1,0 +1,27 @@
+# Combined changes in the table layout: two modifications and a removal of a whole Section.
+base: distribucion_comercial
+amendment_kind: restated
+category: variant
+split: validation
+template: table
+seed: 611
+mutations:
+  - op: modify
+    section: "3"
+    topic: price_payment
+    text: >-
+      Las facturas de la PROVEEDORA se pagarán dentro de los cuarenta y cinco (45) días corridos desde la fecha de entrega de los productos, por transferencia bancaria.
+  - op: modify
+    section: "4"
+    topic: term_duration
+    text: >-
+      El contrato tiene una duración de dieciocho (18) meses desde el 1 de marzo de 2026 y podrá prorrogarse por acuerdo escrito de las partes.
+  - {op: remove, section: "6", topic: intellectual_property}
+degradations:
+  - {op: jpeg, amount: 70}
+key_facts:
+  - cuarenta y cinco (45) días
+  - dieciocho (18) meses
+  - marcas
+reference_summary: >-
+  El plazo de pago de las facturas de la Cláusula Tercera pasa de treinta (30) a cuarenta y cinco (45) días corridos desde la entrega. La duración de la Cláusula Cuarta pasa de doce (12) a dieciocho (18) meses. Se elimina la Cláusula Sexta, que regulaba el uso de las marcas de la PROVEEDORA por la DISTRIBUIDORA.

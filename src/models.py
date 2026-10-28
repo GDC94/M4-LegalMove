@@ -194,8 +194,11 @@ TOPIC_DESCRIPTIONS: dict[Topic, str] = {
     Topic.PRICE_PAYMENT: "price, payment terms, currency and adjustments",
     Topic.TERM_DURATION: "term, duration, validity and renewal",
     Topic.TERMINATION: "termination, rescission and notice periods to end the contract",
-    Topic.OBLIGATIONS: "general obligations of the parties",
-    Topic.DELIVERABLES_SLA: "deliverables and service levels",
+    Topic.OBLIGATIONS: "duties not covered by a more specific topic",
+    Topic.DELIVERABLES_SLA: (
+        "concrete services, deliverables, training or onboarding a party must provide, "
+        "and their service levels"
+    ),
     Topic.PENALTIES: "fines, penalties, service credits and interest",
     Topic.LIABILITY_INDEMNITY: "liability, indemnity and their limits",
     Topic.WARRANTIES: "warranties",
@@ -203,7 +206,7 @@ TOPIC_DESCRIPTIONS: dict[Topic, str] = {
     Topic.INTELLECTUAL_PROPERTY: "intellectual property",
     Topic.DATA_PROTECTION: "personal data protection",
     Topic.INSURANCE: "insurance",
-    Topic.ASSIGNMENT: "assignment and subcontracting",
+    Topic.ASSIGNMENT: "assignment, subcontracting, subletting or transfer of use",
     Topic.GOVERNING_LAW_DISPUTES: "governing law, jurisdiction and dispute resolution",
     Topic.NOTICES: "notices and addresses for service",
     Topic.OTHER: "any other subject",
@@ -380,13 +383,17 @@ def find_consistency_problems(result: ExtractionResult) -> Iterator[str]:
             yield f"{field} does not match the changes ({'; '.join(parts)})"
 
 
+# Shared with the agent, which drops its own report of a break this message already names.
+SECTIONS_CHANGED_ORDER_BREAK = "sections_changed breaks the canonical order"
+
+
 def find_list_order_problems(result: ExtractionResult) -> Iterator[str]:
     first_appearance = unique_in_order([change.topic.value for change in result.changes])
     if result.topics_touched != first_appearance:
         yield "topics_touched must follow the order of first appearance in changes"
     for index in find_order_breaks(result.sections_changed):
         section_id = result.sections_changed[index]
-        yield f"sections_changed breaks the canonical order at {section_id}"
+        yield f"{SECTIONS_CHANGED_ORDER_BREAK} at {section_id}"
 
 
 def render_summary(changes: Sequence[Change]) -> str:

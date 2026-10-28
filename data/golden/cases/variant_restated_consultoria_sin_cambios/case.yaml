@@ -1,0 +1,15 @@
+# A restated Amendment without changes on a stamped, slightly noisy scan: the text repeats the
+# original word for word, so both lists must come back empty and OCR noise must not count as a
+# change (decision 98).
+base: consultoria_profesional
+amendment_kind: restated
+category: variant
+split: calibration
+template: two_column
+seed: 541
+mutations: []
+degradations:
+  - {op: stamp, amount: 0.3, text: COPIA}
+  - {op: noise, amount: 0.04}
+key_facts: []
+reference_summary: No se identificaron cambios.

@@ -2,7 +2,8 @@
 .venv/
 .cache/
 __pycache__/
-# Local eval reports; only the committed baseline and the blind validation run 1 are tracked.
+# Local eval reports; only the committed baseline and the blind validation runs are tracked.
 outputs/*
 !outputs/baseline.json
 !outputs/validation_run1.json
+!outputs/validation_run2.json

@@ -15,9 +15,8 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 CONTRACTS_README = ROOT / "data/test_contracts/README.md"
 ENV_EXAMPLE = ROOT / ".env.example"
+# Frozen from blind validation run 2 (decision 101); committed, so the drift guard never skips.
 BASELINE = ROOT / "outputs/baseline.json"
-# The report the README cites until T12 freezes the baseline (decision 92).
-VALIDATION_RUN = ROOT / "outputs/validation_run1.json"
 
 # Plan §8.2, in order; the README is written in English (CLAUDE.md, Language).
 REQUIRED_SECTIONS = [
@@ -127,17 +126,9 @@ def test_testing_section_has_the_measured_results_subsection() -> None:
     assert re.search(r"^### Measured results$", read_section("Testing and evals"), flags=re.M)
 
 
-def find_measured_report() -> Path | None:
-    """The frozen baseline once it exists, else the validation run the README cites."""
-    return next((path for path in (BASELINE, VALIDATION_RUN) if path.is_file()), None)
-
-
-def test_measured_results_table_is_the_one_rendered_from_the_measured_report() -> None:
-    """Drift guard: re-render with `evals/render_results.py <report>` and paste."""
-    path = find_measured_report()
-    if path is None:
-        pytest.skip("neither a frozen baseline nor validation run 1 is on disk")
-    report = json.loads(path.read_text(encoding="utf-8"))
+def test_measured_results_table_is_the_one_rendered_from_the_baseline() -> None:
+    """Drift guard: re-render with `evals/render_results.py outputs/baseline.json` and paste."""
+    report = json.loads(BASELINE.read_text(encoding="utf-8"))
 
     assert render_results_table(report) in read_section("Testing and evals")
 

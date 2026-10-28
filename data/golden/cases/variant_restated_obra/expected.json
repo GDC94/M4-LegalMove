@@ -1,0 +1,44 @@
+{
+  "base": "obra_remodelacion",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "restated",
+  "declaration_sha256": "fab4ae06a8b3fbf8858c4fab46252135a8aa253214b76f1be0889de3774049e5",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "3",
+      "4",
+      "new:9"
+    ],
+    "topics_touched": [
+      "price_payment",
+      "obligations"
+    ],
+    "summary_of_the_change": "El precio total de la Cláusula Tercera sube de $ 48.000.000 a $ 53.500.000 más IVA. La Cláusula Cuarta eleva el anticipo del treinta por ciento (30 %) al cuarenta por ciento (40 %) del precio, con el saldo en los mismos tres (3) certificados. Se agrega la Cláusula Novena, que limita los trabajos a los días de lunes a viernes de 8 a 17 horas sin interrumpir la atención al público del local."
+  },
+  "changes": [
+    {
+      "section_id": "3",
+      "change_type": "modified",
+      "topic": "price_payment"
+    },
+    {
+      "section_id": "4",
+      "change_type": "modified",
+      "topic": "price_payment"
+    },
+    {
+      "section_id": "new:9",
+      "change_type": "added",
+      "topic": "obligations"
+    }
+  ],
+  "key_facts": [
+    "$ 53.500.000",
+    "cuarenta por ciento (40 %)",
+    "de lunes a viernes de 8 a 17 horas"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}

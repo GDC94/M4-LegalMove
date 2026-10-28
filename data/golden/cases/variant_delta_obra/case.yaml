@@ -1,0 +1,27 @@
+# Combined changes in the table layout: a higher delay fine and a partial subcontracting permit.
+base: obra_remodelacion
+amendment_kind: delta
+category: variant
+split: validation
+template: table
+seed: 831
+mutations:
+  - op: modify
+    section: "8"
+    topic: penalties
+    phrasing: reformulase
+    text: >-
+      Por cada día de demora en la terminación de la obra, la CONTRATISTA abonará a la COMITENTE una multa de $ 200.000, con un tope del diez por ciento (10 %) del precio.
+  - op: modify
+    section: "6"
+    topic: assignment
+    phrasing: modificase
+    text: >-
+      La CONTRATISTA podrá subcontratar los trabajos de electricidad y de pintura, previa notificación escrita a la COMITENTE, y seguirá siendo responsable de su ejecución.
+degradations:
+  - {op: jpeg, amount: 70}
+key_facts:
+  - "$ 200.000"
+  - electricidad y de pintura
+reference_summary: >-
+  La Cláusula Sexta deja de prohibir toda subcontratación: la CONTRATISTA podrá subcontratar los trabajos de electricidad y de pintura con notificación escrita a la COMITENTE y seguirá siendo responsable de su ejecución. La Cláusula Octava eleva la multa por cada día de demora de $ 150.000 a $ 200.000, con el mismo tope del diez por ciento (10 %) del precio.

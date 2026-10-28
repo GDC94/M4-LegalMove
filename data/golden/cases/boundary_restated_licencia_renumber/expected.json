@@ -3,14 +3,14 @@
   "split": "calibration",
   "category": "boundary",
   "amendment_kind": "restated",
-  "declaration_sha256": "aae57680c2ac0fa1f81245d3bf804cefc42c94fd7d31f0281a4a79c7074a01c5",
+  "declaration_sha256": "590edf81cd708a3989b2ab967006eb19f955f636b67bd67a1c0a8eb393f77d0a",
   "expected_error": null,
   "output": {
     "sections_changed": [
       "new:5"
     ],
     "topics_touched": [
-      "obligations"
+      "deliverables_sla"
     ],
     "summary_of_the_change": "Se agrega un nuevo Artículo V por el que la LICENCIANTE capacita sin cargo a hasta diez (10) usuarios de la LICENCIATARIA durante el primer mes de vigencia. Los Artículos V a VIII del original pasan a numerarse VI a IX sin cambios en su texto."
   },
@@ -18,7 +18,7 @@
     {
       "section_id": "new:5",
       "change_type": "added",
-      "topic": "obligations"
+      "topic": "deliverables_sla"
     }
   ],
   "key_facts": [

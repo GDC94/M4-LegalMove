@@ -78,7 +78,7 @@ def test_unreviewed_cases_are_left_out_of_the_split(tmp_path: Path) -> None:
 
 def test_cases_of_the_other_split_are_left_out(tmp_path: Path) -> None:
     golden = copy_case(tmp_path, "standard_delta_consultoria")
-    # No committed case is in validation until T12 (decision 92), so the copy is relabeled.
+    # No reviewed case is in validation until the T12 holdout is reviewed, so the copy is relabeled.
     expected = golden / "cases" / "standard_delta_consultoria" / "expected.json"
     payload = json.loads(expected.read_text(encoding="utf-8"))
     expected.write_text(json.dumps({**payload, "split": "validation"}), encoding="utf-8")

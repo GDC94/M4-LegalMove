@@ -1,0 +1,45 @@
+{
+  "base": "transporte_carga",
+  "split": "validation",
+  "category": "standard",
+  "amendment_kind": "restated",
+  "declaration_sha256": "b7dddbf869e777340c3f67d60843866ba2c0a301ce453e820b47fd2f5e6c0ff0",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "2",
+      "7",
+      "new:9"
+    ],
+    "topics_touched": [
+      "obligations",
+      "liability_indemnity",
+      "deliverables_sla"
+    ],
+    "summary_of_the_change": "El Artículo II amplía la capacidad de doce (12) a dieciocho (18) camiones semirremolque por semana. El Artículo VII eleva el tope de responsabilidad de la TRANSPORTISTA del valor declarado al ciento veinte por ciento (120 %) del valor declarado en la carta de porte. Se agrega el Artículo IX, que obliga a equipar cada camión con rastreo satelital y a dar a la CARGADORA acceso en línea a la ubicación de sus cargas."
+  },
+  "changes": [
+    {
+      "section_id": "2",
+      "change_type": "modified",
+      "topic": "obligations"
+    },
+    {
+      "section_id": "7",
+      "change_type": "modified",
+      "topic": "liability_indemnity"
+    },
+    {
+      "section_id": "new:9",
+      "change_type": "added",
+      "topic": "deliverables_sla"
+    }
+  ],
+  "key_facts": [
+    "dieciocho (18) camiones",
+    "ciento veinte por ciento (120 %)",
+    "rastreo satelital"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}

@@ -1,0 +1,24 @@
+# "N/A": the Artículo V keeps its heading but its text becomes "N/A.", a modification of a
+# Section present in both documents, not a removal.
+base: transporte_carga
+amendment_kind: restated
+category: variant
+split: validation
+template: two_column
+seed: 711
+mutations:
+  - op: modify
+    section: "3"
+    topic: price_payment
+    text: >-
+      La CARGADORA abonará una tarifa de $ 2.100 (pesos dos mil cien) por kilómetro recorrido con carga, más IVA, pagadera a los treinta (30) días de la fecha de factura.
+  - op: modify
+    section: "5"
+    topic: insurance
+    text: N/A.
+degradations: []
+key_facts:
+  - "$ 2.100"
+  - seguro
+reference_summary: >-
+  La tarifa del Artículo III sube de $ 1.850 a $ 2.100 por kilómetro recorrido con carga, con el mismo plazo de pago. El Artículo V conserva su título pero su texto pasa a ser "N/A.", de modo que la TRANSPORTISTA deja de comprometer el seguro de transporte de la mercadería por hasta $ 80.000.000 por viaje.

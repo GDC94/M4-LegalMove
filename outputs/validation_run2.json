@@ -1,0 +1,998 @@
+{
+  "split": "validation",
+  "run_name": "validation-20261028T201850Z",
+  "dataset_name": "legalmove-validation",
+  "judge_prompt_version": "judge-v2",
+  "case_filter": null,
+  "experiment_url": "https://us.cloud.langfuse.com/project/cmv48hrxk012mad0iu5ad20ir/datasets/cmvsaqpf105f7ad0ec68d09u4/runs/7478ad7e-43b5-44c2-b73d-e91613ad276e",
+  "cases_total": 14,
+  "global": {
+    "cer": {
+      "value": 0.0006642863073984888,
+      "evaluable": 13
+    },
+    "amendment_kind_accuracy": {
+      "value": 1.0,
+      "evaluable": 14
+    },
+    "change_precision": {
+      "value": 1.0,
+      "evaluable": 12
+    },
+    "change_recall": {
+      "value": 1.0,
+      "evaluable": 12
+    },
+    "change_type_accuracy": {
+      "value": 1.0,
+      "evaluable": 12
+    },
+    "topic_jaccard": {
+      "value": 0.8333333333333334,
+      "evaluable": 13
+    },
+    "key_facts_coverage": {
+      "value": 0.8620689655172413,
+      "evaluable": 12
+    },
+    "judge_score": {
+      "value": 10.0,
+      "evaluable": 13
+    },
+    "human_review": {
+      "value": 1.0,
+      "evaluable": 1
+    }
+  },
+  "by_category": {
+    "boundary": {
+      "cer": {
+        "value": 0.0008995011857061084,
+        "evaluable": 3
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 4
+      },
+      "change_precision": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "change_recall": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "topic_jaccard": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "key_facts_coverage": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "judge_score": {
+        "value": 10.0,
+        "evaluable": 3
+      },
+      "human_review": {
+        "value": 1.0,
+        "evaluable": 1
+      }
+    },
+    "standard": {
+      "cer": {
+        "value": 0.0003405124712692602,
+        "evaluable": 3
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "change_precision": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "change_recall": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 3
+      },
+      "topic_jaccard": {
+        "value": 0.8888888888888888,
+        "evaluable": 3
+      },
+      "key_facts_coverage": {
+        "value": 0.7777777777777778,
+        "evaluable": 3
+      },
+      "judge_score": {
+        "value": 10.0,
+        "evaluable": 3
+      },
+      "human_review": {
+        "value": null,
+        "evaluable": 0
+      }
+    },
+    "variant": {
+      "cer": {
+        "value": 0.0007025954703256737,
+        "evaluable": 7
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 7
+      },
+      "change_precision": {
+        "value": 1.0,
+        "evaluable": 6
+      },
+      "change_recall": {
+        "value": 1.0,
+        "evaluable": 6
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 6
+      },
+      "topic_jaccard": {
+        "value": 0.7380952380952381,
+        "evaluable": 7
+      },
+      "key_facts_coverage": {
+        "value": 0.8571428571428571,
+        "evaluable": 6
+      },
+      "judge_score": {
+        "value": 10.0,
+        "evaluable": 7
+      },
+      "human_review": {
+        "value": null,
+        "evaluable": 0
+      }
+    }
+  },
+  "by_kind": {
+    "delta": {
+      "cer": {
+        "value": 0.0012659830358273199,
+        "evaluable": 5
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 6
+      },
+      "change_precision": {
+        "value": 1.0,
+        "evaluable": 4
+      },
+      "change_recall": {
+        "value": 1.0,
+        "evaluable": 4
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 4
+      },
+      "topic_jaccard": {
+        "value": 0.7666666666666667,
+        "evaluable": 5
+      },
+      "key_facts_coverage": {
+        "value": 0.6666666666666666,
+        "evaluable": 4
+      },
+      "judge_score": {
+        "value": 10.0,
+        "evaluable": 5
+      },
+      "human_review": {
+        "value": 1.0,
+        "evaluable": 1
+      }
+    },
+    "restated": {
+      "cer": {
+        "value": 0.00037066781985543954,
+        "evaluable": 8
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 8
+      },
+      "change_precision": {
+        "value": 1.0,
+        "evaluable": 8
+      },
+      "change_recall": {
+        "value": 1.0,
+        "evaluable": 8
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 8
+      },
+      "topic_jaccard": {
+        "value": 0.875,
+        "evaluable": 8
+      },
+      "key_facts_coverage": {
+        "value": 0.95,
+        "evaluable": 8
+      },
+      "judge_score": {
+        "value": 10.0,
+        "evaluable": 8
+      },
+      "human_review": {
+        "value": null,
+        "evaluable": 0
+      }
+    }
+  },
+  "by_scan": {
+    "clean": {
+      "cer": {
+        "value": 0.0006416426050689766,
+        "evaluable": 6
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 7
+      },
+      "change_precision": {
+        "value": 1.0,
+        "evaluable": 5
+      },
+      "change_recall": {
+        "value": 1.0,
+        "evaluable": 5
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 5
+      },
+      "topic_jaccard": {
+        "value": 0.8333333333333334,
+        "evaluable": 6
+      },
+      "key_facts_coverage": {
+        "value": 0.8461538461538461,
+        "evaluable": 5
+      },
+      "judge_score": {
+        "value": 10.0,
+        "evaluable": 6
+      },
+      "human_review": {
+        "value": 1.0,
+        "evaluable": 1
+      }
+    },
+    "degraded": {
+      "cer": {
+        "value": 0.0006830341896558266,
+        "evaluable": 7
+      },
+      "amendment_kind_accuracy": {
+        "value": 1.0,
+        "evaluable": 7
+      },
+      "change_precision": {
+        "value": 1.0,
+        "evaluable": 7
+      },
+      "change_recall": {
+        "value": 1.0,
+        "evaluable": 7
+      },
+      "change_type_accuracy": {
+        "value": 1.0,
+        "evaluable": 7
+      },
+      "topic_jaccard": {
+        "value": 0.8333333333333333,
+        "evaluable": 7
+      },
+      "key_facts_coverage": {
+        "value": 0.875,
+        "evaluable": 7
+      },
+      "judge_score": {
+        "value": 10.0,
+        "evaluable": 7
+      },
+      "human_review": {
+        "value": null,
+        "evaluable": 0
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "boundary_delta_transporte_dangling",
+      "category": "boundary",
+      "amendment_kind": "delta",
+      "exit_code": 10,
+      "error": "UnresolvedReferenceError",
+      "trace_id": "aa463e551fb752c44d80a311238e0288",
+      "judge_reasoning": null,
+      "predicted": null,
+      "metrics": {
+        "cer": null,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": null,
+        "change_recall": null,
+        "change_type_accuracy": null,
+        "topic_jaccard": null,
+        "key_facts_coverage": null,
+        "judge_score": null,
+        "human_review": 1.0
+      }
+    },
+    {
+      "case_id": "boundary_restated_distribucion_injection",
+      "category": "boundary",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "6ab509f11a31dac47f988e3a579a75bf",
+      "judge_reasoning": "The candidate summary accurately states that the contract term clause is modified to provide for automatic renewal for equal periods unless either party gives notice to the contrary with thirty (30) days' advance notice, replacing the previous requirement for written agreement. This covers both key facts: automatic renewal and the 30-day notice period. The summary does not invent any changes and does not omit any key facts. The only minor omission is not explicitly stating that the 12-month duration remains unchanged, but this is context and not a required key fact. Therefore, the summary is complete and accurate.",
+      "predicted": {
+        "sections_changed": [
+          "4"
+        ],
+        "topics_touched": [
+          "term_duration"
+        ],
+        "summary": "4 — modified: La cláusula sobre el plazo del contrato se modifica para establecer que el contrato se prorrogará automáticamente por períodos iguales, salvo que una de las partes comunique lo contrario con treinta (30) días de anticipación, en lugar de requerir un acuerdo escrito de las partes para la prórroga.",
+        "changes": [
+          {
+            "section_id": "4",
+            "change_type": "modified",
+            "topic": "term_duration"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.00024906600249066,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "boundary_restated_obra_degraded",
+      "category": "boundary",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "7f133269a24a0d70c50f8fdbffaa6371",
+      "judge_reasoning": "The candidate summary accurately states both key changes: (1) the extension of the work period from 90 to 120 days, and (2) the extension of the warranty period from 12 to 24 months. Both changes include the correct amounts and are attributed to the correct clauses (2 and 7). There is no invented information, and all key facts are present and correctly stated. Minor differences in wording do not affect the legal meaning.",
+      "predicted": {
+        "sections_changed": [
+          "2",
+          "7"
+        ],
+        "topics_touched": [
+          "term_duration",
+          "warranties"
+        ],
+        "summary": "2 — modified: El plazo de ejecución de la obra se modifica de noventa (90) días corridos a ciento veinte (120) días corridos. 7 — modified: El período de garantía se modifica de doce (12) meses a veinticuatro (24) meses.",
+        "changes": [
+          {
+            "section_id": "2",
+            "change_type": "modified",
+            "topic": "term_duration"
+          },
+          {
+            "section_id": "7",
+            "change_type": "modified",
+            "topic": "warranties"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.0024685262898049864,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "boundary_restated_transporte_renumber",
+      "category": "boundary",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "e74e8db8306218882618900c19356855",
+      "judge_reasoning": "The candidate summary accurately states the addition of Article V, specifying the charge of $45,000 for each hour of waiting time exceeding three hours at the destination. It includes both key facts: the amount ($45,000) and the time threshold (three hours). The candidate does not mention the renumbering of Articles V to VIII, but this is context and not a required key fact. No changes are misstated or invented, and all required information is present and correct.",
+      "predicted": {
+        "sections_changed": [
+          "new:5"
+        ],
+        "topics_touched": [
+          "price_payment"
+        ],
+        "summary": "new:5 — added: Se añade el Artículo V — Estadía en destino, que establece un cargo de $ 45.000 por cada hora de espera del camión en destino que exceda las tres (3) horas desde su llegada.",
+        "changes": [
+          {
+            "section_id": "new:5",
+            "change_type": "added",
+            "topic": "price_payment"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.0,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "standard_delta_distribucion",
+      "category": "standard",
+      "amendment_kind": "delta",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "ecf67577e24fef6abec7958ade6610bc",
+      "judge_reasoning": "The candidate summary accurately reflects all the key changes described in the reference summary. It correctly states that the purchase discount in Clause 2 increases from 18% to 22%, the notice period for termination in Clause 7 is extended from 60 to 90 days, and a new Clause 8 is added requiring the distributor to send a monthly sales report within the first 10 days of each month. All key facts (22%, 90 days, sales report) are present and correctly stated, with no invented or missing changes. The summary is precise and complete in terms of legal meaning.",
+      "predicted": {
+        "sections_changed": [
+          "2",
+          "7",
+          "new:8"
+        ],
+        "topics_touched": [
+          "price_payment",
+          "termination",
+          "obligations"
+        ],
+        "summary": "2 — modified: El descuento sobre la lista de precios mayoristas para la DISTRIBUIDORA se incrementa del dieciocho por ciento (18 %) al veintidós por ciento (22 %). 7 — modified: El preaviso para rescindir el contrato sin causa se extiende de sesenta (60) días a noventa (90) días. new:8 — added: La nueva Cláusula Octava establece que la DISTRIBUIDORA debe enviar un informe de ventas mensual a la PROVEEDORA dentro de los diez (10) primeros días de cada mes.",
+        "changes": [
+          {
+            "section_id": "2",
+            "change_type": "modified",
+            "topic": "price_payment"
+          },
+          {
+            "section_id": "7",
+            "change_type": "modified",
+            "topic": "termination"
+          },
+          {
+            "section_id": "new:8",
+            "change_type": "added",
+            "topic": "obligations"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.0009250693802035153,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 0.6666666666666666,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "standard_restated_obra",
+      "category": "standard",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "d3843258da02292eb5d480c04820187d",
+      "judge_reasoning": "The candidate summary accurately states both key changes: (1) the increase of the fondo de reparo from 5% to 10%, and (2) the addition of a new clause requiring the contractor to obtain liability insurance for at least $100,000,000. It also specifies that this is a seguro de responsabilidad civil por daños a terceros, matching the reference. The only minor omission is not mentioning the requirement to deliver the policy before starting work, but this is a detail rather than a core change, as the main obligation (to obtain the insurance) is captured. All key facts are present and correctly stated, with no invented changes.",
+      "predicted": {
+        "sections_changed": [
+          "5",
+          "new:9"
+        ],
+        "topics_touched": [
+          "price_payment",
+          "insurance"
+        ],
+        "summary": "5 — modified: Se modifica el porcentaje de retención del fondo de reparo de cinco por ciento (5 %) a diez por ciento (10 %). new:9 — added: La Cláusula Novena — Seguro de responsabilidad civil establece que la CONTRATISTA contratará un seguro de responsabilidad civil por daños a terceros por una suma mínima de $ 100.000.000.",
+        "changes": [
+          {
+            "section_id": "5",
+            "change_type": "modified",
+            "topic": "price_payment"
+          },
+          {
+            "section_id": "new:9",
+            "change_type": "added",
+            "topic": "insurance"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.0002339728591483388,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "standard_restated_transporte",
+      "category": "standard",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "67ca2f87b0a73998f9c6498d4967f6b2",
+      "judge_reasoning": "The candidate summary accurately captures all the key facts from the reference summary: (1) the increase in the number of trucks from 12 to 18 per week (with the correct number and context), (2) the increase in the liability cap to 120% of the declared value (with the correct percentage and context), and (3) the addition of the satellite tracking requirement, including the obligation to provide online access to the shipper. No key facts are missing or misstated, and nothing is invented. The summary is precise and complete in terms of legal meaning.",
+      "predicted": {
+        "sections_changed": [
+          "2",
+          "7",
+          "new:9"
+        ],
+        "topics_touched": [
+          "deliverables_sla",
+          "liability_indemnity"
+        ],
+        "summary": "2 — modified: Se modifica la cantidad de camiones semirremolque que la transportista debe poner a disposición de la cargadora por semana, de hasta doce (12) a hasta dieciocho (18). 7 — modified: Se modifica el límite de responsabilidad de la transportista por pérdida o avería de la carga, de no exceder el valor declarado en la carta de porte a no exceder el ciento veinte por ciento (120 %) del valor declarado. new:9 — added: Se añade el artículo 'Rastreo satelital', que obliga a la transportista a equipar cada camión con rastreo satelital y dar a la cargadora acceso en línea a la ubicación de sus cargas durante todo el viaje.",
+        "changes": [
+          {
+            "section_id": "2",
+            "change_type": "modified",
+            "topic": "deliverables_sla"
+          },
+          {
+            "section_id": "7",
+            "change_type": "modified",
+            "topic": "liability_indemnity"
+          },
+          {
+            "section_id": "new:9",
+            "change_type": "added",
+            "topic": "deliverables_sla"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.0,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 0.6666666666666666,
+        "key_facts_coverage": 0.6666666666666666,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_delta_distribucion",
+      "category": "variant",
+      "amendment_kind": "delta",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "b72c8cc332a7b879c85936c1fffc6a0c",
+      "judge_reasoning": "The candidate summary accurately states both key changes: (1) that Clause One is modified to remove 'promoción en puntos de venta' (promotion at points of sale), and (2) that Clause Five is modified to add that if the minimum purchase is not reached in two consecutive quarters, the supplier may appoint other distributors in the same territory. The candidate summary includes the correct sections, the correct time period ('dos trimestres consecutivos'), and does not invent any changes. All key facts are present and correctly stated.",
+      "predicted": {
+        "sections_changed": [
+          "1",
+          "5"
+        ],
+        "topics_touched": [
+          "object_scope"
+        ],
+        "summary": "1 — modified: Se modifica la Cláusula Primera — Objeto para eliminar la promoción en puntos de venta. 5 — modified: Se modifica la Cláusula Quinta — Compra mínima para añadir que si no se alcanza el mínimo en dos trimestres consecutivos, la PROVEEDORA podrá designar otros distribuidores en el mismo territorio.",
+        "changes": [
+          {
+            "section_id": "1",
+            "change_type": "modified",
+            "topic": "object_scope"
+          },
+          {
+            "section_id": "5",
+            "change_type": "modified",
+            "topic": "object_scope"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.001595405232929164,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 0.5,
+        "key_facts_coverage": 0.5,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_delta_obra",
+      "category": "variant",
+      "amendment_kind": "delta",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "2daff790f08a5379bd648ca720195443",
+      "judge_reasoning": "The candidate summary accurately states both key changes: (1) that the contractor may now subcontract electricity and painting work with written notice and retains responsibility, and (2) that the daily penalty for delay is increased to $200,000. The summary does not invent any changes and includes the relevant amounts and types of work. The only minor omission is not mentioning the unchanged 10% cap on the penalty, but this is context, not a required key fact. Therefore, the summary meets all requirements for a perfect score.",
+      "predicted": {
+        "sections_changed": [
+          "6",
+          "8"
+        ],
+        "topics_touched": [
+          "assignment",
+          "penalties"
+        ],
+        "summary": "6 — modified: Se modifica la Cláusula Sexta para permitir a la CONTRATISTA subcontratar los trabajos de electricidad y pintura, previa notificación escrita a la COMITENTE, manteniendo la responsabilidad de su ejecución. 8 — modified: Se modifica la Cláusula Octava para aumentar la multa por demora de $ 150.000 a $ 200.000 por cada día de retraso en la terminación de la obra.",
+        "changes": [
+          {
+            "section_id": "6",
+            "change_type": "modified",
+            "topic": "assignment"
+          },
+          {
+            "section_id": "8",
+            "change_type": "modified",
+            "topic": "penalties"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.0006283380458686773,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 0.5,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_delta_obra_sin_cambios",
+      "category": "variant",
+      "amendment_kind": "delta",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "e4f9dbc79c4691ca841b07ea411e7c26",
+      "judge_reasoning": "Both the reference summary and the candidate summary state that no changes were identified. There are no key facts listed, and the candidate summary does not invent any changes or omit any required information. Therefore, the candidate summary is fully accurate and complete according to the grading criteria.",
+      "predicted": {
+        "sections_changed": [],
+        "topics_touched": [],
+        "summary": "No se identificaron cambios.",
+        "changes": []
+      },
+      "metrics": {
+        "cer": 0.002213788741302973,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": null,
+        "change_recall": null,
+        "change_type_accuracy": null,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": null,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_delta_transporte",
+      "category": "variant",
+      "amendment_kind": "delta",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "7c93167bb8d5fde17af95ef68a2518ad",
+      "judge_reasoning": "The candidate summary accurately states both key changes: (1) the extension of the confidentiality obligation from one year to three years after the contract (with the correct section and time period), and (2) the addition of Article IX, which allows the CARGADORA to inspect trucks before each load and reject those that are not clean or do not close hermetically. All key facts are present, correctly stated, and nothing is invented. The summary matches the legal meaning of the reference summary.",
+      "predicted": {
+        "sections_changed": [
+          "6",
+          "new:9"
+        ],
+        "topics_touched": [
+          "confidentiality",
+          "deliverables_sla"
+        ],
+        "summary": "6 — modified: El período de confidencialidad se extiende de un (1) año a tres (3) años posteriores a la vigencia del contrato. new:9 — added: El Artículo IX — Inspección de unidades permite a la CARGADORA inspeccionar los camiones antes de cada carga y rechazar los que no estén limpios o no cierren de forma hermética.",
+        "changes": [
+          {
+            "section_id": "6",
+            "change_type": "modified",
+            "topic": "confidentiality"
+          },
+          {
+            "section_id": "new:9",
+            "change_type": "added",
+            "topic": "deliverables_sla"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.0009752925877763329,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 0.3333333333333333,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_restated_distribucion",
+      "category": "variant",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "9835f81bb2414f21482419e783ebde64",
+      "judge_reasoning": "The candidate summary correctly identifies all three key changes: (1) the payment term in Clause 3 is extended from 30 to 45 days, (2) the duration in Clause 4 is extended from 12 to 18 months, and (3) Clause 6 regarding the use of trademarks is eliminated. The candidate summary does not invent any changes and accurately reflects the legal meaning of each amendment. The only minor imprecision is that it refers to 'la duración del contrato' instead of specifically 'la duración de la Cláusula Cuarta', but this does not alter the legal meaning. All key facts are present and correctly stated.",
+      "predicted": {
+        "sections_changed": [
+          "3",
+          "4",
+          "6"
+        ],
+        "topics_touched": [
+          "price_payment",
+          "term_duration",
+          "intellectual_property"
+        ],
+        "summary": "3 — modified: El plazo de pago de las facturas ha cambiado de treinta (30) días a cuarenta y cinco (45) días. 4 — modified: La duración del contrato ha cambiado de doce (12) meses a dieciocho (18) meses. 6 — removed: La cláusula sobre el uso de marcas ha sido eliminada.",
+        "changes": [
+          {
+            "section_id": "3",
+            "change_type": "modified",
+            "topic": "price_payment"
+          },
+          {
+            "section_id": "4",
+            "change_type": "modified",
+            "topic": "term_duration"
+          },
+          {
+            "section_id": "6",
+            "change_type": "removed",
+            "topic": "intellectual_property"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.0,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_restated_obra",
+      "category": "variant",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "c029d5ea23b182cce75a91a83fae7361",
+      "judge_reasoning": "The candidate summary accurately reflects all the key changes described in the reference summary. It states that the total price in Clause 3 increases to $53,500,000, matching the key fact and reference. It notes that the advance payment in Clause 4 rises from 30% to 40%, as required. It also mentions the addition of Clause 9, specifying work hours from Monday to Friday, 8 to 17 hours, and includes the requirement not to interrupt public service, as in the reference. All key facts are present, correctly stated, and nothing is invented or omitted. Minor differences in wording do not affect the legal meaning.",
+      "predicted": {
+        "sections_changed": [
+          "3",
+          "4",
+          "new:9"
+        ],
+        "topics_touched": [
+          "price_payment",
+          "deliverables_sla"
+        ],
+        "summary": "3 — modified: El precio total de la obra se incrementa de $ 48.000.000 (pesos cuarenta y ocho millones) a $ 53.500.000 (pesos cincuenta y tres millones quinientos mil). 4 — modified: El anticipo cambia del treinta por ciento (30 %) al cuarenta por ciento (40 %) del precio a la firma. new:9 — added: La Cláusula Novena — Horario de trabajo establece que los trabajos se harán de lunes a viernes de 8 a 17 horas, sin interrumpir la atención al público del local en el horario comercial de la COMITENTE.",
+        "changes": [
+          {
+            "section_id": "3",
+            "change_type": "modified",
+            "topic": "price_payment"
+          },
+          {
+            "section_id": "4",
+            "change_type": "modified",
+            "topic": "price_payment"
+          },
+          {
+            "section_id": "new:9",
+            "change_type": "added",
+            "topic": "deliverables_sla"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.0,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 0.3333333333333333,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    },
+    {
+      "case_id": "variant_restated_transporte",
+      "category": "variant",
+      "amendment_kind": "restated",
+      "exit_code": 0,
+      "error": null,
+      "trace_id": "95f93a77bcda9ef8a137976856d2d336",
+      "judge_reasoning": "The candidate summary accurately states both key changes: (1) the increase of the tariff in Article III from $1,850 to $2,100 per kilometer, and (2) the elimination of the carrier's obligation to maintain transport insurance in Article V, which is now marked as 'N/A'. The summary does not invent any changes and includes the relevant amounts and the fact about the insurance. All key facts are present and correctly stated.",
+      "predicted": {
+        "sections_changed": [
+          "3",
+          "5"
+        ],
+        "topics_touched": [
+          "price_payment",
+          "insurance"
+        ],
+        "summary": "3 — modified: La tarifa por kilómetro recorrido con carga se incrementa de $ 1.850 (pesos mil ochocientos cincuenta) a $ 2.100 (pesos dos mil cien). 5 — modified: Se elimina la obligación de la TRANSPORTISTA de mantener un seguro de transporte para la mercadería, ya que el artículo se indica como 'N/A'.",
+        "changes": [
+          {
+            "section_id": "3",
+            "change_type": "modified",
+            "topic": "price_payment"
+          },
+          {
+            "section_id": "5",
+            "change_type": "modified",
+            "topic": "insurance"
+          }
+        ]
+      },
+      "metrics": {
+        "cer": 0.0,
+        "amendment_kind_accuracy": 1.0,
+        "change_precision": 1.0,
+        "change_recall": 1.0,
+        "change_type_accuracy": 1.0,
+        "topic_jaccard": 1.0,
+        "key_facts_coverage": 1.0,
+        "judge_score": 10.0,
+        "human_review": null
+      }
+    }
+  ],
+  "baseline": null,
+  "thresholds": [
+    {
+      "label": "cer (clean scans)",
+      "metric": "cer",
+      "scan": "clean",
+      "target": 0.02,
+      "lower_is_better": true,
+      "value": 0.0006416426050689766,
+      "evaluable": 6,
+      "met": true
+    },
+    {
+      "label": "cer (degraded scans)",
+      "metric": "cer",
+      "scan": "degraded",
+      "target": 0.08,
+      "lower_is_better": true,
+      "value": 0.0006830341896558266,
+      "evaluable": 7,
+      "met": true
+    },
+    {
+      "label": "amendment_kind_accuracy",
+      "metric": "amendment_kind_accuracy",
+      "scan": null,
+      "target": 0.95,
+      "lower_is_better": false,
+      "value": 1.0,
+      "evaluable": 14,
+      "met": true
+    },
+    {
+      "label": "change_precision",
+      "metric": "change_precision",
+      "scan": null,
+      "target": 0.9,
+      "lower_is_better": false,
+      "value": 1.0,
+      "evaluable": 12,
+      "met": true
+    },
+    {
+      "label": "change_recall",
+      "metric": "change_recall",
+      "scan": null,
+      "target": 0.9,
+      "lower_is_better": false,
+      "value": 1.0,
+      "evaluable": 12,
+      "met": true
+    },
+    {
+      "label": "change_type_accuracy",
+      "metric": "change_type_accuracy",
+      "scan": null,
+      "target": 0.9,
+      "lower_is_better": false,
+      "value": 1.0,
+      "evaluable": 12,
+      "met": true
+    },
+    {
+      "label": "topic_jaccard",
+      "metric": "topic_jaccard",
+      "scan": null,
+      "target": 0.8,
+      "lower_is_better": false,
+      "value": 0.8333333333333334,
+      "evaluable": 13,
+      "met": true
+    },
+    {
+      "label": "key_facts_coverage",
+      "metric": "key_facts_coverage",
+      "scan": null,
+      "target": 0.9,
+      "lower_is_better": false,
+      "value": 0.8620689655172413,
+      "evaluable": 12,
+      "met": false
+    },
+    {
+      "label": "judge_score",
+      "metric": "judge_score",
+      "scan": null,
+      "target": 7.0,
+      "lower_is_better": false,
+      "value": 10.0,
+      "evaluable": 13,
+      "met": true
+    },
+    {
+      "label": "human_review",
+      "metric": "human_review",
+      "scan": null,
+      "target": 1.0,
+      "lower_is_better": false,
+      "value": 1.0,
+      "evaluable": 1,
+      "met": true
+    }
+  ]
+}

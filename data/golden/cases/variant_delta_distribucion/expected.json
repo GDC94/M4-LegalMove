@@ -1,0 +1,37 @@
+{
+  "base": "distribucion_comercial",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "delta",
+  "declaration_sha256": "daa5e48a634c3ab9d3bc2c93d13a044511f7aa0f0e3336328a81f01576008d03",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "1",
+      "5"
+    ],
+    "topics_touched": [
+      "object_scope",
+      "obligations"
+    ],
+    "summary_of_the_change": "La Cláusula Primera deja fuera del objeto la promoción en puntos de venta: la DISTRIBUIDORA conserva la venta a comercios minoristas y la logística de entrega. La Cláusula Quinta agrega que, si la DISTRIBUIDORA no alcanza la compra mínima en dos (2) trimestres consecutivos, la PROVEEDORA podrá designar otros distribuidores en el mismo territorio."
+  },
+  "changes": [
+    {
+      "section_id": "1",
+      "change_type": "modified",
+      "topic": "object_scope"
+    },
+    {
+      "section_id": "5",
+      "change_type": "modified",
+      "topic": "obligations"
+    }
+  ],
+  "key_facts": [
+    "dos (2) trimestres consecutivos",
+    "promoción en puntos de venta"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}

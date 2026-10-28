@@ -1,0 +1,26 @@
+# Plan §2.6: the second instruction rewrites an Artículo XI the original does not have. The run
+# must end in Human Review instead of inventing a Section.
+base: transporte_carga
+amendment_kind: delta
+category: boundary
+split: validation
+template: table
+seed: 741
+mutations:
+  - op: modify
+    section: "2"
+    topic: obligations
+    phrasing: dira_en_adelante
+    text: >-
+      La TRANSPORTISTA pondrá a disposición de la CARGADORA hasta quince (15) camiones semirremolque por semana, con conductor y combustible a su cargo.
+  - op: dangling
+    section: "11"
+    title: Carga refrigerada
+    phrasing: pase_a_decir
+    text: >-
+      La TRANSPORTISTA trasladará la mercadería que requiera frío en unidades refrigeradas a una temperatura no superior a cuatro (4) grados centígrados.
+degradations: []
+key_facts: []
+reference_summary: >-
+  La adenda amplía la capacidad del Artículo II de doce (12) a quince (15) camiones semirremolque por semana e instruye modificar un Artículo XI que el contrato original no tiene, por lo que el caso se deriva a revisión humana.
+expected_error: NeedsHumanReviewError

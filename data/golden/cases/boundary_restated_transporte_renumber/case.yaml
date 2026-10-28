@@ -1,0 +1,31 @@
+# Plan §2.4 renumbering on a heavily degraded scan: a new Artículo V shifts the original V to
+# VIII down by one with the same text. Only new:5 is a Change.
+base: transporte_carga
+amendment_kind: restated
+category: boundary
+split: validation
+template: roman_articles
+seed: 731
+mutations:
+  - op: add
+    section: "new:5"
+    after: "4"
+    title: Estadía en destino
+    topic: price_payment
+    text: >-
+      La CARGADORA abonará $ 45.000 por cada hora de espera del camión en destino que exceda las tres (3) horas desde su llegada.
+  - {op: renumber, section: "5", number: 6}
+  - {op: renumber, section: "6", number: 7}
+  - {op: renumber, section: "7", number: 8}
+  - {op: renumber, section: "8", number: 9}
+degradations:
+  - {op: downscale, amount: 0.6}
+  - {op: blur, amount: 0.8}
+  - {op: noise, amount: 0.1}
+  - {op: rotate, amount: -1.4}
+  - {op: jpeg, amount: 50}
+key_facts:
+  - "$ 45.000"
+  - tres (3) horas
+reference_summary: >-
+  Se agrega un nuevo Artículo V por el que la CARGADORA abona $ 45.000 por cada hora de espera del camión en destino que exceda las tres (3) horas desde su llegada. Los Artículos V a VIII del original pasan a numerarse VI a IX sin cambios en su texto.

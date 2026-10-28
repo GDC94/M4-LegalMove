@@ -316,7 +316,7 @@ def test_the_publisher_connects_before_the_first_case_and_every_case_gets_a_fres
 
     report, _ = run_evals.evaluate_split(arguments)
 
-    calibration_cases = 24  # decision 92 moved the 14 validation cases to calibration
+    calibration_cases = len(run_evals.load_split(run_evals.GOLDEN_ROOT, SplitName.CALIBRATION))
     assert events == ["publisher", *["compose"] * calibration_cases]
     assert len({id(budget) for budget in budgets}) == calibration_cases
     assert report["cases_total"] == calibration_cases

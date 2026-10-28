@@ -1,0 +1,25 @@
+base: obra_remodelacion
+amendment_kind: restated
+category: standard
+split: validation
+template: two_column
+seed: 801
+mutations:
+  - op: modify
+    section: "5"
+    topic: price_payment
+    text: >-
+      La COMITENTE retendrá el diez por ciento (10 %) de cada certificado como fondo de reparo, que devolverá a los noventa (90) días de la recepción definitiva de la obra.
+  - op: add
+    section: "new:9"
+    title: Seguro de responsabilidad civil
+    topic: insurance
+    text: >-
+      La CONTRATISTA contratará un seguro de responsabilidad civil por daños a terceros por una suma mínima de $ 100.000.000 y entregará la póliza a la COMITENTE antes de iniciar los trabajos.
+degradations: []
+key_facts:
+  - diez por ciento (10 %)
+  - seguro de responsabilidad civil
+  - "$ 100.000.000"
+reference_summary: >-
+  El fondo de reparo de la Cláusula Quinta pasa del cinco por ciento (5 %) al diez por ciento (10 %) de cada certificado. Se agrega la Cláusula Novena, que obliga a la CONTRATISTA a contratar un seguro de responsabilidad civil por daños a terceros por al menos $ 100.000.000 y a entregar la póliza antes de iniciar los trabajos.

@@ -1,0 +1,37 @@
+{
+  "base": "obra_remodelacion",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "delta",
+  "declaration_sha256": "a25a4b5ffae13bff112c3ee58a1e990996459ec5924ca24cdd61b2c7613e0409",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "6",
+      "8"
+    ],
+    "topics_touched": [
+      "assignment",
+      "penalties"
+    ],
+    "summary_of_the_change": "La Cláusula Sexta deja de prohibir toda subcontratación: la CONTRATISTA podrá subcontratar los trabajos de electricidad y de pintura con notificación escrita a la COMITENTE y seguirá siendo responsable de su ejecución. La Cláusula Octava eleva la multa por cada día de demora de $ 150.000 a $ 200.000, con el mismo tope del diez por ciento (10 %) del precio."
+  },
+  "changes": [
+    {
+      "section_id": "6",
+      "change_type": "modified",
+      "topic": "assignment"
+    },
+    {
+      "section_id": "8",
+      "change_type": "modified",
+      "topic": "penalties"
+    }
+  ],
+  "key_facts": [
+    "$ 200.000",
+    "electricidad y de pintura"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}

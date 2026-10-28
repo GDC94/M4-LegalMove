@@ -11,7 +11,7 @@ mutations:
     section: "new:3"
     after: "2"
     title: Migración inicial
-    topic: object_scope
+    topic: deliverables_sla
     text: >-
       Durante los primeros treinta (30) días de vigencia, el PROVEEDOR migrará sin cargo las aplicaciones del CLIENTE a su infraestructura y le entregará un informe de migración.
   - {op: renumber, section: "3", number: 4}

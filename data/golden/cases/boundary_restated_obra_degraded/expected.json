@@ -1,0 +1,37 @@
+{
+  "base": "obra_remodelacion",
+  "split": "validation",
+  "category": "boundary",
+  "amendment_kind": "restated",
+  "declaration_sha256": "82155762f50b9b46d7fbb22a1b8d2c83d8f3f4cee31008ed64a5100118655039",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "2",
+      "7"
+    ],
+    "topics_touched": [
+      "term_duration",
+      "warranties"
+    ],
+    "summary_of_the_change": "La Cláusula Segunda extiende el plazo de obra de noventa (90) a ciento veinte (120) días corridos desde la entrega del local. La Cláusula Séptima amplía la garantía contra vicios ocultos de doce (12) a veinticuatro (24) meses desde la recepción definitiva."
+  },
+  "changes": [
+    {
+      "section_id": "2",
+      "change_type": "modified",
+      "topic": "term_duration"
+    },
+    {
+      "section_id": "7",
+      "change_type": "modified",
+      "topic": "warranties"
+    }
+  ],
+  "key_facts": [
+    "ciento veinte (120) días",
+    "veinticuatro (24) meses"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}

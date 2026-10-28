@@ -1,0 +1,45 @@
+{
+  "base": "distribucion_comercial",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "restated",
+  "declaration_sha256": "51d40e522438c787bcd2fd93c52526ccc07727ddf15fd5c00801d18e3405bcdd",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "3",
+      "4",
+      "6"
+    ],
+    "topics_touched": [
+      "price_payment",
+      "term_duration",
+      "intellectual_property"
+    ],
+    "summary_of_the_change": "El plazo de pago de las facturas de la Cláusula Tercera pasa de treinta (30) a cuarenta y cinco (45) días corridos desde la entrega. La duración de la Cláusula Cuarta pasa de doce (12) a dieciocho (18) meses. Se elimina la Cláusula Sexta, que regulaba el uso de las marcas de la PROVEEDORA por la DISTRIBUIDORA."
+  },
+  "changes": [
+    {
+      "section_id": "3",
+      "change_type": "modified",
+      "topic": "price_payment"
+    },
+    {
+      "section_id": "4",
+      "change_type": "modified",
+      "topic": "term_duration"
+    },
+    {
+      "section_id": "6",
+      "change_type": "removed",
+      "topic": "intellectual_property"
+    }
+  ],
+  "key_facts": [
+    "cuarenta y cinco (45) días",
+    "dieciocho (18) meses",
+    "marcas"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}

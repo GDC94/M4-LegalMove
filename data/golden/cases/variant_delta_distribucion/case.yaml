@@ -1,0 +1,28 @@
+# Edits inside retained Sections: a sentence added to the Cláusula Quinta and a phrase dropped
+# from the Cláusula Primera. Both are modifications, never additions or removals.
+base: distribucion_comercial
+amendment_kind: delta
+category: variant
+split: validation
+template: two_column
+seed: 621
+mutations:
+  - op: modify
+    section: "5"
+    topic: obligations
+    phrasing: modificase
+    text: >-
+      La DISTRIBUIDORA adquirirá productos por un mínimo de $ 15.000.000 (pesos quince millones) por trimestre calendario. Si no alcanza ese mínimo en dos (2) trimestres consecutivos, la PROVEEDORA podrá designar otros distribuidores en el mismo territorio.
+  - op: modify
+    section: "1"
+    topic: object_scope
+    phrasing: dira_en_adelante
+    text: >-
+      La PROVEEDORA designa a la DISTRIBUIDORA como distribuidora no exclusiva de sus productos de limpieza en las provincias de Santa Fe y Entre Ríos, incluyendo la venta a comercios minoristas y la logística de entrega.
+degradations:
+  - {op: jpeg, amount: 75}
+key_facts:
+  - dos (2) trimestres consecutivos
+  - promoción en puntos de venta
+reference_summary: >-
+  La Cláusula Primera deja fuera del objeto la promoción en puntos de venta: la DISTRIBUIDORA conserva la venta a comercios minoristas y la logística de entrega. La Cláusula Quinta agrega que, si la DISTRIBUIDORA no alcanza la compra mínima en dos (2) trimestres consecutivos, la PROVEEDORA podrá designar otros distribuidores en el mismo territorio.

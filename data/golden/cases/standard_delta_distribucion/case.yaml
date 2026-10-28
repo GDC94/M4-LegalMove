@@ -1,0 +1,33 @@
+base: distribucion_comercial
+amendment_kind: delta
+category: standard
+split: validation
+template: one_column
+seed: 601
+mutations:
+  - op: modify
+    section: "2"
+    topic: price_payment
+    phrasing: reformulase
+    text: >-
+      La DISTRIBUIDORA comprará los productos con un descuento del veintidós por ciento (22 %) sobre la lista de precios mayoristas vigente de la PROVEEDORA.
+  - op: modify
+    section: "7"
+    topic: termination
+    phrasing: modificase
+    text: >-
+      Cualquiera de las partes podrá rescindir el contrato sin causa con un preaviso escrito de noventa (90) días, sin derecho a indemnización.
+  - op: add
+    section: "new:8"
+    title: Informe de ventas
+    topic: obligations
+    phrasing: agregase
+    text: >-
+      La DISTRIBUIDORA enviará a la PROVEEDORA, dentro de los diez (10) primeros días de cada mes, un informe de las ventas del mes anterior detallado por cliente y por producto.
+degradations: []
+key_facts:
+  - veintidós por ciento (22 %)
+  - noventa (90) días
+  - informe de las ventas
+reference_summary: >-
+  El descuento de compra de la Cláusula Segunda sube del dieciocho por ciento (18 %) al veintidós por ciento (22 %) sobre la lista de precios mayoristas. El preaviso de rescisión de la Cláusula Séptima pasa de sesenta (60) a noventa (90) días. Se agrega la Cláusula Octava, que obliga a la DISTRIBUIDORA a enviar dentro de los diez (10) primeros días de cada mes un informe de las ventas del mes anterior por cliente y por producto.

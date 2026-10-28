@@ -242,6 +242,18 @@ def test_every_topic_has_a_description() -> None:
     assert all(description.strip() for description in TOPIC_DESCRIPTIONS.values())
 
 
+def test_topic_descriptions_separate_deliverables_from_general_obligations() -> None:
+    # Decision 95: training and onboarding are something delivered, not a general duty.
+    assert TOPIC_DESCRIPTIONS[Topic.DELIVERABLES_SLA] == (
+        "concrete services, deliverables, training or onboarding a party must provide, "
+        "and their service levels"
+    )
+    assert TOPIC_DESCRIPTIONS[Topic.OBLIGATIONS] == "duties not covered by a more specific topic"
+    assert TOPIC_DESCRIPTIONS[Topic.ASSIGNMENT] == (
+        "assignment, subcontracting, subletting or transfer of use"
+    )
+
+
 def test_a_modification_needs_both_quotes() -> None:
     assert make_change().original_quote == "$ 1.500.000"
     for missing in ("original_quote", "amendment_quote"):

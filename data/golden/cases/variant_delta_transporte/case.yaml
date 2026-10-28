@@ -1,0 +1,27 @@
+# Article-numbered delta on the centered-heading layout: one modification and one addition.
+base: transporte_carga
+amendment_kind: delta
+category: variant
+split: validation
+template: roman_articles
+seed: 721
+mutations:
+  - op: modify
+    section: "6"
+    topic: confidentiality
+    phrasing: pase_a_decir
+    text: >-
+      La TRANSPORTISTA no divulgará los destinos, volúmenes ni clientes de la CARGADORA, durante la vigencia del contrato y por tres (3) años posteriores.
+  - op: add
+    section: "new:9"
+    title: Inspección de unidades
+    topic: obligations
+    phrasing: incorporase
+    text: >-
+      La CARGADORA podrá inspeccionar los camiones asignados antes de cada carga y rechazar los que no estén limpios o no cierren de forma hermética.
+degradations: []
+key_facts:
+  - tres (3) años
+  - inspeccionar
+reference_summary: >-
+  El Artículo VI extiende la obligación de reserva posterior al contrato de un (1) año a tres (3) años. Se agrega el Artículo IX, que permite a la CARGADORA inspeccionar los camiones asignados antes de cada carga y rechazar los que no estén limpios o no cierren de forma hermética.

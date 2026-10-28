@@ -1,0 +1,37 @@
+{
+  "base": "transporte_carga",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "restated",
+  "declaration_sha256": "8ccb2de56a8de61319a17b31ba64263925a6db9459f1aee84eb00fa0b4270477",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "3",
+      "5"
+    ],
+    "topics_touched": [
+      "price_payment",
+      "insurance"
+    ],
+    "summary_of_the_change": "La tarifa del Artículo III sube de $ 1.850 a $ 2.100 por kilómetro recorrido con carga, con el mismo plazo de pago. El Artículo V conserva su título pero su texto pasa a ser \"N/A.\", de modo que la TRANSPORTISTA deja de comprometer el seguro de transporte de la mercadería por hasta $ 80.000.000 por viaje."
+  },
+  "changes": [
+    {
+      "section_id": "3",
+      "change_type": "modified",
+      "topic": "price_payment"
+    },
+    {
+      "section_id": "5",
+      "change_type": "modified",
+      "topic": "insurance"
+    }
+  ],
+  "key_facts": [
+    "$ 2.100",
+    "seguro"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}

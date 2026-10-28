@@ -1,0 +1,45 @@
+{
+  "base": "distribucion_comercial",
+  "split": "validation",
+  "category": "standard",
+  "amendment_kind": "delta",
+  "declaration_sha256": "5573a7e4844bcf1433b25a9484ad76d5a952778d66043f5ad6c9a8443f582ae3",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "2",
+      "7",
+      "new:8"
+    ],
+    "topics_touched": [
+      "price_payment",
+      "termination",
+      "obligations"
+    ],
+    "summary_of_the_change": "El descuento de compra de la Cláusula Segunda sube del dieciocho por ciento (18 %) al veintidós por ciento (22 %) sobre la lista de precios mayoristas. El preaviso de rescisión de la Cláusula Séptima pasa de sesenta (60) a noventa (90) días. Se agrega la Cláusula Octava, que obliga a la DISTRIBUIDORA a enviar dentro de los diez (10) primeros días de cada mes un informe de las ventas del mes anterior por cliente y por producto."
+  },
+  "changes": [
+    {
+      "section_id": "2",
+      "change_type": "modified",
+      "topic": "price_payment"
+    },
+    {
+      "section_id": "7",
+      "change_type": "modified",
+      "topic": "termination"
+    },
+    {
+      "section_id": "new:8",
+      "change_type": "added",
+      "topic": "obligations"
+    }
+  ],
+  "key_facts": [
+    "veintidós por ciento (22 %)",
+    "noventa (90) días",
+    "informe de las ventas"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}

@@ -280,22 +280,24 @@ PYTHONPATH=src uv run python evals/run_evals.py --split calibration  # spends cr
 
 ### Measured results
 
-Blind validation run 1 (2026-10-28, run `validation-20261028T154123Z`, 14 cases of three families never used for tuning) **did not meet two targets**: `topic_jaccard` and `key_facts_coverage`. Rendered from `outputs/validation_run1.json` with `PYTHONPATH=src uv run python evals/render_results.py outputs/validation_run1.json`:
+The frozen baseline is `outputs/baseline.json`, a byte copy of blind validation run 2 (2026-10-28, run `validation-20261028T201850Z`): 14 holdout cases from three contract families never used for tuning (`distribucion_comercial`, `obra_remodelacion`, `transporte_carga`), run once with code and prompts frozen after calibration. Rendered with `PYTHONPATH=src uv run python evals/render_results.py outputs/baseline.json`:
 
 | Metric | Target | Validation result | Met |
 |---|---|---|---|
-| `cer` (clean scans) | ≤ 0.02 | 0.000 (6 cases) | yes |
+| `cer` (clean scans) | ≤ 0.02 | 0.001 (6 cases) | yes |
 | `cer` (degraded scans) | ≤ 0.08 | 0.001 (7 cases) | yes |
 | `amendment_kind_accuracy` | ≥ 0.95 | 1.000 (14 cases) | yes |
-| `change_precision` | ≥ 0.9 | 0.962 (11 cases) | yes |
-| `change_recall` | ≥ 0.9 | 0.962 (12 cases) | yes |
-| `change_type_accuracy` | ≥ 0.9 | 1.000 (11 cases) | yes |
-| `topic_jaccard` | ≥ 0.8 | 0.667 (13 cases) | no |
-| `key_facts_coverage` | ≥ 0.9 | 0.897 (12 cases) | no |
-| `judge_score` | ≥ 7 | 9.308 (13 cases) | yes |
+| `change_precision` | ≥ 0.9 | 1.000 (12 cases) | yes |
+| `change_recall` | ≥ 0.9 | 1.000 (12 cases) | yes |
+| `change_type_accuracy` | ≥ 0.9 | 1.000 (12 cases) | yes |
+| `topic_jaccard` | ≥ 0.8 | 0.833 (13 cases) | yes |
+| `key_facts_coverage` | ≥ 0.9 | 0.862 (12 cases) | no |
+| `judge_score` | ≥ 7 | 10.000 (13 cases) | yes |
 | `human_review` | ≥ 1 | 1.000 (1 case) | yes |
 
-Following decision 59, those 14 cases are no longer blind and moved to `calibration`; the per-case misses are in `docs/calibration/t10-validation.md`. There is no frozen baseline yet: ticket T12 builds a fresh holdout from never-seen contract families, runs it once and freezes `outputs/baseline.json`. `tests/test_readme.py` checks that this table matches `outputs/validation_run1.json`, and switches to the baseline once it is frozen; the table is then re-rendered from it.
+Nine of ten targets are met. **`key_facts_coverage` (0.862) is not**, and this README makes no generalization claim for Key Facts. The check matches each Key Fact as a literal phrase in the summary. All four missing facts are in the summary in other words ("informe de ventas" for "informe de las ventas"; "camiones … hasta dieciocho (18)" for "dieciocho (18) camiones"), and the Judge, which found every fact, scored 10. One miss is a real model slip: the summary wrote "dos trimestres consecutivos" instead of the amendment's "dos (2)". The baseline is frozen with the miss visible (decision 101): nothing was tuned on these cases, and re-scoring this run with a changed metric would move the rule after seeing the result. Ticket T13 (`.scratch/legalmove/issues/13-metrica-key-facts.md`) fixes the metric on `calibration` only and validates it on a future holdout. Calibration history, per-case misses and the residual gaps are in `docs/calibration/t12-calibration.md`.
+
+Blind validation run 1 (`outputs/validation_run1.json`) missed two targets and its cases moved to `calibration` (decision 92); see `docs/calibration/t10-validation.md`. `tests/test_readme.py` checks that the table above matches `outputs/baseline.json`.
 
 ## Technical decisions
 

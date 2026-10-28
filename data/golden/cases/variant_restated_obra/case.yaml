@@ -1,0 +1,33 @@
+# Combined changes with Cláusula numbering on the centered-heading layout, lightly tilted.
+base: obra_remodelacion
+amendment_kind: restated
+category: variant
+split: validation
+template: roman_articles
+seed: 811
+mutations:
+  - op: modify
+    section: "3"
+    topic: price_payment
+    text: >-
+      El precio total de la obra es de $ 53.500.000 (pesos cincuenta y tres millones quinientos mil), más IVA.
+  - op: modify
+    section: "4"
+    topic: price_payment
+    text: >-
+      La COMITENTE abonará un anticipo del cuarenta por ciento (40 %) del precio a la firma y el saldo en tres (3) certificados mensuales de avance de obra, pagaderos dentro de los diez (10) días de aprobados.
+  - op: add
+    section: "new:9"
+    title: Horario de trabajo
+    topic: obligations
+    text: >-
+      Los trabajos se harán de lunes a viernes de 8 a 17 horas, sin interrumpir la atención al público del local en el horario comercial de la COMITENTE.
+degradations:
+  - {op: rotate, amount: 0.7}
+  - {op: jpeg, amount: 80}
+key_facts:
+  - "$ 53.500.000"
+  - cuarenta por ciento (40 %)
+  - de lunes a viernes de 8 a 17 horas
+reference_summary: >-
+  El precio total de la Cláusula Tercera sube de $ 48.000.000 a $ 53.500.000 más IVA. La Cláusula Cuarta eleva el anticipo del treinta por ciento (30 %) al cuarenta por ciento (40 %) del precio, con el saldo en los mismos tres (3) certificados. Se agrega la Cláusula Novena, que limita los trabajos a los días de lunes a viernes de 8 a 17 horas sin interrumpir la atención al público del local.

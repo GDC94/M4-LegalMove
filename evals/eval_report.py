@@ -82,7 +82,20 @@ def describe_case(
         "error": run.error,
         "trace_id": run.trace_id,
         "judge_reasoning": run.judge_reasoning,
+        "predicted": describe_prediction(run),
         "metrics": {name: None if ratio is None else ratio.value for name, ratio in scores.items()},
+    }
+
+
+def describe_prediction(run: CaseRun) -> dict[str, Any] | None:
+    """What the pipeline answered, so a miss is diagnosed from the report alone (decision 97)."""
+    if run.output is None:
+        return None
+    return {
+        "sections_changed": run.output.sections_changed,
+        "topics_touched": run.output.topics_touched,
+        "summary": run.output.summary_of_the_change,
+        "changes": [change.model_dump(mode="json") for change in run.changes],
     }
 
 

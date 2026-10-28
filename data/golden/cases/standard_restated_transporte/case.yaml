@@ -1,0 +1,30 @@
+base: transporte_carga
+amendment_kind: restated
+category: standard
+split: validation
+template: roman_articles
+seed: 701
+mutations:
+  - op: modify
+    section: "2"
+    topic: obligations
+    text: >-
+      La TRANSPORTISTA pondrá a disposición de la CARGADORA hasta dieciocho (18) camiones semirremolque por semana, con conductor y combustible a su cargo.
+  - op: modify
+    section: "7"
+    topic: liability_indemnity
+    text: >-
+      La responsabilidad de la TRANSPORTISTA por pérdida o avería de la carga no excederá el ciento veinte por ciento (120 %) del valor declarado en la carta de porte de cada viaje.
+  - op: add
+    section: "new:9"
+    title: Rastreo satelital
+    topic: deliverables_sla
+    text: >-
+      La TRANSPORTISTA equipará cada camión con rastreo satelital y dará a la CARGADORA acceso en línea a la ubicación de sus cargas durante todo el viaje.
+degradations: []
+key_facts:
+  - dieciocho (18) camiones
+  - ciento veinte por ciento (120 %)
+  - rastreo satelital
+reference_summary: >-
+  El Artículo II amplía la capacidad de doce (12) a dieciocho (18) camiones semirremolque por semana. El Artículo VII eleva el tope de responsabilidad de la TRANSPORTISTA del valor declarado al ciento veinte por ciento (120 %) del valor declarado en la carta de porte. Se agrega el Artículo IX, que obliga a equipar cada camión con rastreo satelital y a dar a la CARGADORA acceso en línea a la ubicación de sus cargas.

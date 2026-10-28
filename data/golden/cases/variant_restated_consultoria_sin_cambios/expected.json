@@ -1,0 +1,17 @@
+{
+  "base": "consultoria_profesional",
+  "split": "calibration",
+  "category": "variant",
+  "amendment_kind": "restated",
+  "declaration_sha256": "8a1dcdb1ed8551ffe003a2d5d3965e5c5d0fa319d6384f9504bba5e1bd4799a6",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [],
+    "topics_touched": [],
+    "summary_of_the_change": "No se identificaron cambios."
+  },
+  "changes": [],
+  "key_facts": [],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}

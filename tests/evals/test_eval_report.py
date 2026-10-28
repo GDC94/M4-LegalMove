@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from eval_case import CaseRun
-from eval_doubles import case_run, failed_run, golden_case, review_case
+from eval_doubles import SUMMARY, case_run, failed_run, golden_case, review_case
 from eval_report import ReportHeader, build_report, compare_with_baseline, read_baseline
 
 HEADER = ReportHeader(
@@ -105,6 +105,25 @@ def test_each_case_reports_its_outcome_and_metric_values() -> None:
     assert report["cases"][0]["trace_id"] == "trace-1"
     assert report["cases"][0]["judge_reasoning"] == "Cubre los hechos."
     assert review["judge_reasoning"] is None
+
+
+def test_each_case_reports_what_the_pipeline_predicted() -> None:
+    # Decision 97: a topic miss is read from the report without opening the Langfuse trace.
+    report = two_case_report()
+
+    assert report["cases"][0]["predicted"] == {
+        "sections_changed": ["2", "new:8"],
+        "topics_touched": ["price_payment", "notices"],
+        "summary": SUMMARY,
+        "changes": [
+            {"section_id": "2", "change_type": "modified", "topic": "price_payment"},
+            {"section_id": "new:8", "change_type": "added", "topic": "notices"},
+        ],
+    }
+
+
+def test_a_case_that_ended_in_an_error_predicted_nothing() -> None:
+    assert two_case_report()["cases"][2]["predicted"] is None
 
 
 def test_a_case_without_a_run_is_refused() -> None:

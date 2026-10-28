@@ -11,7 +11,7 @@ mutations:
     section: "new:5"
     after: "4"
     title: Capacitación
-    topic: obligations
+    topic: deliverables_sla
     text: >-
       La LICENCIANTE capacitará sin cargo a hasta diez (10) usuarios de la LICENCIATARIA durante el primer mes de vigencia.
   - {op: renumber, section: "5", number: 6}

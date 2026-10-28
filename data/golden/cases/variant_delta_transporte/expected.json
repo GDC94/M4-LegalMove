@@ -1,0 +1,37 @@
+{
+  "base": "transporte_carga",
+  "split": "validation",
+  "category": "variant",
+  "amendment_kind": "delta",
+  "declaration_sha256": "901efc8733909d63127c6b2cdbb3cb0ec39c1d93ef0fe7d5b0ca632dc1530373",
+  "expected_error": null,
+  "output": {
+    "sections_changed": [
+      "6",
+      "new:9"
+    ],
+    "topics_touched": [
+      "confidentiality",
+      "obligations"
+    ],
+    "summary_of_the_change": "El Artículo VI extiende la obligación de reserva posterior al contrato de un (1) año a tres (3) años. Se agrega el Artículo IX, que permite a la CARGADORA inspeccionar los camiones asignados antes de cada carga y rechazar los que no estén limpios o no cierren de forma hermética."
+  },
+  "changes": [
+    {
+      "section_id": "6",
+      "change_type": "modified",
+      "topic": "confidentiality"
+    },
+    {
+      "section_id": "new:9",
+      "change_type": "added",
+      "topic": "obligations"
+    }
+  ],
+  "key_facts": [
+    "tres (3) años",
+    "inspeccionar"
+  ],
+  "reviewed_by": "Claude Fable 5.1 (AI review), approved by German Derbes Catoni",
+  "reviewed_at": "2026-10-28"
+}
