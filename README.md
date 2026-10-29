@@ -80,6 +80,8 @@ Lightweight **Ports & Adapters** (hexagonal) on the flat `src/` layout the assig
 |---|---|---|
 | Domain | `src/models.py` | `ContractChangeOutput`, the LLM-facing models (`ContextMap`, `Change`, `ExtractionResult`), enums and the deterministic summary |
 | Domain | `src/checks.py` | Deterministic checks: context map semantics, grounding, consistency, `difflib` segment agreement, Kind Heuristic, `[ILLEGIBLE]` count |
+| Domain | `src/section_comparison.py` | Section Comparison: segmentation by ref, pairing, same/different/unknown verdict |
+| Domain | `src/text_normalization.py` | Grounding normalization shared by checks and Section Comparison |
 | Domain | `src/errors.py` | `LegalMoveError` hierarchy; each error declares its stage and exit code |
 | Domain | `src/prompt_blocks.py` | Safe serialization of every dynamic prompt block (prompt-injection defence) |
 | Domain | `src/budget.py` | Monotonic run budget; per-attempt timeout and transport retries |

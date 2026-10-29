@@ -9,9 +9,25 @@ import pytest
 from golden_text import PHRASINGS
 
 SRC = Path(__file__).resolve().parent.parent / "src"
-DOMAIN_MODULES = ["models.py", "errors.py", "checks.py", "prompt_blocks.py", "budget.py"]
+DOMAIN_MODULES = [
+    "models.py",
+    "errors.py",
+    "checks.py",
+    "prompt_blocks.py",
+    "budget.py",
+    "section_comparison.py",
+    "text_normalization.py",
+]
 INFRASTRUCTURE = {"langchain", "langchain_core", "langchain_openai", "openai", "langfuse"}
-LANGFUSE_FREE = ["image_parser.py", "models.py", "checks.py", "pipeline.py", "errors.py"]
+LANGFUSE_FREE = [
+    "image_parser.py",
+    "models.py",
+    "checks.py",
+    "pipeline.py",
+    "errors.py",
+    "section_comparison.py",
+    "text_normalization.py",
+]
 
 
 def runtime_imports(path: Path) -> set[str]:
@@ -65,6 +81,16 @@ def test_domain_modules_import_no_infrastructure_or_config(module: str) -> None:
         pytest.skip(f"{module} does not exist yet")
 
     assert runtime_imports(path).isdisjoint(INFRASTRUCTURE | {"config", "observability"})
+
+
+def test_section_comparison_never_imports_the_checks() -> None:
+    assert "checks" not in runtime_imports(SRC / "section_comparison.py")
+
+
+def test_text_normalization_imports_neither_consumer() -> None:
+    assert runtime_imports(SRC / "text_normalization.py").isdisjoint(
+        {"checks", "section_comparison"}
+    )
 
 
 def adapter_modules() -> list[Path]:

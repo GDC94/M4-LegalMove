@@ -19,7 +19,6 @@ from checks import (
     find_unresolved_references,
     is_changed_by_diff,
     is_grounded,
-    normalize_for_grounding,
 )
 from models import (
     NO_CHANGES,
@@ -32,6 +31,7 @@ from models import (
     SectionMapping,
     Topic,
 )
+from text_normalization import normalize_for_grounding
 
 CONTRACTS = Path(__file__).resolve().parent.parent / "data/test_contracts"
 

@@ -27,7 +27,7 @@ CLI that reads two scanned contract images (original and amendment) and returns 
 
 | Layer | Modules | Rule |
 |---|---|---|
-| Domain | `models.py`, `checks.py`, `errors.py`, `prompt_blocks.py`, `budget.py` | Pydantic and deterministic logic. Never import LangChain, OpenAI, Langfuse or `config.py` |
+| Domain | `models.py`, `checks.py`, `section_comparison.py`, `text_normalization.py`, `errors.py`, `prompt_blocks.py`, `budget.py` | Pydantic and deterministic logic. Never import LangChain, OpenAI, Langfuse or `config.py` |
 | Application | `pipeline.py` (`run_analysis()`) | Orchestrates the stages through the ports. Knows nothing about Langfuse or settings |
 | Ports | `PipelineTracer` and `StageSpan` (`Protocol`, plan §5.2); the `chat_model` each `build_*` factory receives | Business modules depend on the abstraction, never on the provider |
 | Adapters | `observability.py` (Langfuse), `image_parser.py`, `budgeted_model.py` and `agents/` (OpenAI via LangChain) | The only modules that touch external infrastructure |

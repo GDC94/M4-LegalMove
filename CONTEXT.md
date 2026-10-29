@@ -117,6 +117,10 @@ _Avoid_: citation check, fact check, verification
 The Check that the reported Sections and Topics equal the Sections and Topics of the Changes.
 _Avoid_: coherence, agreement
 
+**Section Comparison**:
+The verdict on whether a Section's text is the same in both documents: same, different or unknown. It is produced by segmenting both documents by ref and pairing the Sections. An Illegible Mark that stands in for words leaves it unknown, never same.
+_Avoid_: text match, similarity, equality check
+
 **Kind Heuristic**:
 The deterministic marker search that returns Delta or Inconclusive, used as a second signal against the ContextualizationAgent. Absence of a Delta marker is never evidence of Restated.
 _Avoid_: classifier, rule engine, detector

@@ -22,7 +22,6 @@ from agents.contextualization_agent import (
     build_contextualization_stage,
     build_structured_context_models,
 )
-from checks import DELTA_MARKERS, normalize_for_grounding
 from errors import (
     InvalidContextMapError,
     UnclassifiableAmendmentError,
@@ -39,6 +38,8 @@ from models import (
 )
 from observability import RecordingTracer
 from prompt_blocks import serialize_block
+from section_comparison import DELTA_MARKERS
+from text_normalization import normalize_for_grounding
 
 ORIGINAL_TEXT = (
     "CONTRATO\nCláusula Primera — Objeto. Servicios.\nCláusula Segunda — Plazo. Doce meses."
