@@ -18,7 +18,14 @@ DOMAIN_MODULES = [
     "section_comparison.py",
     "text_normalization.py",
 ]
-INFRASTRUCTURE = {"langchain", "langchain_core", "langchain_openai", "openai", "langfuse"}
+INFRASTRUCTURE = {
+    "langchain",
+    "langchain_core",
+    "langchain_openai",
+    "openai",
+    "langfuse",
+    "anthropic",
+}
 LANGFUSE_FREE = [
     "image_parser.py",
     "models.py",
@@ -286,3 +293,11 @@ def test_src_never_imports_evals_modules_or_playwright() -> None:
     }
 
     assert {name: found for name, found in importers.items() if found} == {}
+
+
+def test_only_the_claude_judge_imports_anthropic() -> None:
+    paths = [*source_files(), *sorted((ROOT / "evals").glob("*.py"))]
+
+    importers = {path.name for path in paths if "anthropic" in runtime_imports(path)}
+
+    assert importers <= {"claude_judge.py"}

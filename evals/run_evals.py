@@ -15,10 +15,17 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TextIO
 
-from case_runner import CaseRunner
-from errors import LegalMoveError
+from case_runner import CaseRunner, SecondJudge
+from claude_judge import build_claude_judge
+from errors import ConfigurationError, LegalMoveError
 from eval_case import CaseRun, GoldenCase, load_split
-from eval_report import ReportHeader, build_report, compare_with_baseline, read_baseline
+from eval_report import (
+    ReportHeader,
+    SecondJudgeHeader,
+    build_report,
+    compare_with_baseline,
+    read_baseline,
+)
 from experiment_publisher import ExperimentPublisher, ExperimentRun
 from golden_case import GoldenCaseError, SplitName
 from image_parser import build_openai_chat_model
@@ -51,6 +58,7 @@ class EvalOptions:
     report_path: Path
     baseline_path: Path
     case_id: str | None = None
+    claude_judge: SecondJudgeHeader | None = None
 
 
 @dataclass(frozen=True)
@@ -60,6 +68,14 @@ class EvalArguments:
     baseline: Path
     run_name: str | None
     case_id: str | None = None
+    claude_judge_reps: int = 1
+
+
+def parse_repetitions(text: str) -> int:
+    reps = int(text)
+    if reps < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return reps
 
 
 def parse_arguments(argv: Sequence[str]) -> EvalArguments:
@@ -73,9 +89,20 @@ def parse_arguments(argv: Sequence[str]) -> EvalArguments:
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument("--run-name", default=None, help="defaults to <split>-<UTC timestamp>")
     parser.add_argument("--case", dest="case_id", default=None, help="one case_id of the split")
+    parser.add_argument(
+        "--claude-judge-reps",
+        type=parse_repetitions,
+        default=1,
+        help="times the second Judge grades each Summary, to measure its spread",
+    )
     namespace = parser.parse_args(argv)
     return EvalArguments(
-        namespace.split, namespace.report, namespace.baseline, namespace.run_name, namespace.case_id
+        namespace.split,
+        namespace.report,
+        namespace.baseline,
+        namespace.run_name,
+        namespace.case_id,
+        namespace.claude_judge_reps,
     )
 
 
@@ -125,18 +152,29 @@ def run_evaluation(
         dataset_name(options.split),
         JUDGE_PROMPT_VERSION,
         options.case_id,
+        options.claude_judge,
     )
     report = build_report(cases, runs, header)
     report["thresholds"] = describe_report_thresholds(report, options)
     report["baseline"] = describe_baseline(report, options)
     write_report(report, options.report_path)
-    metadata = {"judge_prompt_version": JUDGE_PROMPT_VERSION}
+    metadata = describe_experiment_metadata(options.claude_judge)
     experiment = ExperimentRun(
         header.dataset_name, options.run_name, tuple(cases), runs, METRICS, metadata
     )
     report["experiment_url"] = publisher.publish(experiment)
     write_report(report, options.report_path)
     return report
+
+
+def describe_experiment_metadata(claude: SecondJudgeHeader | None) -> dict[str, str]:
+    if claude is None:
+        return {"judge_prompt_version": JUDGE_PROMPT_VERSION, "claude_judge": "not_run"}
+    return {
+        "judge_prompt_version": JUDGE_PROMPT_VERSION,
+        "claude_judge_model": claude.model,
+        "claude_judge_effort": claude.effort,
+    }
 
 
 def describe_report_thresholds(
@@ -186,6 +224,14 @@ def build_publisher(settings: EvalSettings) -> LangfusePublisher:
     return LangfusePublisher(client)
 
 
+def build_second_judge_header(
+    settings: EvalSettings, second_judge: SecondJudge | None, reps: int
+) -> SecondJudgeHeader | None:
+    if second_judge is None:
+        return None
+    return SecondJudgeHeader(settings.claude_judge_model, settings.claude_judge_effort, reps)
+
+
 def evaluate_split(arguments: EvalArguments) -> tuple[dict[str, Any], Path]:
     """Composition root of the evals: the pipeline itself is main.py's build_container.
 
@@ -196,15 +242,21 @@ def evaluate_split(arguments: EvalArguments) -> tuple[dict[str, Any], Path]:
     cases = select_cases(load_split(GOLDEN_ROOT, arguments.split), arguments)
     now = datetime.now(UTC)
     run_name = arguments.run_name or build_run_name(arguments.split, now, arguments.case_id)
+    second_judge = build_claude_judge(settings)
+    if second_judge is None and arguments.claude_judge_reps > 1:
+        raise ConfigurationError("--claude-judge-reps needs ANTHROPIC_API_KEY")
     publisher = build_publisher(settings)
     runner = CaseRunner(
         compose=lambda: build_container(settings),
         judge=build_summary_judge(settings),
         session_id=run_name,
+        second_judge=second_judge,
+        second_judge_reps=arguments.claude_judge_reps,
     )
     report_path = resolve_report_path(arguments, run_name)
+    claude = build_second_judge_header(settings, second_judge, arguments.claude_judge_reps)
     options = EvalOptions(
-        arguments.split, run_name, report_path, arguments.baseline, arguments.case_id
+        arguments.split, run_name, report_path, arguments.baseline, arguments.case_id, claude
     )
     return run_evaluation(cases, runner, publisher, options), report_path
 

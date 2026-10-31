@@ -5,9 +5,15 @@ from typing import Any
 
 import pytest
 
-from eval_case import CaseRun
+from eval_case import CaseRun, SecondJudgeResult
 from eval_doubles import SUMMARY, case_run, failed_run, golden_case, review_case
-from eval_report import ReportHeader, build_report, compare_with_baseline, read_baseline
+from eval_report import (
+    ReportHeader,
+    SecondJudgeHeader,
+    build_report,
+    compare_with_baseline,
+    read_baseline,
+)
 
 HEADER = ReportHeader(
     split="calibration",
@@ -297,3 +303,108 @@ def test_a_case_run_recorded_before_judge_reasoning_still_loads() -> None:
     del old["judge_reasoning"]
 
     assert CaseRun.model_validate(old).judge_reasoning is None
+
+
+def claude_result(score: int, reasoning: str = "Falta un hecho.") -> SecondJudgeResult:
+    return SecondJudgeResult(
+        status="scored",
+        score=score,
+        reasoning=reasoning,
+        model="claude-opus-5-5",
+        input_tokens=900,
+        output_tokens=120,
+        latency_s=2.5,
+    )
+
+
+def test_second_judge_metrics_never_make_a_regression() -> None:
+    current = baseline_report(
+        evaluable=1,
+        judge_gap=4.0,
+        judge_claude_scored=0.5,
+        change_recall=0.9,
+    )
+    current["global"]["judge_claude_scored"]["evaluable"] = 0
+    baseline = baseline_report(
+        evaluable=3, judge_gap=1.0, judge_claude_scored=1.0, change_recall=0.9
+    )
+    baseline["global"]["change_recall"]["evaluable"] = 1
+
+    comparison = compare_with_baseline(current, baseline)
+
+    assert comparison["regressions"] == []
+    assert set(comparison["deltas"]) == {"change_recall"}
+    assert set(comparison["evaluable_deltas"]) == {"change_recall"}
+
+
+def test_a_gated_metric_still_makes_a_regression_next_to_second_judge_metrics() -> None:
+    current = baseline_report(judge_gap=4.0, change_recall=0.5)
+    baseline = baseline_report(judge_gap=1.0, change_recall=0.9)
+
+    assert compare_with_baseline(current, baseline)["regressions"] == ["change_recall"]
+
+
+def test_the_report_says_the_second_judge_did_not_run_without_one() -> None:
+    assert two_case_report()["claude_judge"] == "not_run"
+
+
+def test_the_report_names_the_second_judge_that_ran() -> None:
+    header = ReportHeader(
+        split="calibration",
+        run_name="r",
+        dataset_name="d",
+        judge_prompt_version="judge-v2",
+        claude_judge=SecondJudgeHeader(model="claude-opus-5-5", effort="medium", reps=2),
+    )
+
+    report = build_report([golden_case()], {"standard_delta_demo": case_run()}, header)
+
+    assert report["claude_judge"] == {"model": "claude-opus-5-5", "effort": "medium", "reps": 2}
+
+
+def test_disagreements_list_the_cases_the_judges_scored_three_or_more_points_apart() -> None:
+    near, far, alone = (golden_case(case_id=i) for i in ("near", "far", "alone"))
+    runs = {
+        "near": case_run(case_id="near", judge_score=8.0, second_judge=claude_result(6)),
+        "far": case_run(
+            case_id="far",
+            judge_score=9.0,
+            judge_reasoning="Todo cubierto.",
+            second_judge=claude_result(6, "Omite el plazo."),
+        ),
+        "alone": case_run(case_id="alone", judge_score=9.0),
+    }
+
+    report = build_report([near, far, alone], runs, HEADER)
+
+    assert report["judge_disagreements"] == [
+        {
+            "case_id": "far",
+            "judge_score": 9.0,
+            "claude_score": 6,
+            "judge_reasoning": "Todo cubierto.",
+            "claude_reasoning": "Omite el plazo.",
+        }
+    ]
+    keys = list(report)
+    assert keys.index("cases") < keys.index("judge_disagreements") < keys.index("baseline")
+
+
+def test_the_report_has_no_disagreements_without_a_second_judge() -> None:
+    assert two_case_report()["judge_disagreements"] == []
+
+
+def test_each_case_reports_the_second_judge_with_tokens_and_latency() -> None:
+    repeat = claude_result(5)
+    run = case_run(second_judge=claude_result(6), second_judge_repeats=(repeat,))
+
+    report = build_report([golden_case()], {"standard_delta_demo": run}, HEADER)
+    described = report["cases"][0]
+
+    assert described["second_judge"]["model"] == "claude-opus-5-5"
+    assert described["second_judge"]["input_tokens"] == 900
+    assert described["second_judge"]["latency_s"] == 2.5
+    assert described["second_judge_repeats"] == [repeat.model_dump()]
+    plain = two_case_report()["cases"][0]
+    assert plain["second_judge"] is None
+    assert plain["second_judge_repeats"] == []

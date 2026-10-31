@@ -18,8 +18,9 @@ REQUIRED = {
 
 @pytest.fixture(autouse=True)
 def no_judge_model_in_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    # conftest only clears the runtime Settings names; JUDGE_MODEL is eval-only.
-    monkeypatch.delenv("JUDGE_MODEL", raising=False)
+    # conftest only clears the runtime Settings names; these are eval-only.
+    for name in ("JUDGE_MODEL", "ANTHROPIC_API_KEY", "CLAUDE_JUDGE_MODEL", "CLAUDE_JUDGE_EFFORT"):
+        monkeypatch.delenv(name, raising=False)
 
 
 def make_eval_settings(**overrides: Any) -> EvalSettings:
@@ -79,3 +80,39 @@ def test_invalid_eval_settings_become_a_configuration_error_without_values(
     assert "JUDGE_MODEL must differ from EXTRACTION_MODEL" in str(caught.value)
     assert "sk-test" not in str(caught.value)
     assert caught.value.exit_code == 3
+
+
+def test_the_claude_judge_settings_default_to_no_key_opus_and_medium_effort() -> None:
+    settings = make_eval_settings()
+
+    assert settings.anthropic_api_key is None
+    assert settings.claude_judge_model == "claude-opus-5-5"
+    assert settings.claude_judge_effort == "medium"
+
+
+def test_the_claude_judge_settings_are_read_from_the_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    set_required_environment(monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    monkeypatch.setenv("CLAUDE_JUDGE_MODEL", "claude-opus-4-8")
+    monkeypatch.setenv("CLAUDE_JUDGE_EFFORT", "high")
+
+    settings = load_eval_settings(env_file=None)
+
+    assert settings.anthropic_api_key is not None
+    assert settings.anthropic_api_key.get_secret_value() == "sk-ant-test"
+    assert settings.claude_judge_model == "claude-opus-4-8"
+    assert settings.claude_judge_effort == "high"
+
+
+def test_an_effort_outside_the_known_levels_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        make_eval_settings(claude_judge_effort="extreme")
+
+
+def test_the_anthropic_key_does_not_show_in_its_string_form() -> None:
+    settings = make_eval_settings(anthropic_api_key="sk-ant-secret")
+
+    assert "sk-ant-secret" not in str(settings.anthropic_api_key)
+    assert "sk-ant-secret" not in repr(settings)

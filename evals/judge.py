@@ -55,16 +55,20 @@ class JudgeVerdict(BaseModel):
 JudgeModel = Runnable[LanguageModelInput, Any]
 
 
-def build_judge_messages(summary: str, case: GoldenCase) -> tuple[SystemMessage, HumanMessage]:
+def render_judge_input(summary: str, case: GoldenCase) -> str:
+    """The user message every Judge grades: reference, Key Facts and candidate, as tagged data."""
     facts = "\n".join(f"- {fact}" for fact in case.key_facts)
-    human = "\n\n".join(
+    return "\n\n".join(
         [
             serialize_block("reference_summary", case.reference_summary),
             serialize_block("key_facts", facts),
             serialize_block("candidate_summary", summary),
         ]
     )
-    return SystemMessage(JUDGE_SYSTEM_PROMPT), HumanMessage(human)
+
+
+def build_judge_messages(summary: str, case: GoldenCase) -> tuple[SystemMessage, HumanMessage]:
+    return SystemMessage(JUDGE_SYSTEM_PROMPT), HumanMessage(render_judge_input(summary, case))
 
 
 class SummaryJudge:

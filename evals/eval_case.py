@@ -3,7 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -54,6 +54,24 @@ class GoldenCase(BaseModel):
         return self.expected_error is None and self.output is not None
 
 
+SecondJudgeStatus = Literal["scored", "refused", "error"]
+
+
+class SecondJudgeResult(BaseModel):
+    """What a second Judge left for one Summary; a refusal or an error is never a score."""
+
+    model_config = Frozen
+
+    status: SecondJudgeStatus
+    score: int | None = None
+    reasoning: str | None = None
+    refusal_category: str | None = None
+    model: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    latency_s: float
+
+
 class CaseRun(BaseModel):
     """Everything one pipeline run left for the checks; the fields a failed run lacks are None."""
 
@@ -71,6 +89,9 @@ class CaseRun(BaseModel):
     parsed_amendment: str | None = None
     judge_score: float | None = None
     judge_reasoning: str | None = None
+    second_judge: SecondJudgeResult | None = None
+    # Repetitions beyond the first, kept for the spread metric; empty with one repetition.
+    second_judge_repeats: tuple[SecondJudgeResult, ...] = ()
 
 
 def read_expected(case_dir: Path) -> dict[str, Any]:

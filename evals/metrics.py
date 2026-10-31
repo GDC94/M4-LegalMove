@@ -8,7 +8,7 @@ from enum import StrEnum
 
 import jiwer
 
-from eval_case import CaseRun, GoldenCase
+from eval_case import CaseRun, GoldenCase, SecondJudgeResult
 from golden_case import ANY_HUMAN_REVIEW, UNCLASSIFIABLE_ERROR, human_review_error_names
 from models import AmendmentKind
 
@@ -55,6 +55,8 @@ class Metric:
     check: Check
     aggregation: Aggregation
     lower_is_better: bool = False
+    # Informative metrics are reported but never turn a baseline comparison into a regression.
+    gated: bool = True
 
 
 def normalize_text(text: str) -> str:
@@ -210,6 +212,47 @@ def score_judge(run: CaseRun, case: GoldenCase) -> Ratio | None:
     return Ratio(run.judge_score, 1)
 
 
+def scored_value(result: SecondJudgeResult | None) -> int | None:
+    return result.score if result is not None and result.status == "scored" else None
+
+
+def scored_second_judge(run: CaseRun) -> int | None:
+    return scored_value(run.second_judge)
+
+
+def score_judge_claude(run: CaseRun, case: GoldenCase) -> Ratio | None:
+    """The second Judge's 1-10 verdict; a refusal or an error is N/A, never a zero."""
+    score = scored_second_judge(run)
+    return None if score is None else Ratio(score, 1)
+
+
+def score_judge_gap(run: CaseRun, case: GoldenCase) -> Ratio | None:
+    """Distance between both Judges' scores; only cases that both scored can disagree."""
+    score = scored_second_judge(run)
+    if run.judge_score is None or score is None:
+        return None
+    return Ratio(abs(run.judge_score - score), 1)
+
+
+def score_judge_claude_scored(run: CaseRun, case: GoldenCase) -> Ratio | None:
+    """Of the cases the second Judge ran on, how many it actually scored."""
+    if run.second_judge is None:
+        return None
+    return Ratio(int(scored_second_judge(run) is not None), 1)
+
+
+def score_judge_claude_spread(run: CaseRun, case: GoldenCase) -> Ratio | None:
+    """Mean distance between the first repetition and the scored repeats; needs reps > 1."""
+    first = scored_second_judge(run)
+    if first is None:
+        return None
+    repeats = [scored_value(repeat) for repeat in run.second_judge_repeats]
+    distances = [abs(first - score) for score in repeats if score is not None]
+    if not distances:
+        return None
+    return Ratio(sum(distances) / len(distances), 1)
+
+
 def score_human_review(run: CaseRun, case: GoldenCase) -> Ratio | None:
     """Exit 10 with the expected error, named by its class or by one of its issue codes.
 
@@ -236,6 +279,16 @@ METRICS: tuple[Metric, ...] = (
     Metric("topic_jaccard", score_topic_jaccard, Aggregation.MEAN),
     Metric("key_facts_coverage", score_key_facts, Aggregation.MICRO),
     Metric("judge_score", score_judge, Aggregation.MEAN),
+    Metric("judge_score_claude", score_judge_claude, Aggregation.MEAN, gated=False),
+    Metric("judge_gap", score_judge_gap, Aggregation.MEAN, lower_is_better=True, gated=False),
+    Metric("judge_claude_scored", score_judge_claude_scored, Aggregation.MICRO, gated=False),
+    Metric(
+        "judge_claude_spread",
+        score_judge_claude_spread,
+        Aggregation.MEAN,
+        lower_is_better=True,
+        gated=False,
+    ),
     Metric("human_review", score_human_review, Aggregation.MICRO),
 )
 

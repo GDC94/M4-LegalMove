@@ -14,6 +14,7 @@ from judge import (
     JudgeVerdict,
     SummaryJudge,
     build_judge_messages,
+    render_judge_input,
 )
 
 
@@ -37,6 +38,27 @@ def test_messages_hold_reference_key_facts_and_candidate_as_tagged_data() -> Non
     assert "<reference_summary>\n" + case.reference_summary in human.text
     assert "<key_facts>\n- $ 2.900.000\n- notificaciones\n</key_facts>" in human.text
     assert "<candidate_summary>\nResumen candidato.\n</candidate_summary>" in human.text
+
+
+def test_judge_input_is_the_three_blocks_in_order() -> None:
+    case = golden_case()
+
+    rendered = render_judge_input("Resumen candidato.", case)
+
+    assert rendered == (
+        f"<reference_summary>\n{case.reference_summary}\n</reference_summary>\n\n"
+        "<key_facts>\n- $ 2.900.000\n- notificaciones\n</key_facts>\n\n"
+        "<candidate_summary>\nResumen candidato.\n</candidate_summary>"
+    )
+
+
+def test_the_human_message_is_exactly_the_rendered_judge_input() -> None:
+    # T15: a second Judge builds its user message from the same function, byte for byte.
+    case = golden_case()
+
+    _, human = build_judge_messages("Resumen candidato.", case)
+
+    assert human.text == render_judge_input("Resumen candidato.", case)
 
 
 def test_a_candidate_cannot_close_its_own_block() -> None:

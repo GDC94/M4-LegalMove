@@ -11,13 +11,14 @@ from errors import (
     UnclassifiableAmendmentError,
     UnresolvedReferenceError,
 )
-from eval_case import CaseRun, ChangeRecord, GoldenCase
+from eval_case import CaseRun, ChangeRecord, GoldenCase, SecondJudgeResult
 from judge import JudgeVerdict
 from main import UNEXPECTED_EXIT_CODE, CliArguments, Container, RunContext, run_traced
 from models import AmendmentKind
 from pipeline import AnalysisResult
 
 JudgeSummary = Callable[[str, GoldenCase], JudgeVerdict]
+SecondJudge = Callable[[str, GoldenCase], SecondJudgeResult]
 
 logger = logging.getLogger("legalmove.evals")
 
@@ -29,16 +30,35 @@ class CaseRunner:
     compose: Callable[[], Container]
     judge: JudgeSummary
     session_id: str
+    second_judge: SecondJudge | None = None
+    second_judge_reps: int = 1
+
+    def __post_init__(self) -> None:
+        if self.second_judge_reps < 1:
+            raise ValueError("second_judge_reps must be at least 1")
 
     def __call__(self, case: GoldenCase) -> CaseRun:
         run = self.run_pipeline(case)
         if run.output is None or not case.expects_output:
             return run
-        verdict = self.judge_summary(run.output.summary_of_the_change, case)
-        if verdict is None:
+        summary = run.output.summary_of_the_change
+        verdict = self.judge_summary(summary, case)
+        if verdict is not None:
+            run = run.model_copy(
+                update={"judge_score": float(verdict.score), "judge_reasoning": verdict.reasoning}
+            )
+        return self.add_second_judge(run, summary, case)
+
+    def add_second_judge(self, run: CaseRun, summary: str, case: GoldenCase) -> CaseRun:
+        """Runs after the first Judge even when it failed: its failure must not hide this data.
+
+        No try/except: the adapter maps its own failures, anything else is a bug to surface.
+        """
+        if self.second_judge is None:
             return run
+        results = [self.second_judge(summary, case) for _ in range(self.second_judge_reps)]
         return run.model_copy(
-            update={"judge_score": float(verdict.score), "judge_reasoning": verdict.reasoning}
+            update={"second_judge": results[0], "second_judge_repeats": tuple(results[1:])}
         )
 
     def run_pipeline(self, case: GoldenCase) -> CaseRun:

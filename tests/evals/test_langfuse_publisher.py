@@ -206,7 +206,10 @@ def test_the_checks_are_the_evaluators_and_not_applicable_scores_are_skipped() -
         "amendment_kind_accuracy": 1.0,
         "human_review": 1.0,
     }
-    assert {e.name for e in answered.evaluations} == {m.name for m in METRICS} - {"human_review"}
+    # The case ran without a second Judge, so its four metrics are N/A and never published.
+    second_judge_metrics = {m.name for m in METRICS if not m.gated}
+    expected = {m.name for m in METRICS} - {"human_review"} - second_judge_metrics
+    assert {e.name for e in answered.evaluations} == expected
 
 
 def test_a_case_langfuse_dropped_from_the_experiment_is_an_error() -> None:

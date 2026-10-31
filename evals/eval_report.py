@@ -23,6 +23,18 @@ SCAN_COMPARED_METRICS = ("cer",)
 ScoredCase = tuple[GoldenCase, CaseRun, Mapping[str, Ratio | None]]
 
 
+# Two Judges rarely differ this much on the same Summary by noise alone, so a case this far apart
+# is listed for a human to read both reasonings.
+DISAGREEMENT_THRESHOLD = 3
+
+
+@dataclass(frozen=True)
+class SecondJudgeHeader:
+    model: str
+    effort: str
+    reps: int
+
+
 @dataclass(frozen=True)
 class ReportHeader:
     split: str
@@ -30,6 +42,7 @@ class ReportHeader:
     dataset_name: str
     judge_prompt_version: str
     case_filter: str | None = None
+    claude_judge: SecondJudgeHeader | None = None
 
 
 def build_report(
@@ -42,6 +55,7 @@ def build_report(
         "run_name": header.run_name,
         "dataset_name": header.dataset_name,
         "judge_prompt_version": header.judge_prompt_version,
+        "claude_judge": describe_second_judge(header.claude_judge),
         "case_filter": header.case_filter,
         "experiment_url": None,
         "cases_total": len(scored),
@@ -50,8 +64,35 @@ def build_report(
         "by_kind": group_aggregates(scored, lambda case: case.amendment_kind.value),
         "by_scan": group_aggregates(scored, lambda case: case.scan),
         "cases": [describe_case(case, run, scores) for case, run, scores in scored],
+        "judge_disagreements": find_disagreements(scored),
         "baseline": None,
     }
+
+
+def describe_second_judge(header: SecondJudgeHeader | None) -> str | dict[str, Any]:
+    if header is None:
+        return "not_run"
+    return {"model": header.model, "effort": header.effort, "reps": header.reps}
+
+
+def find_disagreements(scored: Sequence[ScoredCase]) -> list[dict[str, Any]]:
+    """Cases both Judges scored whose scores differ by DISAGREEMENT_THRESHOLD or more."""
+    disagreements: list[dict[str, Any]] = []
+    for case, run, scores in scored:
+        gap = scores["judge_gap"]
+        if gap is None or gap.value < DISAGREEMENT_THRESHOLD:
+            continue
+        claude = run.second_judge
+        disagreements.append(
+            {
+                "case_id": case.case_id,
+                "judge_score": run.judge_score,
+                "claude_score": claude.score if claude else None,
+                "judge_reasoning": run.judge_reasoning,
+                "claude_reasoning": claude.reasoning if claude else None,
+            }
+        )
+    return disagreements
 
 
 def describe_aggregates(scored: Sequence[Mapping[str, Ratio | None]]) -> dict[str, Any]:
@@ -82,6 +123,8 @@ def describe_case(
         "error": run.error,
         "trace_id": run.trace_id,
         "judge_reasoning": run.judge_reasoning,
+        "second_judge": run.second_judge.model_dump() if run.second_judge else None,
+        "second_judge_repeats": [repeat.model_dump() for repeat in run.second_judge_repeats],
         "predicted": describe_prediction(run),
         "metrics": {name: None if ratio is None else ratio.value for name, ratio in scores.items()},
     }
@@ -147,7 +190,7 @@ def collect_compared_aggregates(
     aggregates = {
         metric.name: global_group.get(metric.name, {})
         for metric in METRICS
-        if metric.name not in excluded
+        if metric.gated and metric.name not in excluded
     }
     for scan, group in sorted(report.get("by_scan", {}).items()):
         for name in SCAN_COMPARED_METRICS:

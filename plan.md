@@ -532,6 +532,9 @@ La validación de entrada (magic bytes, existencia del archivo, límites de tama
 | Variable | Obligatoria | Default | Validación | Uso |
 |---|---|---|---|---|
 | `JUDGE_MODEL` | no | `gpt-4.1` | distinto de `EXTRACTION_MODEL` | Juez LLM de `summary_of_the_change` |
+| `ANTHROPIC_API_KEY` | no | — | `SecretStr` opcional | Segundo juez de las evals; sin ella no corre |
+| `CLAUDE_JUDGE_MODEL` | no | `claude-opus-5-5` | no vacío | Modelo del segundo juez |
+| `CLAUDE_JUDGE_EFFORT` | no | `medium` | `low` \| `medium` \| `high` \| `xhigh` \| `max` | Esfuerzo de razonamiento del segundo juez |
 
 `APP_VERSION` no es una variable de entorno: es una constante de `config.py` que se usa como `version` de la traza.
 
@@ -763,6 +766,7 @@ Los umbrales son **objetivos iniciales**. Se ajustan exclusivamente con `calibra
 | Temas | Jaccard de `topics_touched` | ≥ 0.80 |
 | Resumen | Cobertura de `key_facts` | ≥ 0.90 |
 | Resumen | Juez LLM (`JUDGE_MODEL`, distinto del evaluado), escala 1-10 | media ≥ 7 |
+| Resumen | Segundo juez Claude (`CLAUDE_JUDGE_MODEL`), misma rúbrica `judge-v2`, escala 1-10 | informativo, sin objetivo |
 | Grounding | `grounding_rate` medio | ≥ 0.95 |
 | Casos sin cambios | Listas vacías | 100 % |
 | Inyección | Cambios inventados u omitidos por la inyección | 0 |
@@ -779,6 +783,7 @@ Los umbrales son **objetivos iniciales**. Se ajustan exclusivamente con `calibra
 - Publica el set como **Dataset de Langfuse** y cada corrida como un **Experiment**, con los checks como evaluadores. Es el patrón de `observability/experiments.py` de `orchestration`.
 - Los checks de las evals son funciones puras `(resultado, caso) -> score`, separadas del adaptador de Langfuse.
 - `JUDGE_MODEL` se lee de `EvalSettings` (sección 5.1), no de `Settings`.
+- El segundo juez corre solo con `ANTHROPIC_API_KEY`, después del primero y sobre los mismos casos juzgados. Sus métricas `judge_score_claude`, `judge_gap` (media de |gpt − Claude|), `judge_claude_scored` y `judge_claude_spread` (solo con `--claude-judge-reps` > 1) se declaran con `Metric.gated=False` y `compare_with_baseline` las ignora. El reporte agrega `judge_disagreements` (|diferencia| ≥ 3) y el bloque `claude_judge` (`"not_run"` sin la clave).
 - Los agregados omiten scores N/A; no los convierten a cero. El reporte incluye además el conteo de casos evaluables por métrica.
 - Si la prueba ciega no alcanza un umbral, los casos ya vistos dejan de ser validación y pasan al material de calibración. Antes de volver a afirmar generalización se genera una nueva validación con familias contractuales nunca vistas.
 
@@ -1137,6 +1142,9 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 102 | `key_facts_coverage` compara cada hecho con el resumen después de quitar, palabra por palabra y en ambos lados, una lista cerrada de artículos y preposiciones (`el, la, los, las, lo, de, del, al`); `un`, `una` y `por` quedan afuera porque forman parte de números. El hecho debe empezar en un límite de palabra del resumen, con el lado derecho abierto ("seguro" coincide con "seguros"). Si al quitarlas el hecho queda vacío, se compara el hecho normalizado. Sin coincidencia difusa. Los hechos atómicos (número con su unidad, frase sin artículo inicial ni final) son guía de redacción; un test la hace cumplir en `calibration` solo en la parte de artículos y preposiciones. La línea base (decisión 101) no se re-puntúa | En la validación ciega 2, tres de los cuatro hechos faltantes eran el mismo dato con otras palabras ("informe de ventas"). En la calibración T13, `key_facts` da 0,9375 sin reescribir hechos. El límite de palabra evita que, al quitar "el" de "el 20 %", el hecho coincida con "120 %" | 6.6, 6.7 | 2026-10-28 |
 | 103 | Check duro `number_parenthetical_dropped` en `check_extraction`: en el texto normalizado del original y de la adenda busca un número completo escrito en palabras (cardinales de una lista cerrada, unidos por "y" o "por") seguido de "(N)" y de la palabra siguiente. Si el resumen o una descripción escriben ese número y esa palabra sin "(N)", hay issue, reintento normal y después `InvalidExtractionError` (exit `10`). No dispara cuando un documento escribe esa misma frase tal cual, cuando el número es solo "un", "una" o "uno", ni cuando no hay palabra después del paréntesis | Hace cumplir en código la regla literal del prompt v6 (decisión 95), que la validación ciega 2 rompió una vez ("dos trimestres"). Leer el número completo evita confundir "cuarenta y cinco (45)" con "treinta y cinco"; la excepción por frase escrita tal cual cubre "un mes y medio". En la calibración T13 no causó ningún exit `10`; el único fue un fallo de contextualización (`unresolved_section_reference`) | 4.4, 4.5 | 2026-10-28 |
 | 104 | La comparación del texto de las secciones (segmentación por `ref`, emparejado, veredicto igual/distinta/desconocida, reglas de reformulación citada y de cola, etiquetas y `[ILLEGIBLE]`) vive en `src/section_comparison.py`, en la capa de dominio y con una interfaz pública chica. `checks.py` conserva los checks (decisiones 94 y 99) y la señal blanda `diff_agreement` (decisión 20), que lo consumen. Es un refactor sin cambio de comportamiento. La normalización de texto compartida (`normalize_for_grounding`) vive en `src/text_normalization.py`, que no depende de ninguno de los dos. | `checks.py` pasó de 160 a 1064 líneas y los defectos posteriores al T12 cayeron en esa lógica. Sus casos difíciles solo se podían testear armando un `ContextMap` y un `ExtractionResult` completos; separada, se testean de forma directa y tienen locality | 4.4, 6.2 | 2026-10-29 |
+| 105 | Segundo juez de otra familia de modelos (Claude Opus 5.5, SDK oficial `anthropic`) sobre el mismo resumen y la misma rúbrica `judge-v2`; informativo, sin objetivo en §6.6 y fuera del gate (`Metric.gated=False`) | El juez `gpt-4.1` evalúa resúmenes de `gpt-4o`, misma familia, y un juez tiende a preferir textos parecidos a los suyos; con 21 casos la distancia entre notas es un dato, no un umbral; se discute un objetivo recién con dos corridas | 6.6, 6.7 | 2026-10-31 |
+| 106 | Sin `fallbacks` ni `temperature` en el segundo juez; un rechazo (`stop_reason == "refusal"`) queda como `refused` con su categoría y un `max_tokens`, una excepción del SDK o una nota fuera de rango quedan como `error`; ningún estado produce un 0; si `response.model` no empieza con `CLAUDE_JUDGE_MODEL` el resultado es `error` | Un fallback produciría una nota de otro modelo dentro de `judge_score_claude`; la guía de evals de Anthropic pide abortar si el modelo servido no es el pedido; la API devuelve 400 con `temperature` desde 2026-10-21 | 6.7 | 2026-10-31 |
+| 107 | Sin span de Langfuse para ninguno de los dos jueces en T15; tokens y latencia del segundo juez por caso en el reporte; trazar ambos jueces es un ticket aparte | El juez actual tampoco tiene span (`case_runner.py` lo llama fuera de `run_traced`); agregar tracing solo al segundo sería asimétrico | 5.3, 6.7 | 2026-10-31 |
 
 ## 9. Diagrama de LegalMove pipeline
 

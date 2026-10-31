@@ -12,10 +12,12 @@ from langchain_core.runnables import RunnableLambda
 
 import main
 import run_evals
+from case_runner import CaseRunner
 from cli_doubles import RecordingLifecycleTracer
 from errors import ConfigurationError, ObservabilityError
-from eval_case import GoldenCase
+from eval_case import GoldenCase, SecondJudgeResult
 from eval_doubles import FakePipeline, RecordingPublisher, golden_case, review_case
+from eval_report import SecondJudgeHeader
 from golden_case import SplitName
 from judge import JUDGE_PROMPT_VERSION, JudgeVerdict
 from metrics import METRICS
@@ -70,7 +72,10 @@ def test_the_split_and_runs_are_published_with_every_check(tmp_path: Path) -> No
     assert published.cases == tuple(CASES)
     assert published.runs["boundary_unknown_demo"].exit_code == 10
     assert published.metrics == METRICS
-    assert published.metadata == {"judge_prompt_version": JUDGE_PROMPT_VERSION}
+    assert published.metadata == {
+        "judge_prompt_version": JUDGE_PROMPT_VERSION,
+        "claude_judge": "not_run",
+    }
 
 
 def test_the_report_is_written_with_the_experiment_url(tmp_path: Path) -> None:
@@ -350,3 +355,119 @@ def test_an_unexpected_failure_exits_1_with_the_type_only(monkeypatch: pytest.Mo
     assert exit_code == 1
     assert "RuntimeError" in stderr.getvalue()
     assert "secret" not in stderr.getvalue() and "Cláusula" not in stderr.getvalue()
+
+
+CLAUDE = SecondJudgeHeader(model="claude-opus-5-5", effort="medium", reps=2)
+
+
+def second_judge_double(summary: str, case: GoldenCase) -> SecondJudgeResult:
+    return SecondJudgeResult(status="scored", score=5, model="claude-opus-5-5", latency_s=0.1)
+
+
+def test_a_run_without_a_second_judge_says_so_in_the_report_and_the_experiment(
+    tmp_path: Path,
+) -> None:
+    publisher = RecordingPublisher()
+
+    run_evaluation(CASES, FakePipeline(), publisher, options(tmp_path))
+
+    report = read_report(tmp_path / "outputs" / "eval_report.json")
+    assert report["claude_judge"] == "not_run"
+    assert publisher.published[0].metadata["claude_judge"] == "not_run"
+
+
+def test_a_second_judge_is_named_in_the_report_and_the_experiment_metadata(
+    tmp_path: Path,
+) -> None:
+    publisher = RecordingPublisher()
+    with_claude = dataclasses.replace(options(tmp_path), claude_judge=CLAUDE)
+
+    run_evaluation(CASES, FakePipeline(), publisher, with_claude)
+
+    report = read_report(tmp_path / "outputs" / "eval_report.json")
+    assert report["claude_judge"] == {"model": "claude-opus-5-5", "effort": "medium", "reps": 2}
+    assert publisher.published[0].metadata == {
+        "judge_prompt_version": JUDGE_PROMPT_VERSION,
+        "claude_judge_model": "claude-opus-5-5",
+        "claude_judge_effort": "medium",
+    }
+
+
+def capture_wiring(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, claude: object, argv_extra: list[str]
+) -> tuple[CaseRunner, EvalOptions]:
+    captured: list[tuple[CaseRunner, EvalOptions]] = []
+
+    def record(
+        cases: object, runner: CaseRunner, publisher: object, evaluation: EvalOptions
+    ) -> dict[str, Any]:
+        captured.append((runner, evaluation))
+        return {}
+
+    monkeypatch.setattr(run_evals, "load_eval_settings", eval_settings)
+    monkeypatch.setattr(run_evals, "build_publisher", lambda _: RecordingPublisher())
+    monkeypatch.setattr(run_evals, "build_summary_judge", lambda _: second_judge_double)
+    monkeypatch.setattr(run_evals, "build_claude_judge", lambda _: claude)
+    monkeypatch.setattr(run_evals, "run_evaluation", record)
+    argv = ["--split", "calibration", "--report", str(tmp_path / "r.json"), *argv_extra]
+
+    run_evals.evaluate_split(parse_arguments(argv))
+
+    return captured[0]
+
+
+def test_without_an_anthropic_key_the_runner_has_no_second_judge(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner, evaluation = capture_wiring(monkeypatch, tmp_path, None, [])
+
+    assert runner.second_judge is None
+    assert evaluation.claude_judge is None
+
+
+def test_a_second_judge_and_its_repetitions_reach_the_runner_and_the_header(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    runner, evaluation = capture_wiring(
+        monkeypatch, tmp_path, second_judge_double, ["--claude-judge-reps", "2"]
+    )
+
+    assert runner.second_judge is second_judge_double
+    assert runner.second_judge_reps == 2
+    assert evaluation.claude_judge == SecondJudgeHeader(
+        model=eval_settings().claude_judge_model,
+        effort=eval_settings().claude_judge_effort,
+        reps=2,
+    )
+
+
+def test_the_second_judge_runs_once_by_default() -> None:
+    assert parse_arguments(["--split", "calibration"]).claude_judge_reps == 1
+
+
+def test_zero_repetitions_is_a_usage_error() -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        parse_arguments(["--split", "calibration", "--claude-judge-reps", "0"])
+
+    assert exit_info.value.code == run_evals.USAGE_EXIT_CODE
+
+
+def test_repetitions_above_one_without_an_anthropic_key_fail_before_anything_runs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(run_evals, "load_eval_settings", eval_settings)
+    monkeypatch.setattr(run_evals, "build_publisher", lambda _: calls.append("publisher"))
+    monkeypatch.setattr(run_evals, "build_summary_judge", lambda _: second_judge_double)
+    monkeypatch.setattr(run_evals, "build_claude_judge", lambda _: None)
+    monkeypatch.setattr(run_evals, "run_evaluation", lambda *_: calls.append("run"))
+    argv = ["--split", "calibration", "--report", str(tmp_path / "r.json")]
+
+    with pytest.raises(ConfigurationError, match="ANTHROPIC_API_KEY"):
+        run_evals.evaluate_split(parse_arguments([*argv, "--claude-judge-reps", "2"]))
+
+    assert calls == []
+
+
+def test_the_second_judge_header_is_absent_without_a_second_judge() -> None:
+    assert run_evals.build_second_judge_header(eval_settings(), None, 1) is None

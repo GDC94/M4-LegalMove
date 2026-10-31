@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from eval_case import CaseRun
+from eval_case import CaseRun, SecondJudgeResult, SecondJudgeStatus
 from eval_doubles import case_run, failed_run, golden_case, review_case
 from metrics import (
     METRICS,
@@ -21,6 +21,10 @@ from metrics import (
     score_change_type,
     score_human_review,
     score_judge,
+    score_judge_claude,
+    score_judge_claude_scored,
+    score_judge_claude_spread,
+    score_judge_gap,
     score_key_facts,
     score_topic_jaccard,
 )
@@ -90,6 +94,10 @@ def test_every_metric_of_plan_6_6_is_registered_once() -> None:
         "topic_jaccard",
         "key_facts_coverage",
         "judge_score",
+        "judge_score_claude",
+        "judge_gap",
+        "judge_claude_scored",
+        "judge_claude_spread",
         "human_review",
     ]
     assert metric_named("cer").lower_is_better
@@ -496,6 +504,92 @@ def test_human_review_is_not_applicable_when_an_answer_is_expected() -> None:
 
 def test_metrics_module_touches_no_adapter_or_infrastructure() -> None:
     path = Path(__file__).resolve().parents[2] / "evals" / "metrics.py"
-    adapters = {"observability", "main", "image_parser", "agents", "judge", "langfuse_publisher"}
+    adapters = {
+        "observability",
+        "main",
+        "image_parser",
+        "agents",
+        "judge",
+        "claude_judge",
+        "langfuse_publisher",
+    }
 
     assert runtime_imports(path).isdisjoint(INFRASTRUCTURE | adapters)
+
+
+def second(score: int | None, status: SecondJudgeStatus = "scored") -> SecondJudgeResult:
+    return SecondJudgeResult(
+        status=status,
+        score=score,
+        model="claude-opus-5-5",
+        latency_s=0.1,
+    )
+
+
+def test_only_the_second_judge_metrics_stay_out_of_the_regression_gate() -> None:
+    informative = {m.name for m in METRICS if not m.gated}
+
+    assert informative == {
+        "judge_score_claude",
+        "judge_gap",
+        "judge_claude_scored",
+        "judge_claude_spread",
+    }
+
+
+def test_judge_score_claude_is_the_scored_verdict() -> None:
+    assert score_judge_claude(case_run(second_judge=second(6)), golden_case()) == Ratio(6, 1)
+
+
+@pytest.mark.parametrize("second_judge", [None, second(None, "refused"), second(None, "error")])
+def test_judge_score_claude_is_not_applicable_without_a_scored_verdict(
+    second_judge: SecondJudgeResult | None,
+) -> None:
+    assert score_judge_claude(case_run(second_judge=second_judge), golden_case()) is None
+
+
+def test_judge_gap_is_the_absolute_distance_between_both_judges() -> None:
+    run = case_run(judge_score=8.0, second_judge=second(5))
+
+    assert score_judge_gap(run, golden_case()) == Ratio(3, 1)
+    assert score_judge_gap(case_run(judge_score=4.0, second_judge=second(6)), golden_case()) == (
+        Ratio(2, 1)
+    )
+
+
+def test_judge_gap_needs_both_scores() -> None:
+    no_first = case_run(judge_score=None, second_judge=second(5))
+    refused = case_run(judge_score=8.0, second_judge=second(None, "refused"))
+
+    assert score_judge_gap(no_first, golden_case()) is None
+    assert score_judge_gap(refused, golden_case()) is None
+    assert score_judge_gap(case_run(judge_score=8.0), golden_case()) is None
+
+
+def test_judge_claude_scored_counts_only_cases_where_the_second_judge_ran() -> None:
+    assert score_judge_claude_scored(case_run(), golden_case()) is None
+    scored = case_run(second_judge=second(6))
+    refused = case_run(second_judge=second(None, "refused"))
+    assert score_judge_claude_scored(scored, golden_case()) == Ratio(1, 1)
+    assert score_judge_claude_scored(refused, golden_case()) == Ratio(0, 1)
+
+
+def test_judge_claude_spread_is_the_mean_distance_to_the_scored_repeats() -> None:
+    run = case_run(
+        second_judge=second(6),
+        second_judge_repeats=(second(4), second(None, "error"), second(9)),
+    )
+
+    assert score_judge_claude_spread(run, golden_case()) == Ratio(2.5, 1)
+
+
+def test_judge_claude_spread_is_not_applicable_without_a_scored_pair() -> None:
+    assert score_judge_claude_spread(case_run(second_judge=second(6)), golden_case()) is None
+    only_failed_repeats = case_run(
+        second_judge=second(6), second_judge_repeats=(second(None, "error"),)
+    )
+    assert score_judge_claude_spread(only_failed_repeats, golden_case()) is None
+    first_refused = case_run(
+        second_judge=second(None, "refused"), second_judge_repeats=(second(5),)
+    )
+    assert score_judge_claude_spread(first_refused, golden_case()) is None

@@ -14,7 +14,7 @@ from errors import (
     UnresolvedReferenceError,
     ValidationIssue,
 )
-from eval_case import CaseRun, GoldenCase
+from eval_case import CaseRun, GoldenCase, SecondJudgeResult
 from eval_doubles import golden_case, review_case
 from judge import JudgeVerdict
 from main import Container
@@ -33,6 +33,9 @@ class Harness:
     tracers: list[RecordingLifecycleTracer] = field(default_factory=list)
     stages: list[StubStages] = field(default_factory=list)
     judged: list[tuple[str, str]] = field(default_factory=list)
+    second_judged: list[tuple[str, str]] = field(default_factory=list)
+    second_scores: list[int] = field(default_factory=lambda: [4, 6])
+    call_log: list[str] = field(default_factory=list)
 
     def compose(self) -> Container:
         tracer = RecordingLifecycleTracer()
@@ -49,12 +52,32 @@ class Harness:
 
     def judge(self, summary: str, case: GoldenCase) -> JudgeVerdict:
         self.judged.append((summary, case.case_id))
+        self.call_log.append("judge")
         if self.judge_error:
             raise self.judge_error
         return JudgeVerdict(reasoning="Cubre todos los hechos.", score=9)
 
-    def run(self, case: GoldenCase) -> CaseRun:
-        return CaseRunner(compose=self.compose, judge=self.judge, session_id=SESSION)(case)
+    def second_judge(self, summary: str, case: GoldenCase) -> SecondJudgeResult:
+        score = self.second_scores[len(self.second_judged)]
+        self.second_judged.append((summary, case.case_id))
+        self.call_log.append("second_judge")
+        return SecondJudgeResult(
+            status="scored",
+            score=score,
+            reasoning="Falta un hecho.",
+            model="claude-opus-5-5",
+            latency_s=0.1,
+        )
+
+    def run(self, case: GoldenCase, *, with_second: bool = False, reps: int = 1) -> CaseRun:
+        runner = CaseRunner(
+            compose=self.compose,
+            judge=self.judge,
+            session_id=SESSION,
+            second_judge=self.second_judge if with_second else None,
+            second_judge_reps=reps,
+        )
+        return runner(case)
 
 
 def test_a_successful_run_keeps_what_every_check_reads() -> None:
@@ -127,6 +150,55 @@ def test_a_failed_judge_leaves_the_score_not_applicable() -> None:
     assert run.judge_reasoning is None
 
 
+def test_without_a_second_judge_nothing_is_recorded_for_it() -> None:
+    harness = Harness()
+
+    run = harness.run(golden_case())
+
+    assert run.second_judge is None
+    assert run.second_judge_repeats == ()
+
+
+def test_the_second_judge_rates_the_same_summary_after_the_first() -> None:
+    harness = Harness()
+
+    run = harness.run(golden_case(), with_second=True)
+
+    assert run.output is not None
+    assert harness.second_judged == [(run.output.summary_of_the_change, "standard_delta_demo")]
+    assert harness.call_log == ["judge", "second_judge"]
+    assert run.second_judge is not None and run.second_judge.score == 4
+    assert run.second_judge_repeats == ()
+
+
+def test_the_second_judge_never_rates_a_case_expecting_human_review() -> None:
+    harness = Harness()
+
+    run = harness.run(review_case(), with_second=True)
+
+    assert harness.second_judged == []
+    assert run.second_judge is None
+
+
+def test_repetitions_keep_the_first_as_the_score_and_the_rest_as_repeats() -> None:
+    harness = Harness()
+
+    run = harness.run(golden_case(), with_second=True, reps=2)
+
+    assert harness.call_log == ["judge", "second_judge", "second_judge"]
+    assert run.second_judge is not None and run.second_judge.score == 4
+    assert [repeat.score for repeat in run.second_judge_repeats] == [6]
+
+
+def test_a_failed_first_judge_does_not_hide_the_second_judge() -> None:
+    harness = Harness(judge_error=RuntimeError("judge timed out"))
+
+    run = harness.run(golden_case(), with_second=True)
+
+    assert run.judge_score is None
+    assert run.second_judge is not None and run.second_judge.score == 4
+
+
 def test_a_human_review_is_recorded_with_exit_10_and_its_issue_codes() -> None:
     issue = ValidationIssue("unresolved_section_reference", "changes[0]", "unknown section")
     harness = Harness(failures={"extraction_agent": InvalidExtractionError([issue])})
@@ -183,3 +255,12 @@ def test_a_container_that_cannot_be_composed_stops_the_eval() -> None:
 
     with pytest.raises(ObservabilityError):
         runner(golden_case())
+
+
+def test_fewer_than_one_second_judge_repetition_is_refused_before_any_case_runs() -> None:
+    harness = Harness()
+
+    with pytest.raises(ValueError, match="second_judge_reps must be at least 1"):
+        harness.run(golden_case(), with_second=True, reps=0)
+
+    assert harness.call_log == []

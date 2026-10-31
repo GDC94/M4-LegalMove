@@ -1,9 +1,9 @@
 """Eval-only settings: the runtime Settings plus the Judge model (plan §5.1, decision 32)."""
 
 from pathlib import Path
-from typing import Self
+from typing import Literal, Self
 
-from pydantic import Field, ValidationError, model_validator
+from pydantic import Field, SecretStr, ValidationError, model_validator
 
 from config import Settings, describe_problems
 from errors import ConfigurationError
@@ -13,6 +13,10 @@ class EvalSettings(Settings):
     """Runtime Settings plus JUDGE_MODEL; the Judge never grades a Summary its own model wrote."""
 
     judge_model: str = Field(default="gpt-4.1", min_length=1)
+    # The second Judge is optional: without a key the eval runs with the OpenAI Judge alone.
+    anthropic_api_key: SecretStr | None = None
+    claude_judge_model: str = Field(default="claude-opus-5-5", min_length=1)
+    claude_judge_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
 
     @model_validator(mode="after")
     def check_judge_differs_from_extraction(self) -> Self:

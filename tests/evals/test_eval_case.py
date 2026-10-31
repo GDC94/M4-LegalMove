@@ -9,7 +9,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from eval_case import load_golden_case, load_split
+from eval_case import CaseRun, SecondJudgeResult, load_golden_case, load_split
 from golden_case import KNOWN_ISSUE_CODES, CaseSpec, ScanKind, SplitName
 from models import AmendmentKind, ChangeType
 
@@ -144,3 +144,25 @@ def issue_code_literals() -> set[str]:
 
 def test_known_issue_codes_are_exactly_the_codes_src_can_emit() -> None:
     assert issue_code_literals() == KNOWN_ISSUE_CODES
+
+
+def test_a_case_run_without_second_judge_fields_still_loads() -> None:
+    run = CaseRun.model_validate({"case_id": "c1", "exit_code": 0})
+
+    assert run.second_judge is None
+    assert run.second_judge_repeats == ()
+
+
+def test_a_scored_second_judge_result_round_trips_through_a_dump() -> None:
+    result = SecondJudgeResult(
+        status="scored",
+        score=8,
+        reasoning="Covers every Key Fact.",
+        model="claude-opus-5-5",
+        input_tokens=120,
+        output_tokens=45,
+        latency_s=2.5,
+    )
+    run = CaseRun(case_id="c1", exit_code=0, second_judge=result, second_judge_repeats=(result,))
+
+    assert CaseRun.model_validate(run.model_dump()) == run

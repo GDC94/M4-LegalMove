@@ -22,7 +22,7 @@ RUNTIME_PACKAGES = {
     "pyyaml",
     "pillow",
 }
-DEV_PACKAGES = {"pytest", "playwright", "jiwer", "ruff", "mypy", "types-pyyaml"}
+DEV_PACKAGES = {"pytest", "playwright", "jiwer", "ruff", "mypy", "types-pyyaml", "anthropic"}
 
 PINNED = re.compile(r"^([A-Za-z0-9._-]+)(\[[^\]]+\])?==([0-9][A-Za-z0-9.!+-]*)$")
 REQUIREMENT_LINE = re.compile(r"^([A-Za-z0-9._-]+)==(\S+)")
