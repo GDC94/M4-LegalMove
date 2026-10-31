@@ -1,6 +1,6 @@
 # 15: Segundo juez con Claude en las evals
 
-**Status:** aprobado para implementar (grilling del 2026-10-29, 21 decisiones)
+**Status:** cerrado el 2026-10-31 (commit `7652674`; grilling del 2026-10-29, 21 decisiones; corrida de calibración registrada abajo)
 
 **Fase:** 2 — golden set y evaluación
 
@@ -71,6 +71,31 @@ Medido sobre el golden set: unos 3.800 caracteres por caso entre original y aden
 
 Son estimaciones con `effort: medium`; el costo real se calcula a mano desde los tokens del reporte en la primera corrida autorizada.
 
+## Resultado de la corrida de calibración (2026-10-31)
+
+`PYTHONPATH=src uv run python evals/run_evals.py --split calibration --claude-judge-reps 2 --run-name calibration-t15-reps2`, 25 casos, 22 juzgables, todos los objetivos de §6.6 cumplidos (sin regresiones; la línea base es de `validation`, así que no se compara). Experiment: `runs/503828dc-543d-4309-ab29-be3e8f9fd702`.
+
+| Dato | Valor |
+|---|---|
+| Llamadas al segundo juez | 44 (22 casos × 2 reps), 44 `scored`, 0 `refused`, 0 `error` |
+| Rechazos por categoría | ninguno (tampoco `reasoning_extraction`: la rúbrica `judge-v2` queda intacta) |
+| Modelo servido | `claude-opus-5-5` en las 44 llamadas |
+| Tokens | 42.944 de entrada / 11.055 de salida (≈ 976 / 251 por llamada) |
+| Costo real | US$ 0,39 a $4 / $20 por millón (la estimación de US$ 1,80 suponía 1.000–2.000 tokens de salida por llamada; con `effort: medium` el thinking fue mucho más corto) |
+| Latencia | media 3,8 s, máxima 7,8 s |
+| `judge_score` (gpt-4.1) | 9,73 (21 de 22 casos con 10) |
+| `judge_score_claude` | 9,18 |
+| `judge_gap` | 1,00 |
+| `judge_claude_spread` | 0,09 (dos casos con una diferencia de 1 punto entre repeticiones; los otros 20, idénticas) |
+| `judge_disagreements` | 2 |
+
+Los dos desacuerdos (|diferencia| ≥ 3) van en el mismo sentido: **Claude aplicó la rúbrica y `gpt-4.1` no.**
+
+- `boundary_restated_locacion_degraded`: gpt 10, Claude 4 y 4. El pipeline inventó un cambio en la Cláusula Sexta (`change_precision` 0,667 en el caso). Claude lo llamó "cambio inventado" y bajó al nivel 4, que es lo que dice la rúbrica. El juez de gpt-4.1 **vio** el cambio extra y escribió que "no afecta la nota". Ese es el sesgo que motivó el ticket.
+- `boundary_delta_suministro_injection`: gpt 4, Claude 9 y 8. Precisión, recall y key facts del caso en 1,0. gpt-4.1 penalizó como "key fact faltante" el flete a cargo del PROVEEDOR, que no está en `key_facts` y es un término restated; la rúbrica dice explícitamente que eso es contexto. Claude lo trató como contexto.
+
+Lectura: el gap de 1 punto es sobre todo Claude siendo un punto más exigente (9 contra 10 en nueve casos), más dos errores de criterio de gpt-4.1. gpt-4.1 casi no discrimina (21 de 22 en 10); Claude distribuye entre 8 y 10 y detectó el único resumen con un cambio inventado. Con una sola corrida no se cambia nada: la decisión 10 del grilling difiere las preguntas abiertas hasta tener también el dato de `validation`.
+
 ## Cobertura de la consigna
 
 - Requisitos: ninguno nuevo
@@ -96,18 +121,18 @@ Cambios a `plan.md` al cerrar el ticket (discutidos en el grilling; se escriben 
 
 ## Criterios de aceptación
 
-- [ ] `ClaudeSummaryJudge` cumple `SecondJudge` y usa `JUDGE_SYSTEM_PROMPT` y `render_judge_input` sin cambios en la rúbrica `judge-v2`.
-- [ ] `render_judge_input` existe en `evals/judge.py` y `build_judge_messages` la usa; el mensaje `user` de los dos jueces es byte a byte el mismo.
-- [ ] Sin `ANTHROPIC_API_KEY`, `run_evals.py` se comporta exactamente como hoy y el reporte y la metadata del Experiment dicen `claude_judge: "not_run"`.
-- [ ] El reporte suma `judge_score_claude`, `judge_gap`, `judge_claude_scored` y `judge_disagreements`; `judge_claude_spread` solo tiene valor con `--claude-judge-reps` > 1 (N/A en caso contrario).
-- [ ] Un rechazo de Claude deja `status="refused"` con `refusal_category`; un `max_tokens`, una excepción o una nota fuera de rango dejan `status="error"`. Ningún estado produce un 0.
-- [ ] Un `response.model` que no empieza con `CLAUDE_JUDGE_MODEL` deja `status="error"`.
-- [ ] Cada caso con segundo juez registra `model`, `input_tokens`, `output_tokens` y `latency_s`.
-- [ ] Las métricas nuevas tienen `gated=False`, no tienen objetivo en §6.6 y `compare_with_baseline` las ignora; `outputs/baseline.json` no cambia y la tabla del README sigue renderizada desde él.
-- [ ] Con `--claude-judge-reps 2`, la nota del caso es la de la primera repetición.
-- [ ] `tests/test_layering.py`: `anthropic` está en `INFRASTRUCTURE` y solo `evals/claude_judge.py` lo importa.
-- [ ] README "Testing y evals" documenta el segundo juez y la nota de privacidad.
-- [ ] Una corrida de `calibration` autorizada por el autor, con `--claude-judge-reps 2`, registra en este ticket el costo real (desde tokens), `judge_gap`, `judge_claude_spread` y los rechazos por categoría.
+- [x] `ClaudeSummaryJudge` cumple `SecondJudge` y usa `JUDGE_SYSTEM_PROMPT` y `render_judge_input` sin cambios en la rúbrica `judge-v2`.
+- [x] `render_judge_input` existe en `evals/judge.py` y `build_judge_messages` la usa; el mensaje `user` de los dos jueces es byte a byte el mismo.
+- [x] Sin `ANTHROPIC_API_KEY`, `run_evals.py` se comporta exactamente como hoy y el reporte y la metadata del Experiment dicen `claude_judge: "not_run"`.
+- [x] El reporte suma `judge_score_claude`, `judge_gap`, `judge_claude_scored` y `judge_disagreements`; `judge_claude_spread` solo tiene valor con `--claude-judge-reps` > 1 (N/A en caso contrario).
+- [x] Un rechazo de Claude deja `status="refused"` con `refusal_category`; un `max_tokens`, una excepción o una nota fuera de rango dejan `status="error"`. Ningún estado produce un 0.
+- [x] Un `response.model` que no empieza con `CLAUDE_JUDGE_MODEL` deja `status="error"`.
+- [x] Cada caso con segundo juez registra `model`, `input_tokens`, `output_tokens` y `latency_s`.
+- [x] Las métricas nuevas tienen `gated=False`, no tienen objetivo en §6.6 y `compare_with_baseline` las ignora; `outputs/baseline.json` no cambia y la tabla del README sigue renderizada desde él.
+- [x] Con `--claude-judge-reps 2`, la nota del caso es la de la primera repetición.
+- [x] `tests/test_layering.py`: `anthropic` está en `INFRASTRUCTURE` y solo `evals/claude_judge.py` lo importa.
+- [x] README "Testing y evals" documenta el segundo juez y la nota de privacidad.
+- [x] Una corrida de `calibration` autorizada por el autor, con `--claude-judge-reps 2`, registra en este ticket el costo real (desde tokens), `judge_gap`, `judge_claude_spread` y los rechazos por categoría.
 
 ## Tests requeridos (TDD estricto)
 
