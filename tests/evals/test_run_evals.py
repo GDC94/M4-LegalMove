@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 from langchain_core.runnables import RunnableLambda
 
-import main
+import composition
 import run_evals
 from case_runner import CaseRunner
 from cli_doubles import RecordingLifecycleTracer
@@ -301,8 +301,10 @@ def test_the_publisher_connects_before_the_first_case_and_every_case_gets_a_fres
         events.append("publisher")
         return RecordingPublisher()
 
-    def compose(composed: EvalSettings) -> main.Container:
-        container = main.build_container(composed)  # the real root, offline with a fake tracer
+    def compose(composed: EvalSettings) -> composition.Container:
+        container = composition.build_container(
+            composed
+        )  # the real root, offline with a fake tracer
         events.append("compose")
         budgets.append(container.budget)
         return dataclasses.replace(container, stages=StubStages(container.tracer).ports())
@@ -314,7 +316,8 @@ def test_the_publisher_connects_before_the_first_case_and_every_case_gets_a_fres
     monkeypatch.setattr(run_evals, "build_publisher", build_publisher)
     monkeypatch.setattr(run_evals, "build_summary_judge", lambda _: judge)
     monkeypatch.setattr(run_evals, "build_container", compose)
-    monkeypatch.setattr(main, "build_langfuse_tracer", lambda **_: RecordingLifecycleTracer())
+    monkeypatch.setattr(composition, "connect_langfuse", lambda _: object())
+    monkeypatch.setattr(composition, "build_tracer", lambda *_: RecordingLifecycleTracer())
     arguments = EvalArguments(
         SplitName.CALIBRATION, tmp_path / "report.json", tmp_path / "baseline.json", "cal-test"
     )

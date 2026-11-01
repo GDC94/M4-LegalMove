@@ -21,8 +21,22 @@ RUNTIME_PACKAGES = {
     "pydantic-settings",
     "pyyaml",
     "pillow",
+    "fastapi",
+    "uvicorn",
+    "python-multipart",
 }
-DEV_PACKAGES = {"pytest", "playwright", "jiwer", "ruff", "mypy", "types-pyyaml", "anthropic"}
+DEV_PACKAGES = {
+    "pytest",
+    "playwright",
+    "jiwer",
+    "ruff",
+    "mypy",
+    "types-pyyaml",
+    "anthropic",
+    "httpx",
+}
+# httpx is declared for FastAPI's TestClient but openai already pulls it in at runtime.
+RUNTIME_TRANSITIVE_DEV_PACKAGES = {"httpx"}
 
 PINNED = re.compile(r"^([A-Za-z0-9._-]+)(\[[^\]]+\])?==([0-9][A-Za-z0-9.!+-]*)$")
 REQUIREMENT_LINE = re.compile(r"^([A-Za-z0-9._-]+)==(\S+)")
@@ -102,7 +116,7 @@ def test_requirements_txt_pins_every_package() -> None:
 
 
 def test_requirements_txt_excludes_dev_group() -> None:
-    assert DEV_PACKAGES.isdisjoint(read_exported_pins())
+    assert (DEV_PACKAGES - RUNTIME_TRANSITIVE_DEV_PACKAGES).isdisjoint(read_exported_pins())
 
 
 def test_requirements_txt_matches_runtime_pins() -> None:

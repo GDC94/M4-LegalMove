@@ -5,6 +5,7 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from composition import Container, RunContext
 from errors import (
     LegalMoveError,
     NeedsHumanReviewError,
@@ -13,7 +14,7 @@ from errors import (
 )
 from eval_case import CaseRun, ChangeRecord, GoldenCase, SecondJudgeResult
 from judge import JudgeVerdict
-from main import UNEXPECTED_EXIT_CODE, CliArguments, Container, RunContext, run_traced
+from main import UNEXPECTED_EXIT_CODE, CliArguments, run_traced
 from models import AmendmentKind
 from pipeline import AnalysisResult
 

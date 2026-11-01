@@ -16,13 +16,6 @@ REQUIRED = {
 }
 
 
-@pytest.fixture(autouse=True)
-def no_judge_model_in_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    # conftest only clears the runtime Settings names; these are eval-only.
-    for name in ("JUDGE_MODEL", "ANTHROPIC_API_KEY", "CLAUDE_JUDGE_MODEL", "CLAUDE_JUDGE_EFFORT"):
-        monkeypatch.delenv(name, raising=False)
-
-
 def make_eval_settings(**overrides: Any) -> EvalSettings:
     return EvalSettings(_env_file=None, **{**REQUIRED, **overrides})
 

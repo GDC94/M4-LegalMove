@@ -312,6 +312,11 @@ def build_langfuse_tracer(
     client = connect_langfuse(
         public_key=public_key, secret_key=secret_key, host=host, environment=environment
     )
+    return create_langfuse_tracer(client, public_key=public_key)
+
+
+def create_langfuse_tracer(client: Langfuse, *, public_key: str) -> LangfuseTracer:
+    """One tracer (and callback handler) over a connected client; a process may build many."""
     try:
         callback_handler = CallbackHandler(public_key=public_key)
     # The SDK documents no error type for start-up; only the type goes out.

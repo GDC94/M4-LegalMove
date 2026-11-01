@@ -17,8 +17,9 @@ from langfuse import Langfuse, get_client
 from langfuse.api.core import ApiError
 from pydantic import ValidationError
 
+from composition import build_container
 from config import APP_VERSION, Settings, load_settings
-from main import CliStreams, Composition, build_container, run_cli
+from main import CliStreams, Composition, run_cli
 from models import ContractChangeOutput
 from observability import TraceAttributes, build_langfuse_tracer
 

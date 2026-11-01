@@ -1,17 +1,24 @@
 """Shared fixtures: unit tests never see the developer's real environment or .env."""
 
 import pytest
+from pydantic_settings import BaseSettings
 
+from api import ApiSettings
 from config import Settings
+from settings import EvalSettings
+
+# Every settings class the tests build; the subclasses add names Settings does not read.
+SETTINGS_CLASSES: tuple[type[BaseSettings], ...] = (Settings, ApiSettings, EvalSettings)
 
 
 def settings_env_names() -> list[str]:
-    """Every environment name Settings reads, derived so a new field cannot be forgotten."""
-    names: list[str] = []
-    for name, field in Settings.model_fields.items():
-        alias = field.validation_alias if isinstance(field.validation_alias, str) else None
-        names.append((alias or field.alias or name).upper())
-    return names
+    """Every environment name the settings classes read, derived so none can be forgotten."""
+    names: set[str] = set()
+    for settings_class in SETTINGS_CLASSES:
+        for name, field in settings_class.model_fields.items():
+            alias = field.validation_alias if isinstance(field.validation_alias, str) else None
+            names.add((alias or field.alias or name).upper())
+    return sorted(names)
 
 
 @pytest.fixture(autouse=True)

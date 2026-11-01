@@ -17,7 +17,17 @@ DOMAIN_MODULES = [
     "budget.py",
     "section_comparison.py",
     "text_normalization.py",
+    "jobs.py",
+    "stages.py",
 ]
+WEB_FRAMEWORKS = {"fastapi", "starlette"}
+COMPOSITION_ROOTS = {"main.py", "api.py"}
+# Own the trace lifecycle (open_root); composition.py and observability.py only flush the
+# process-wide Langfuse client, which is not a tracer.
+LIFECYCLE_OWNERS = {"main.py", "job_runner.py"}
+# Decision 9 allows main.py and job_runner.py too; neither needs it, so the rule is the exact set.
+LANGFUSE_IMPORTERS = {"composition.py", "observability.py"}
+NEW_ADAPTERS = {"composition", "jobs_memory", "job_runner", "api"}
 INFRASTRUCTURE = {
     "langchain",
     "langchain_core",
@@ -87,7 +97,9 @@ def test_domain_modules_import_no_infrastructure_or_config(module: str) -> None:
     if not path.exists():
         pytest.skip(f"{module} does not exist yet")
 
-    assert runtime_imports(path).isdisjoint(INFRASTRUCTURE | {"config", "observability"})
+    assert runtime_imports(path).isdisjoint(
+        INFRASTRUCTURE | WEB_FRAMEWORKS | {"config", "observability"} | NEW_ADAPTERS
+    )
 
 
 def test_section_comparison_never_imports_the_checks() -> None:
@@ -113,16 +125,77 @@ def test_adapters_do_not_load_the_langfuse_adapter_at_runtime(path: Path) -> Non
     assert "observability" not in runtime_imports(path)
 
 
-def test_only_main_and_observability_import_langfuse() -> None:
+def test_only_the_wiring_modules_import_langfuse() -> None:
     importers = {path.name for path in source_files() if "langfuse" in runtime_imports(path)}
 
-    assert importers <= {"main.py", "observability.py"}
+    assert importers == LANGFUSE_IMPORTERS
+
+
+def test_only_api_imports_the_web_framework() -> None:
+    importers = {path.name for path in source_files() if runtime_imports(path) & WEB_FRAMEWORKS}
+
+    assert importers == {"api.py"}
 
 
 def test_only_main_calls_load_settings() -> None:
     callers = {path.name for path in source_files() if calls_function(path, "load_settings")}
 
     assert callers <= {"main.py"}
+
+
+def test_only_the_api_calls_load_api_settings() -> None:
+    callers = {path.name for path in source_files() if calls_function(path, "load_api_settings")}
+
+    assert callers <= {"api.py"}
+
+
+def test_the_composition_roots_are_the_only_ones_that_load_any_settings() -> None:
+    loaders = {
+        path.name
+        for path in source_files()
+        if calls_function(path, "load_settings") or calls_function(path, "load_api_settings")
+    }
+
+    assert loaders <= COMPOSITION_ROOTS
+
+
+def test_both_roots_share_composition_and_neither_imports_the_other() -> None:
+    main_imports = runtime_imports(SRC / "main.py")
+    api_imports = runtime_imports(SRC / "api.py")
+
+    assert "composition" in main_imports
+    assert "composition" in api_imports
+    assert "api" not in main_imports
+    assert "main" not in api_imports
+
+
+def test_no_module_imports_a_composition_root() -> None:
+    importers = {path.name for path in source_files() if runtime_imports(path) & {"main", "api"}}
+
+    assert importers == set()
+
+
+def attribute_users(attribute: str) -> set[str]:
+    return {
+        path.name
+        for path in source_files()
+        if any(
+            isinstance(node, ast.Attribute) and node.attr == attribute
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
+        )
+    }
+
+
+def test_only_the_lifecycle_owners_open_the_root_span() -> None:
+    users = attribute_users("open_root") - {"observability.py"}  # the adapter defines it
+
+    assert users == LIFECYCLE_OWNERS
+
+
+def test_only_the_lifecycle_owners_and_the_client_adapters_flush() -> None:
+    users = attribute_users("flush")
+
+    assert users <= LIFECYCLE_OWNERS | {"observability.py", "composition.py"}
 
 
 def test_runtime_imports_ignores_type_checking_blocks(tmp_path: Path) -> None:
@@ -140,13 +213,21 @@ def test_runtime_imports_ignores_type_checking_blocks(tmp_path: Path) -> None:
     assert runtime_imports(module) == {"typing", "os", "openai"}
 
 
-ADAPTERS_AND_ROOT = {"agents", "image_parser", "budgeted_model", "observability", "config", "main"}
+ADAPTERS_AND_ROOT = {
+    "agents",
+    "image_parser",
+    "budgeted_model",
+    "observability",
+    "config",
+    "main",
+    *NEW_ADAPTERS,
+}
 
 
 def test_pipeline_depends_only_on_domain_and_ports() -> None:
     imported = runtime_imports(SRC / "pipeline.py")
 
-    assert imported.isdisjoint(INFRASTRUCTURE | ADAPTERS_AND_ROOT)
+    assert imported.isdisjoint(INFRASTRUCTURE | WEB_FRAMEWORKS | ADAPTERS_AND_ROOT)
 
 
 def test_pipeline_never_flushes_or_owns_the_trace_lifecycle() -> None:

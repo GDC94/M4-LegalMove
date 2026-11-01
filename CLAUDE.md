@@ -9,6 +9,7 @@ CLI that reads two scanned contract images (original and amendment) and returns 
 - `PYTHONPATH=src uv run python evals/run_evals.py --split calibration` runs the evals against real OpenAI and Langfuse and spends credit. Only on the author's explicit request.
 - `uv run ruff check . && uv run ruff format --check . && uv run mypy src` is the style gate; must be green before every commit.
 - `uv run python src/main.py <original.png> <amendment.png>` runs the pipeline.
+- `uv run uvicorn --app-dir src api:app` starts the HTTP API (needs `API_KEYS` in `.env`; imports are flat from `src/`, hence `--app-dir`). It talks to real OpenAI and Langfuse, so only on the author's explicit request.
 - `uv add <pkg>` or `uv add --dev <pkg>`, never `pip`. Pin with `==` (`uv add 'pkg==1.2.3'`). Then `uv export --format requirements-txt --no-hashes --no-emit-project --no-dev > requirements.txt`.
 
 ## Way of working
@@ -27,18 +28,18 @@ CLI that reads two scanned contract images (original and amendment) and returns 
 
 | Layer | Modules | Rule |
 |---|---|---|
-| Domain | `models.py`, `checks.py`, `section_comparison.py`, `text_normalization.py`, `errors.py`, `prompt_blocks.py`, `budget.py` | Pydantic and deterministic logic. Never import LangChain, OpenAI, Langfuse or `config.py` |
+| Domain | `models.py`, `checks.py`, `section_comparison.py`, `text_normalization.py`, `errors.py`, `prompt_blocks.py`, `budget.py`, `stages.py`, `jobs.py` | Pydantic and deterministic logic. Never import LangChain, OpenAI, Langfuse or `config.py` |
 | Application | `pipeline.py` (`run_analysis()`) | Orchestrates the stages through the ports. Knows nothing about Langfuse or settings |
 | Ports | `PipelineTracer` and `StageSpan` (`Protocol`, plan §5.2); the `chat_model` each `build_*` factory receives | Business modules depend on the abstraction, never on the provider |
-| Adapters | `observability.py` (Langfuse), `image_parser.py`, `budgeted_model.py` and `agents/` (OpenAI via LangChain) | The only modules that touch external infrastructure |
-| Composition root | `main.py` | The only module that calls `load_settings()`, builds the frozen dataclass container and wires adapters to ports |
+| Adapters | `observability.py` (Langfuse), `image_parser.py`, `budgeted_model.py`, `agents/` (OpenAI via LangChain), `jobs_memory.py` and `job_runner.py` (jobs) | The only modules that touch external infrastructure. `fastapi`/`starlette` live only in `api.py`; `langfuse` only in `composition.py` and `observability.py` |
+| Composition roots | `main.py` (CLI) and `api.py` (HTTP) | The only modules that load settings (`load_settings()`, `load_api_settings()`). `composition.py` holds the wiring both share (`build_stages`, `build_container`, `build_envelope`); neither root imports the other. `main.py` and `job_runner.py` own the tracer lifecycle (`open_root`, `flush`) |
 
-Dependency rule: domain ← application ← adapters ← `main.py`. Arrows only point inward; a module never imports from a more outer layer. AST-based architecture tests (plan §6.2) enforce these rules in CI.
+Dependency rule: domain ← application ← adapters ← composition roots (`main.py`, `api.py`). Arrows only point inward; a module never imports from a more outer layer. AST-based architecture tests (plan §6.2) enforce these rules in CI.
 
 Practical consequences when implementing a ticket:
 
 - A new external dependency (API, SDK, filesystem cache) goes behind a port or inside an existing adapter, never into `models.py`, `checks.py` or `pipeline.py`.
-- Every module exposes a `build_*(chat_model, ...)` factory; only `main.py` calls them.
+- Every module exposes a `build_*(chat_model, ...)` factory; only the composition roots (through `composition.py`) call them.
 - Tests replace adapters with recording doubles (`RecordingTracer`, recording chat models); unit tests run without network or `.env`.
 
 ## Code style

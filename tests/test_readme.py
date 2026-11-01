@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 import errors
+from api import ApiSettings
 from render_results import render_results_table
 from settings import EvalSettings
 from test_layering import DELIVERABLES
@@ -38,6 +39,9 @@ REQUIRED_SECTIONS = [
 # are a directory or a module rather than a single required file.
 DELIVERABLE_PATHS = [*DELIVERABLES, "data/test_contracts/", "src/observability.py"]
 DELIVERABLE_IDS = [f"E{number:02d}" for number in range(1, 12)]
+
+# EvalSettings and ApiSettings both extend Settings: their union is every variable there is.
+SETTINGS_FIELDS = sorted({*EvalSettings.model_fields, *ApiSettings.model_fields})
 
 TRACE_CAPTURE = "docs/images/langfuse-trace.png"
 ANIMATED_DIAGRAM = "docs/diagrams/legalmove-pipeline.html"
@@ -87,8 +91,7 @@ def test_diagram_section_has_mermaid_and_links_the_animated_version() -> None:
     assert (ROOT / ANIMATED_DIAGRAM).is_file()
 
 
-# EvalSettings extends Settings, so this also covers the eval-only JUDGE_MODEL.
-@pytest.mark.parametrize("field", sorted(EvalSettings.model_fields))
+@pytest.mark.parametrize("field", SETTINGS_FIELDS)
 def test_configuration_table_lists_every_setting(field: str) -> None:
     assert f"| `{field.upper()}` |" in read_section("Configuration")
 
@@ -133,8 +136,7 @@ def test_measured_results_table_is_the_one_rendered_from_the_baseline() -> None:
     assert render_results_table(report) in read_section("Testing and evals")
 
 
-# EvalSettings extends Settings, so this also covers the eval-only JUDGE_MODEL.
-@pytest.mark.parametrize("field", sorted(EvalSettings.model_fields))
+@pytest.mark.parametrize("field", SETTINGS_FIELDS)
 def test_env_example_lists_every_setting(field: str) -> None:
     """E09: the template names every Settings variable, set or commented out."""
     pattern = rf"^(# )?{field.upper()}="

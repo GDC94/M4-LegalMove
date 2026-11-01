@@ -48,7 +48,13 @@ Los archivos marcados con `*` son los entregables obligatorios. Los demás separ
 
 ```text
 src/
-├── main.py                *        CLI + raíz de composición (único que llama a load_settings)
+├── main.py                *        CLI + raíz de composición de la CLI (llama a load_settings)
+├── api.py                          API HTTP (FastAPI) + segunda raíz de composición: ApiSettings y load_api_settings (decisión 108)
+├── composition.py                  cableado compartido por las dos raíces: build_stages, build_container, connect_langfuse, build_tracer, build_envelope
+├── stages.py                       StageName: los nombres de las etapas que traza el pipeline
+├── jobs.py                         dominio de jobs: JobState, Job, JobEvent y los puertos JobStore, JobEvents, JobRunner, RateLimiter
+├── jobs_memory.py                  adaptadores en memoria: InMemoryJobStore (TTL), InMemoryJobEvents, InMemoryRateLimiter
+├── job_runner.py                   ThreadPoolJobRunner + execute_job: corre un job y es dueño del ciclo de vida de su tracer
 ├── pipeline.py                     run_analysis(): orquesta las etapas, sin conocer Langfuse
 ├── image_parser.py        *        validación, base64, llamada multimodal
 ├── models.py              *        ContractChangeOutput + modelos internos + enums
@@ -87,13 +93,13 @@ README.md                  *
 
 | Capa | Módulos | Regla |
 |---|---|---|
-| Dominio | `models.py`, `checks.py`, `section_comparison.py`, `text_normalization.py`, `errors.py`, `prompt_blocks.py`, `budget.py` | Pydantic y lógica determinista. No importan LangChain, OpenAI, Langfuse ni `config.py` |
+| Dominio | `models.py`, `checks.py`, `section_comparison.py`, `text_normalization.py`, `errors.py`, `prompt_blocks.py`, `budget.py`, `stages.py`, `jobs.py` | Pydantic y lógica determinista. No importan LangChain, OpenAI, Langfuse, FastAPI ni `config.py` |
 | Aplicación | `pipeline.py` (`run_analysis()`) | Orquesta las etapas a través de los puertos. No conoce Langfuse ni la configuración |
 | Puertos | `PipelineTracer` y `StageSpan` (Protocol, sección 5.2); el `chat_model` que recibe cada `build_*` | Los módulos de negocio dependen de la abstracción, nunca del proveedor |
-| Adaptadores | `observability.py` (Langfuse), `image_parser.py`, `budgeted_model.py` y `agents/` (OpenAI vía LangChain) | Únicos módulos que tocan infraestructura externa |
-| Raíz de composición | `main.py` | Único que llama a `load_settings()`, construye el contenedor `@dataclass(frozen=True)` y cablea adaptadores con puertos |
+| Adaptadores | `observability.py` (Langfuse), `image_parser.py`, `budgeted_model.py`, `agents/` (OpenAI vía LangChain), `jobs_memory.py` y `job_runner.py` (jobs) | Únicos módulos que tocan infraestructura externa. `fastapi` y `starlette` solo en `api.py`; `langfuse` solo en `composition.py` y `observability.py` |
+| Raíces de composición | `main.py` (CLI) y `api.py` (HTTP) | Únicos que cargan la configuración (`load_settings()`, `load_api_settings()`) y cablean adaptadores con puertos. `composition.py` aloja el cableado que comparten (contenedor `@dataclass(frozen=True)`, `build_stages`, sobre de error); ninguna raíz importa a la otra |
 
-Regla de dependencias: dominio ← aplicación ← adaptadores ← `main.py`. Las flechas solo apuntan hacia adentro; un módulo nunca importa a uno de una capa más externa. Los tests de arquitectura por AST (sección 6.2) hacen cumplir estas reglas en CI, de modo que la arquitectura es declarada y verificada, no inferida. `CLAUDE.md` repite esta tabla para que cada ticket se implemente contra ella.
+Regla de dependencias: dominio ← aplicación ← adaptadores ← raíces de composición (`main.py`, `api.py`). Las flechas solo apuntan hacia adentro; un módulo nunca importa a uno de una capa más externa. Los tests de arquitectura por AST (sección 6.2) hacen cumplir estas reglas en CI, de modo que la arquitectura es declarada y verificada, no inferida. `CLAUDE.md` repite esta tabla para que cada ticket se implemente contra ella.
 
 ### Fases de construcción
 
@@ -105,7 +111,7 @@ Regla de dependencias: dominio ← aplicación ← adaptadores ← `main.py`. La
 ### Fuera de alcance
 
 - **DSPy.** Se evaluó y se descartó para el runtime. La consigna exige LangChain y los structured outputs `strict` de OpenAI ya restringen la generación. Los optimizadores de DSPy necesitarían un dataset etiquetado mucho más grande.
-- API HTTP, procesamiento asíncrono y multi-página.
+- Multi-página. (La API HTTP y la ejecución por jobs entraron en alcance como fase 3: decisión 108.)
 
 ### Decisión tomada
 
@@ -474,7 +480,7 @@ La validación de entrada (magic bytes, existencia del archivo, límites de tama
 - **Se lanzan** en el módulo de la etapa: `image_parser.py`, los agentes o los validadores.
 - Los boundaries externos usan `try/except` estrechos para traducir excepciones de Pillow, filesystem, OpenAI/LangChain o Langfuse a errores del dominio. No capturan excepciones para continuar silenciosamente.
 - Los dos agentes capturan únicamente las fallas necesarias para su retry semántico.
-- **Solo `main.py`** captura errores del dominio para convertirlos en exit code y sobre de CLI.
+- **Solo `main.py` y `job_runner.py`** capturan errores del dominio: `main.py` los convierte en exit code y sobre de CLI; `job_runner.py` en el estado terminal del job y el mismo sobre (`build_envelope`, `composition.py`). `api.py` nunca los captura: solo traduce los chequeos de entrada a códigos HTTP.
 
 ### 4.7 Contrato de salida de la CLI
 
@@ -623,8 +629,8 @@ Si una etapa falla, su span queda con `level="ERROR"` y el mensaje de error, y e
 
 ### 5.7 Ciclo de vida
 
-- **Un cliente por proceso.** Lo crea `main.py` después de generar el `run_id` local.
-- `main.py` posee exclusivamente la raíz, el lifecycle y `flush()`; `pipeline.py` solo abre etapas mediante el puerto.
+- **Un cliente por proceso.** En la CLI lo crea `main.py` después de generar el `run_id` local, una vez por corrida. En la API lo crea el `lifespan` de `api.py` (`connect_langfuse` con `auth_check()`; si falla, la API no arranca) y se hace un `flush()` final en el shutdown.
+- **Tracer y raíz por corrida.** `main.py` y `job_runner.py` son los dueños del ciclo de vida: cada uno abre la raíz (`open_root`) y hace `flush()` de su tracer. En la API cada job construye su propio `LangfuseTracer` sobre el cliente del proceso (`build_tracer`), con `session_id` igual al id del job. `pipeline.py` solo abre etapas mediante el puerto.
 - **Éxito fail-closed:** el JSON se bufferiza, `flush()` debe completar y recién después se escribe stdout. Una falla produce `ObservabilityError`.
 - **Error de negocio:** `flush()` corre en un `finally`; si también falla, se preserva el error original y se registra la falla de observabilidad.
 - `run_id` sale siempre; `trace_id` puede ser `null` si la inicialización de Langfuse falló (sección 4.7).
@@ -669,7 +675,11 @@ Se escriben con TDD estricto, un ticket por vez. Corren sin red y sin `.env`, y 
 
 Igual que en `orchestration`, con AST:
 - `agents/`, `image_parser.py`, `pipeline.py`, `checks.py`, `section_comparison.py`, `text_normalization.py` y `models.py` no importan `langfuse`;
-- solo `main.py` llama a `load_settings()`;
+- solo las raíces de composición (`COMPOSITION_ROOTS = {main.py, api.py}`) cargan configuración: `main.py` llama a `load_settings()` y `api.py` a `load_api_settings()`; ninguna importa a la otra y las dos importan `composition.py`;
+- solo `LIFECYCLE_OWNERS = {main.py, job_runner.py}` abren la raíz del trace (`open_root`);
+- `langfuse` solo se importa en `composition.py` y `observability.py`; `fastapi` y `starlette` solo en `api.py`;
+- `jobs.py` y `stages.py` están en `DOMAIN_MODULES`, y el dominio y `pipeline.py` no importan los adaptadores nuevos (`composition`, `jobs_memory`, `job_runner`, `api`);
+- todo `tracer.stage(...)` de `src/` recibe un `StageName`, nunca un literal;
 - ningún texto de los golden cases aparece dentro de `src/`, para que nadie lo "enseñe" al prompt;
 - `requirements.txt` fija las versiones de las dependencias declaradas;
 - los entregables de la consigna existen en sus paths;
@@ -847,7 +857,7 @@ T1 a T3 se demuestran con tests de integración y trazas en Langfuse; T4 es el p
 - **Tablas complejas.** Se transcriben como texto y la estructura de la tabla se puede perder.
 - **Un original contra una adenda.** No se soportan cadenas de adendas, por ejemplo una adenda 2 que modifica a la adenda 1.
 - **Sin evaluación de impacto legal más allá de `Topic`.** No hay scoring de riesgo jurídico.
-- **Una corrida por par, síncrona.** No hay API HTTP, procesamiento por lotes ni ejecución asíncrona.
+- **Una corrida por par.** La CLI es síncrona y sin lotes. La API (decisión 108) corre cada par como un job en un pool acotado (`API_MAX_CONCURRENT_JOBS`, cola de `API_MAX_PENDING_JOBS`), con estado en memoria y un solo proceso: se pierden los jobs al reiniciar y no hay réplicas hasta que existan adaptadores de Redis.
 - **Parsing secuencial.** Las dos imágenes se procesan una después de la otra en fase 1; solo se evaluará concurrencia después de medir latencia y rate limits.
 - **Caché local.** Vive en el filesystem, no se comparte entre máquinas y la aplicación no cifra el disco.
 - **Nombres propios sin enmascarar** en Langfuse.
@@ -1145,6 +1155,9 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 105 | Segundo juez de otra familia de modelos (Claude Opus 5.5, SDK oficial `anthropic`) sobre el mismo resumen y la misma rúbrica `judge-v2`; informativo, sin objetivo en §6.6 y fuera del gate (`Metric.gated=False`) | El juez `gpt-4.1` evalúa resúmenes de `gpt-4o`, misma familia, y un juez tiende a preferir textos parecidos a los suyos; con 21 casos la distancia entre notas es un dato, no un umbral; se discute un objetivo recién con dos corridas | 6.6, 6.7 | 2026-10-31 |
 | 106 | Sin `fallbacks` ni `temperature` en el segundo juez; un rechazo (`stop_reason == "refusal"`) queda como `refused` con su categoría y un `max_tokens`, una excepción del SDK o una nota fuera de rango quedan como `error`; ningún estado produce un 0; si `response.model` no empieza con `CLAUDE_JUDGE_MODEL` el resultado es `error` | Un fallback produciría una nota de otro modelo dentro de `judge_score_claude`; la guía de evals de Anthropic pide abortar si el modelo servido no es el pedido; la API devuelve 400 con `temperature` desde 2026-10-21 | 6.7 | 2026-10-31 |
 | 107 | Sin span de Langfuse para ninguno de los dos jueces en T15; tokens y latencia del segundo juez por caso en el reporte; trazar ambos jueces es un ticket aparte | El juez actual tampoco tiene span (`case_runner.py` lo llama fuera de `run_traced`); agregar tracing solo al segundo sería asimétrico | 5.3, 6.7 | 2026-10-31 |
+| 108 | La API HTTP y la ejecución por jobs entran en alcance como fase 3; la CLI sigue siendo el entregable de la consigna. Reemplaza §1 "Fuera de alcance" y la limitación de §7.2. El dominio no cambia; `pipeline.py` solo usa `StageName` en lugar de strings | El sistema tiene que poder ir a producción y ahí no se controla cómo se lo invoca; un front necesita una API. El plan contradiría al repo si la API se agregara sin escribirlo | 1, 7.2 | 2026-10-31 |
+| 109 | Contrato por jobs: `POST /analyses` responde `202 {id}` y `GET /analyses/{id}` expone el estado (`pending`, `running`, `done`, `human_review`, `failed`) y el resultado; el progreso por SSE llega en 16b. Cuatro puertos como `Protocol` en `jobs.py` (`JobStore`, `JobEvents`, `JobRunner`, `RateLimiter`) con adaptadores en memoria en `jobs_memory.py` y `job_runner.py`; la infraestructura real (Redis, cola) entra después como adaptadores sin tocar el dominio. Sin cancelación, jobs ligados a la key (`sha256`, `404` para otra key), rate limit propio sin `slowapi` y cola acotada con `503` + `Retry-After` | Un análisis tarda decenas de segundos: una respuesta síncrona deja conexiones colgadas y no limita la concurrencia (`BackgroundTasks` tampoco). Los puertos mantienen reemplazable el almacenamiento | 1, 4.5 | 2026-10-31 |
+| 110 | Dos raíces de composición (`main.py`, `api.py`) que comparten `composition.py`, y dos dueños del ciclo de vida del tracer (`main.py`, `job_runner.py`). Un cliente de Langfuse por proceso en la API (`lifespan`, con `auth_check()` y `flush()` final) y un tracer, una raíz y un `flush()` por job, con `session_id` = id del job = `run_id` del sobre. `ApiSettings(Settings)` agrega `API_KEYS` y los límites sin romper la CLI (patrón de la decisión 32). Reescribe §4.6, §5.7 y §6.2 | Un tracer compartido mezclaría los `trace_id` de jobs concurrentes; `API_KEYS` en `Settings` rompería la CLI. Las reglas de capas siguen verificándose por AST | 4.6, 5.7, 6.2 | 2026-10-31 |
 
 ## 9. Diagrama de LegalMove pipeline
 

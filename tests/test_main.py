@@ -3,18 +3,13 @@
 import dataclasses
 import io
 import json
-from pathlib import Path
 from typing import Any
 
 import pytest
-from langchain_openai import ChatOpenAI
 
-import main
-from agent_doubles import RecordingStructuredModel, structured_reply
-from agents.extraction_agent import EXTRACTION_PROMPT_VERSION
-from agents.structured_output import StructuredModels
 from budget import CallBudget
 from cli_doubles import RecordingLifecycleTracer, fake_settings
+from composition import Container
 from config import APP_VERSION, Settings
 from errors import (
     ConfigurationError,
@@ -29,9 +24,9 @@ from errors import (
     UpstreamError,
     ValidationIssue,
 )
-from main import CliStreams, Composition, Container, run_cli
-from models import ContractChangeOutput, DocumentRole
-from pipeline_doubles import StubStages, context_map, parsed
+from main import CliStreams, Composition, run_cli
+from models import ContractChangeOutput
+from pipeline_doubles import StubStages
 
 ARGV = ["data/original.png", "data/adenda.png"]
 ISSUE = ValidationIssue(code="ungrounded_quote", path="changes[0].original_quote", message="m")
@@ -310,57 +305,6 @@ def test_a_new_run_id_is_generated_for_every_run() -> None:
     second.run()
 
     assert first.envelope()["run_id"] != second.envelope()["run_id"]
-
-
-def offline_container(
-    monkeypatch: pytest.MonkeyPatch,
-) -> tuple[Container, list[tuple[float, int | None]]]:
-    """Real wiring with the tracer and the structured-output seam replaced: no network."""
-    limits: list[tuple[float, int | None]] = []
-    reply = structured_reply(context_map().model_dump(mode="json"))
-
-    def build_context_models(chat_model: ChatOpenAI) -> StructuredModels:
-        limits.append((chat_model.request_timeout, chat_model.max_retries))
-        stub = RecordingStructuredModel(reply)
-        return StructuredModels(attempt=stub.runnable, retry=stub.runnable)
-
-    monkeypatch.setattr(main, "build_langfuse_tracer", lambda **_: RecordingLifecycleTracer())
-    monkeypatch.setattr(main, "build_structured_context_models", build_context_models)
-    return main.build_container(fake_settings()), limits
-
-
-def test_build_container_wires_the_tracer_budget_and_versions(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    container, _ = offline_container(monkeypatch)
-
-    assert isinstance(container.tracer, RecordingLifecycleTracer)
-    assert container.environment == "development"
-    assert container.root_metadata["extraction_prompt_version"] == EXTRACTION_PROMPT_VERSION
-    assert container.budget.ensure_remaining(stage="parse") <= 300
-
-
-def test_build_container_parse_port_validates_before_any_model_call(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    container, _ = offline_container(monkeypatch)
-
-    with pytest.raises(InvalidImageError):
-        container.stages.parse_contract_image(tmp_path / "missing.png", DocumentRole.ORIGINAL)
-
-
-def test_build_container_agents_get_timeout_and_retries_planned_by_the_budget(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    container, limits = offline_container(monkeypatch)
-
-    mapped = container.stages.contextualize(
-        parsed(DocumentRole.ORIGINAL, Path("o.png")), parsed(DocumentRole.AMENDMENT, Path("a.png"))
-    )
-
-    assert mapped.result == context_map()
-    assert mapped.retries == 0
-    assert limits == [(60, 2)]
 
 
 def test_unexpected_errors_log_their_stack_without_their_message() -> None:

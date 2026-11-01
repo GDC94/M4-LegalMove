@@ -7,6 +7,7 @@ import pytest
 from budget import CallBudget
 from case_runner import CaseRunner
 from cli_doubles import RecordingLifecycleTracer
+from composition import Container
 from errors import (
     InvalidExtractionError,
     ObservabilityError,
@@ -17,7 +18,6 @@ from errors import (
 from eval_case import CaseRun, GoldenCase, SecondJudgeResult
 from eval_doubles import golden_case, review_case
 from judge import JudgeVerdict
-from main import Container
 from models import AmendmentKind, ChangeType, Topic
 from pipeline_doubles import AMENDMENT_TEXT, ORIGINAL_TEXT, StubStages
 

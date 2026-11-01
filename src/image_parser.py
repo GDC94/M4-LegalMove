@@ -24,6 +24,7 @@ from pydantic import BaseModel, SecretStr, ValidationError
 
 from errors import IllegibleDocumentError, InvalidImageError, UpstreamError
 from models import DocumentRole, ParsedContract, VisionDetail
+from stages import parse_stage_for
 
 if TYPE_CHECKING:
     # Type-only: importing observability at runtime would load the Langfuse adapter here.
@@ -324,7 +325,7 @@ class ContractImageParser:
         """Validate before spending, then parse inside the role's span; cache only accepted text."""
         image = validate_image(path, self._config.limits)
         with self._tracer.stage(
-            f"parse_{role.value}_contract", describe_image_for_trace(image), self._span_metadata()
+            parse_stage_for(role), describe_image_for_trace(image), self._span_metadata()
         ) as span:
             key = self._cache_key(image)
             cached = self._cache.read(key) if self._cache else None

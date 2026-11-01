@@ -17,6 +17,7 @@ from typing import Any, TextIO
 
 from case_runner import CaseRunner, SecondJudge
 from claude_judge import build_claude_judge
+from composition import build_container
 from errors import ConfigurationError, LegalMoveError
 from eval_case import CaseRun, GoldenCase, load_split
 from eval_report import (
@@ -31,7 +32,7 @@ from golden_case import GoldenCaseError, SplitName
 from image_parser import build_openai_chat_model
 from judge import JUDGE_PROMPT_VERSION, SummaryJudge, build_judge_model
 from langfuse_publisher import LangfusePublisher
-from main import LOG_FORMAT, UNEXPECTED_EXIT_CODE, build_container
+from main import LOG_FORMAT, UNEXPECTED_EXIT_CODE
 from metrics import METRICS
 from observability import connect_langfuse
 from settings import EvalSettings, load_eval_settings
@@ -233,7 +234,7 @@ def build_second_judge_header(
 
 
 def evaluate_split(arguments: EvalArguments) -> tuple[dict[str, Any], Path]:
-    """Composition root of the evals: the pipeline itself is main.py's build_container.
+    """Composition root of the evals: the pipeline itself is composition.py's build_container.
 
     Returns the report and where it was written.
     """

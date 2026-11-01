@@ -35,6 +35,7 @@ from models import (
     SemanticRetries,
 )
 from prompt_blocks import render_context_map, serialize_block
+from stages import StageName
 
 if TYPE_CHECKING:
     # Type-only: importing observability at runtime would load the Langfuse adapter here.
@@ -174,7 +175,7 @@ class ExtractionAgent:
 
     def run(self, request: ExtractionInput) -> AgentOutcome[ExtractionResult]:
         with self._tracer.stage(
-            "extraction_agent",
+            StageName.EXTRACTION_AGENT,
             describe_request(request),
             {"extraction_prompt_version": EXTRACTION_PROMPT_VERSION},
         ) as span:

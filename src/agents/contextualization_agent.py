@@ -36,6 +36,7 @@ from errors import (
 )
 from models import AgentOutcome, AmendmentKind, ContextMap, ParsedContract, SemanticRetries
 from prompt_blocks import serialize_block
+from stages import StageName
 
 if TYPE_CHECKING:
     # Type-only: importing observability at runtime would load the Langfuse adapter here.
@@ -166,7 +167,7 @@ class ContextualizationAgent:
 
     def run(self, request: ContextualizationInput) -> AgentOutcome[ContextMap]:
         with self._tracer.stage(
-            "contextualization_agent",
+            StageName.CONTEXTUALIZATION_AGENT,
             describe_request(request),
             {"contextualization_prompt_version": CONTEXTUALIZATION_PROMPT_VERSION},
         ) as span:

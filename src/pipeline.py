@@ -26,6 +26,7 @@ from models import (
     SemanticRetries,
     render_summary,
 )
+from stages import StageName
 
 if TYPE_CHECKING:
     # Type-only: the pipeline knows the port, never the Langfuse adapter behind it.
@@ -124,7 +125,7 @@ def validate_output(
     run: ValidatedRun, tracer: PipelineTracer
 ) -> tuple[ContractChangeOutput, Scores]:
     """Soft scores first, then the rendered Summary and the public model; nothing here retries."""
-    with tracer.stage("output_validation", {}) as span:
+    with tracer.stage(StageName.OUTPUT_VALIDATION, {}) as span:
         soft_scores = record_soft_scores(run, span, tracer)
         output = publish_output(run.extraction)
         span.set_output(output.model_dump(mode="json"))

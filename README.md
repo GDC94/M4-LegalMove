@@ -93,7 +93,11 @@ Lightweight **Ports & Adapters** (hexagonal) on the flat `src/` layout the assig
 | Adapter | `src/agents/contextualization_agent.py` | `ContextualizationAgent`: system prompt, structured output, semantic retry |
 | Adapter | `src/agents/extraction_agent.py` | `ExtractionAgent`: system prompt, structured output, hard checks, semantic retry |
 | Adapter | `src/agents/structured_output.py` | Shared `with_structured_output(..., strict=True, include_raw=True)` plumbing |
-| Composition root | `src/main.py` | The only module that loads settings, wires adapters to ports, owns the trace lifecycle and turns errors into exit codes |
+| Domain | `src/stages.py`, `src/jobs.py` | `StageName` (every traced stage) and the job lifecycle with its ports (`JobStore`, `JobEvents`, `JobRunner`, `RateLimiter`) |
+| Adapter | `src/jobs_memory.py`, `src/job_runner.py` | In-memory store, event log and rate limiter; the bounded thread pool that runs a job and owns its tracer lifecycle |
+| Shared wiring | `src/composition.py` | `build_stages`, `build_container`, `connect_langfuse`, `build_tracer` and the error envelope, used by both roots |
+| Composition root | `src/main.py` | CLI: loads settings, owns the trace lifecycle and turns errors into exit codes |
+| Composition root | `src/api.py` | HTTP API: `ApiSettings`, FastAPI app, auth, rate limit and job polling endpoints |
 | Configuration | `src/config.py` | `Settings` (pydantic-settings, `SecretStr`) and `APP_VERSION` |
 
 The observability port keeps Langfuse out of the business code: agents, the parser and the pipeline receive a `PipelineTracer`; tests swap it for a `RecordingTracer`, so unit tests run with no network and no `.env`.
@@ -152,6 +156,13 @@ Image resolution: OpenAI scales every image to fit 2048×2048 px, so scanning ab
 | `JUDGE_MODEL` | no | `gpt-4.1` | not empty; differs from `EXTRACTION_MODEL` | Evals only (`EvalSettings` in `evals/settings.py`): the Judge of `summary_of_the_change` |
 | `ANTHROPIC_API_KEY` | no | none | optional secret | Evals only: the second eval Judge; without it the evals run with the first Judge only |
 | `CLAUDE_JUDGE_MODEL` | no | `claude-opus-5-5` | not empty | Evals only: the model of the second Judge |
+| `API_KEYS` | API only | — | comma-separated, at least one; kept as `sha256` | Valid `X-API-Key` values (`ApiSettings` in `src/api.py`); the CLI does not read it |
+| `API_MAX_CONCURRENT_JOBS` | no | `2` | ≥ 1 | API only: jobs running at once |
+| `API_MAX_PENDING_JOBS` | no | `10` | ≥ 1 | API only: jobs waiting for a worker; beyond it `POST` answers `503` |
+| `API_RATE_LIMIT_REQUESTS` | no | `10` | ≥ 1 | API only: `POST /analyses` per key per window |
+| `API_RATE_LIMIT_WINDOW_SECONDS` | no | `60` | ≥ 1 | API only: sliding window of the rate limit |
+| `API_MAX_UPLOAD_BYTES` | no | `MAX_IMAGE_BYTES` | ≥ 1 | API only: size limit of each uploaded image, never above `MAX_IMAGE_BYTES` |
+| `API_JOB_TTL_SECONDS` | no | `3600` | ≥ 1 | API only: how long a finished job stays readable |
 | `CLAUDE_JUDGE_EFFORT` | no | `medium` | `low`, `medium`, `high`, `xhigh` or `max` | Evals only: the reasoning effort of the second Judge; the reply budget is 8000 output tokens including thinking, so `high`, `xhigh` and `max` may hit it and show up as `max_tokens` errors in the report |
 
 Deliberately not configurable: personal-data masking (always on), the semantic retries (exactly one per agent) and model fallback (none in this delivery). The public `cloud.langfuse.com` host is for synthetic data only.
@@ -208,6 +219,22 @@ stderr carries the logs and a final JSON line. On success it is `{"run_id": "...
 | `InvalidExtractionError` | `extraction` | The extraction is still invalid after its semantic retry | `10` |
 
 Exit code `10` always means the same thing to the calling system: route the case to human review. The concrete reason travels as `issues` (`code`, `path`, `message`).
+
+### HTTP API
+
+```bash
+uv run uvicorn --app-dir src api:app
+```
+
+`--app-dir src` is needed because modules import each other flatly from `src/`. The API needs `API_KEYS` (and the usual keys) in `.env`; it does not start if the settings are invalid or Langfuse rejects its keys.
+
+| Endpoint | Auth | Answer |
+|---|---|---|
+| `POST /analyses` (multipart `original`, `amendment`) | `X-API-Key` | `202 {"id"}`; `401` bad key, `429` rate limit, `411` no `Content-Length` (chunked upload), `413` upload too large, `422` invalid image, `503` + `Retry-After` queue full |
+| `GET /analyses/{id}` | `X-API-Key` | `{id, status, created_at, trace_id}` plus `output` when `done`, or `error` (the CLI envelope) when `human_review` or `failed`; `404` for an unknown, expired or foreign id |
+| `GET /health` | none | `{"status": "ok"}` |
+
+`status` is `pending`, `running`, `done`, `human_review` or `failed`. The job id is also the `run_id` of the envelope and the Langfuse `session_id`.
 
 ## Tracing
 
