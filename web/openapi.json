@@ -536,6 +536,12 @@
             "format": "date-time",
             "title": "At",
             "description": "UTC time the event was published, with milliseconds"
+          },
+          "cached": {
+            "type": "boolean",
+            "const": true,
+            "title": "Cached",
+            "description": "Present and true only on a `done` Stage served from the parse cache"
           }
         },
         "type": "object",

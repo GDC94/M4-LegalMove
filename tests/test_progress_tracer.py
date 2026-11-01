@@ -219,3 +219,38 @@ def test_events_go_to_the_log_of_this_job_only() -> None:
 
     assert events.read_since(JOB_ID, 0) == []
     assert [event.seq for event in events.read_since("job-7", 0)] == [1, 2]
+
+
+def test_a_stage_whose_span_records_a_cache_hit_publishes_done_with_cached() -> None:
+    tracer, events = decorate(RecordingLifecycleTracer())
+
+    with tracer.stage(StageName.PARSE_ORIGINAL_CONTRACT, {}) as span:
+        span.set_metadata({"cache_hit": True, "illegible_count": 0})
+        span.set_metadata({"cache_write_failed": True})
+
+    started, done = events.read_since(JOB_ID, 0)
+    assert "cached" not in started.payload
+    assert done.payload["status"] == "done"
+    assert done.payload["cached"] is True
+
+
+@pytest.mark.parametrize("metadata", [{"cache_hit": False}, {"illegible_count": 0}, {}])
+def test_a_stage_without_a_cache_hit_publishes_done_without_cached(
+    metadata: dict[str, object],
+) -> None:
+    tracer, events = decorate(RecordingLifecycleTracer())
+
+    with tracer.stage(StageName.PARSE_AMENDMENT_CONTRACT, {}) as span:
+        span.set_metadata(metadata)
+
+    assert all("cached" not in event.payload for event in events.read_since(JOB_ID, 0))
+
+
+def test_a_failed_stage_never_claims_the_cache_even_after_a_hit() -> None:
+    tracer, events = decorate(RecordingLifecycleTracer())
+
+    with pytest.raises(UpstreamError), tracer.stage(StageName.PARSE_ORIGINAL_CONTRACT, {}) as span:
+        span.set_metadata({"cache_hit": True})
+        raise SCENARIO_ERROR
+
+    assert all("cached" not in event.payload for event in events.read_since(JOB_ID, 0))

@@ -11,17 +11,23 @@ from jobs import EventKind, JobEvents, StageStatus, stage_event_payload
 from observability import StageSpan, TraceAttributes, TraceLifecycle
 from stages import StageName
 
+# The metadata key image_parser records on a parse span (README, Tracing).
+CACHE_HIT_KEY = "cache_hit"
+
 
 class ProgressStageSpan:
-    """Pure delegation, so the pipeline only ever holds spans handed out by the decorator."""
+    """Delegates every update untouched and remembers whether the Stage reported a cache hit."""
 
     def __init__(self, inner: StageSpan) -> None:
         self._inner = inner
+        self.cache_hit = False
 
     def set_output(self, output: object) -> None:
         self._inner.set_output(output)
 
     def set_metadata(self, metadata: Mapping[str, object]) -> None:
+        if CACHE_HIT_KEY in metadata:
+            self.cache_hit = metadata[CACHE_HIT_KEY] is True
         self._inner.set_metadata(metadata)
 
     def set_error(self, error: BaseException) -> None:
@@ -56,11 +62,12 @@ class ProgressTracer:
         self._publish(stage, StageStatus.STARTED)
         try:
             with self._inner.stage(name, input_data, metadata) as span:
-                yield ProgressStageSpan(span)
+                progress_span = ProgressStageSpan(span)
+                yield progress_span
         except BaseException:
             self._publish(stage, StageStatus.FAILED)
             raise
-        self._publish(stage, StageStatus.DONE)
+        self._publish(stage, StageStatus.DONE, cached=progress_span.cache_hit)
 
     def open_root(
         self,
@@ -84,9 +91,11 @@ class ProgressTracer:
     def callbacks(self) -> Sequence[BaseCallbackHandler]:
         return self._inner.callbacks
 
-    def _publish(self, stage: StageName | None, status: StageStatus) -> None:
+    def _publish(
+        self, stage: StageName | None, status: StageStatus, *, cached: bool = False
+    ) -> None:
         if stage is not None:
-            payload = stage_event_payload(stage, status, at=self._clock())
+            payload = stage_event_payload(stage, status, at=self._clock(), cached=cached)
             self._events.append(self._job_id, EventKind.STAGE, payload)
 
 

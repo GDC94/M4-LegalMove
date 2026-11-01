@@ -37,6 +37,8 @@ export const stageEventSchema = z.object({
   stage: stageNameSchema,
   status: stageStatusSchema,
   at: z.string(),
+  // Only `true` or absent: the API omits the field on every Stage the cache did not serve.
+  cached: z.literal(true).optional(),
 }) satisfies z.ZodType<Schemas["StageEvent"]>;
 
 export const jobFinishedEventSchema = z.object({

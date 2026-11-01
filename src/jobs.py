@@ -8,6 +8,7 @@ from enum import StrEnum
 from typing import Annotated, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic.config import JsonDict
 
 from models import ContractChangeOutput
 from stages import StageName
@@ -122,8 +123,16 @@ def format_event_time(timestamp: float) -> str:
     return moment.isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def stage_event_payload(stage: StageName, status: StageStatus, *, at: float) -> dict[str, object]:
-    return {"stage": stage.value, "status": status.value, "at": format_event_time(at)}
+def stage_event_payload(
+    stage: StageName, status: StageStatus, *, at: float, cached: bool = False
+) -> dict[str, object]:
+    """`cached` appears only when true, so an uncached event keeps the shape it always had."""
+    payload: dict[str, object] = {
+        "stage": stage.value,
+        "status": status.value,
+        "at": format_event_time(at),
+    }
+    return payload | {"cached": True} if cached else payload
 
 
 def job_event_payload(state: JobState, *, at: float) -> dict[str, object]:
@@ -139,6 +148,12 @@ EVENT_TIME = Field(
 )
 
 
+def publish_cached_as_true_only(schema: JsonDict) -> None:
+    """Publish `cached` as the `true` constant: `None` is the in-memory "omitted", never sent."""
+    schema.pop("anyOf", None)
+    schema.update({"const": True, "type": "boolean"})
+
+
 class StageEvent(BaseModel):
     """A Stage started, finished or failed."""
 
@@ -149,6 +164,14 @@ class StageEvent(BaseModel):
     stage: StageName
     status: StageStatus
     at: str = EVENT_TIME
+    # Literal[True] and exclude_if: one representation only. The field is omitted unless true, so
+    # every uncached event keeps its original shape and `false` is refused rather than meaning "no".
+    cached: Literal[True] | None = Field(
+        default=None,
+        exclude_if=lambda cached: cached is None,
+        description="Present and true only on a `done` Stage served from the parse cache",
+        json_schema_extra=publish_cached_as_true_only,
+    )
 
 
 class JobFinishedEvent(BaseModel):

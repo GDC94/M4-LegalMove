@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cachedDone,
   DONE_BODY,
   FAILED_BODY,
   finished,
@@ -40,6 +41,21 @@ describe("analysis state machine", () => {
       parse_original_contract: "done",
       parse_amendment_contract: "failed",
       contextualization_agent: "pending",
+    });
+  });
+
+  it("marks a done stage served from the parse cache as cached", () => {
+    const state = run(
+      ...RUNNING,
+      { type: "progress", event: stage(1, "parse_original_contract", "started") },
+      { type: "progress", event: cachedDone(2, "parse_original_contract") },
+      { type: "progress", event: stage(3, "parse_amendment_contract", "started") },
+      { type: "progress", event: stage(4, "parse_amendment_contract", "done") },
+    );
+
+    expect(state.phase === "running" && state.stages).toMatchObject({
+      parse_original_contract: "cached",
+      parse_amendment_contract: "done",
     });
   });
 

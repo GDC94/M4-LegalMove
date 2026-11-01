@@ -18,7 +18,13 @@ from budget import CallBudget
 from cli_doubles import RecordingLifecycleTracer
 from composition import Container
 from errors import UpstreamError
-from event_stream import KEEP_ALIVE_COMMENT, KEEP_ALIVE_SECONDS, EventFeed, stream_events
+from event_stream import (
+    KEEP_ALIVE_COMMENT,
+    KEEP_ALIVE_SECONDS,
+    EventFeed,
+    format_event,
+    stream_events,
+)
 from jobs import (
     EventKind,
     JobEvent,
@@ -428,3 +434,22 @@ def test_a_client_that_leaves_after_a_quiet_wait_stops_the_generator() -> None:
 
     assert asyncio.run(collect()) == [KEEP_ALIVE_COMMENT]
     assert events.timeouts == [KEEP_ALIVE_SECONDS]
+
+
+def test_a_cached_stage_frame_carries_cached_and_an_uncached_frame_omits_it() -> None:
+    events = InMemoryJobEvents()
+    stage = StageName.PARSE_ORIGINAL_CONTRACT
+    cached = events.append(
+        "j", EventKind.STAGE, stage_event_payload(stage, StageStatus.DONE, at=0.0, cached=True)
+    )
+    fresh = events.append(
+        "j", EventKind.STAGE, stage_event_payload(stage, StageStatus.DONE, at=0.0)
+    )
+
+    [cached_frame] = parse_frames(format_event(cached))
+    [fresh_frame] = parse_frames(format_event(fresh))
+
+    assert cached_frame.data is not None
+    assert cached_frame.data["cached"] is True
+    assert fresh_frame.data is not None
+    assert set(fresh_frame.data) == {"seq", "kind", "stage", "status", "at"}

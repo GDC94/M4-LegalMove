@@ -213,6 +213,12 @@ export interface components {
              * @description UTC time the event was published, with milliseconds
              */
             at: string;
+            /**
+             * Cached
+             * @description Present and true only on a `done` Stage served from the parse cache
+             * @constant
+             */
+            cached?: true;
         };
         /**
          * StageName

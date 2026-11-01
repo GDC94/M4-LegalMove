@@ -14,6 +14,11 @@ export function stage(seq: number, name: StageName, status: "started" | "done" |
   return { seq, kind: "stage", stage: name, status, at: "2026-10-29T18:03:11.412Z" } as const;
 }
 
+/** A `done` Stage served from the parse cache: the only event that carries `cached`. */
+export function cachedDone(seq: number, name: StageName) {
+  return { ...stage(seq, name, "done"), cached: true } as const;
+}
+
 export function finished(seq: number, status: "done" | "human_review" | "failed") {
   return { seq, kind: "job", status, at: "2026-10-29T18:03:40.009Z" } as const;
 }

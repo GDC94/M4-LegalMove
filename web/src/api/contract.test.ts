@@ -61,6 +61,21 @@ describe("contract schemas", () => {
     expect(analysisBodySchema.safeParse({ ...DONE_BODY, trace_id: undefined }).success).toBe(false);
   });
 
+  it("accept cached only as true on a stage event, and an event without it", () => {
+    const base = {
+      seq: 2,
+      kind: "stage",
+      stage: "parse_original_contract",
+      status: "done",
+      at: "2026-10-29T18:03:11.412Z",
+    };
+    const cached = progressEventSchema.parse({ ...base, cached: true });
+    expect(cached.kind === "stage" && cached.cached).toBe(true);
+    expect(progressEventSchema.parse(base)).not.toHaveProperty("cached");
+    expect(progressEventSchema.safeParse({ ...base, cached: false }).success).toBe(false);
+    expect(progressEventSchema.safeParse({ ...base, cached: "yes" }).success).toBe(false);
+  });
+
   it("tell the two event kinds apart and reject a stage outside StageName", () => {
     const stage = progressEventSchema.parse({
       seq: 1,

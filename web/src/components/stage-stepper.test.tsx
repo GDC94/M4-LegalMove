@@ -6,8 +6,8 @@ import {
   INITIAL_STATE,
   transition,
 } from "@/analysis/machine";
-import { JOB_ID, stage } from "@/test/fixtures";
-import { StageStepper } from "./stage-stepper";
+import { cachedDone, JOB_ID, stage } from "@/test/fixtures";
+import { describeProgress, StageStepper } from "./stage-stepper";
 
 function stagesAfter(...events: AnalysisEvent[]) {
   const state: AnalysisState = [
@@ -26,7 +26,7 @@ function statusOf(label: string): string {
 }
 
 describe("StageStepper", () => {
-  it("advances with the stage events and announces each change politely", () => {
+  it("advances with the stage events", () => {
     const { rerender } = render(<StageStepper stages={stagesAfter()} />);
     expect(statusOf("Read the original contract")).toBe("Pending");
 
@@ -46,27 +46,50 @@ describe("StageStepper", () => {
       "aria-current",
       "step",
     );
-    const live = screen.getByRole("status");
-    expect(live).toHaveAttribute("aria-live", "polite");
-    expect(live).toHaveTextContent("Read the amendment: in progress");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("labels a stage served from the parse cache as Cached, and says so to screen readers", () => {
+    const stages = stagesAfter(
+      { type: "progress", event: stage(1, "parse_original_contract", "started") },
+      { type: "progress", event: cachedDone(2, "parse_original_contract") },
+      { type: "progress", event: stage(3, "parse_amendment_contract", "started") },
+      { type: "progress", event: cachedDone(4, "parse_amendment_contract") },
+    );
+    render(<StageStepper stages={stages} />);
+
+    const item = screen.getByText("Read the original contract").closest("li");
+    if (!item) throw new Error("no step for the original contract");
+    expect(within(item).getByText("Cached")).toHaveAttribute("aria-hidden", "true");
+    expect(within(item).getByText("Done (from cache)")).toHaveClass("sr-only");
+    expect(within(item).queryByText("Done")).not.toBeInTheDocument();
+    expect(describeProgress(stages)).toBe("Read the amendment: done (from cache)");
   });
 
   it("marks the stage that failed and says so", () => {
-    render(
-      <StageStepper
-        stages={stagesAfter(
-          { type: "progress", event: stage(1, "parse_original_contract", "started") },
-          { type: "progress", event: stage(2, "parse_original_contract", "done") },
-          { type: "progress", event: stage(3, "parse_amendment_contract", "started") },
-          { type: "progress", event: stage(4, "parse_amendment_contract", "done") },
-          { type: "progress", event: stage(5, "contextualization_agent", "started") },
-          { type: "progress", event: stage(6, "contextualization_agent", "failed") },
-        )}
-      />,
+    const stages = stagesAfter(
+      { type: "progress", event: stage(1, "parse_original_contract", "started") },
+      { type: "progress", event: stage(2, "parse_original_contract", "done") },
+      { type: "progress", event: stage(3, "parse_amendment_contract", "started") },
+      { type: "progress", event: stage(4, "parse_amendment_contract", "done") },
+      { type: "progress", event: stage(5, "contextualization_agent", "started") },
+      { type: "progress", event: stage(6, "contextualization_agent", "failed") },
     );
+    render(<StageStepper stages={stages} />);
 
     expect(statusOf("Map the sections")).toBe("Failed");
     expect(statusOf("Extract the changes")).toBe("Pending");
-    expect(screen.getByRole("status")).toHaveTextContent("Map the sections: failed");
+    expect(describeProgress(stages)).toBe("Map the sections: failed");
+  });
+
+  it("describes the stage at work for the screen's live region", () => {
+    const stages = stagesAfter(
+      { type: "progress", event: stage(1, "parse_original_contract", "started") },
+      { type: "progress", event: stage(2, "parse_original_contract", "done") },
+      { type: "progress", event: stage(3, "parse_amendment_contract", "started") },
+    );
+
+    expect(describeProgress(stages)).toBe("Read the amendment: in progress");
+    expect(describeProgress(stagesAfter())).toBe("Waiting for the analysis to start");
   });
 });

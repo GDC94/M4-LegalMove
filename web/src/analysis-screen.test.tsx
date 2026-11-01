@@ -9,6 +9,7 @@ import { createApiClient } from "./api/client";
 import type { AnalysisBody, ProgressEvent } from "./api/contract";
 import {
   API,
+  cachedDone,
   DONE_BODY,
   FAILED_BODY,
   finished,
@@ -123,6 +124,44 @@ describe("upload form", () => {
     await submitPair(user);
 
     expect(await screen.findByRole("heading", { name: "Analysis progress" })).toHaveFocus();
+  });
+
+  it("swaps the form for the stepper, then keeps the stepper above the result", async () => {
+    serveAnalysis({ events: [...ALL_STAGES_DONE, finished(11, "done")], body: DONE_BODY });
+    const user = renderScreen();
+
+    await submitPair(user);
+
+    const result = await screen.findByRole("region", { name: "Legal changes" });
+    const progress = screen.getByRole("heading", { name: "Analysis progress" });
+    expect(screen.queryByRole("button", { name: "Analyze" })).not.toBeInTheDocument();
+    expect(
+      progress.compareDocumentPosition(result) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+  });
+
+  it("announces stage changes from a live region mounted before the stepper animates in", async () => {
+    serveAnalysis({
+      events: [
+        stage(1, "parse_original_contract", "started"),
+        cachedDone(2, "parse_original_contract"),
+        stage(3, "parse_amendment_contract", "started"),
+        cachedDone(4, "parse_amendment_contract"),
+      ],
+      body: RUNNING_BODY,
+    });
+    const user = renderScreen();
+    // Present and empty while idle: an announcement is only read out when the region's text
+    // changes, so a region that mounted with the first stage would swallow it.
+    const live = screen.getByRole("status");
+    expect(live).toHaveAttribute("aria-live", "polite");
+    expect(live).toBeEmptyDOMElement();
+
+    await submitPair(user);
+
+    await within(live).findByText("Read the amendment: done (from cache)");
+    expect(screen.getByRole("status")).toBe(live);
   });
 
   it("rejects a type that is not PNG or JPEG and an image over the limit", async () => {

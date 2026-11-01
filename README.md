@@ -243,6 +243,9 @@ uv run uvicorn --app-dir src api:app
 The progress stream sends one frame per event, `id: <seq>` and `data: <json>`, with two shapes told apart by `kind`:
 
 ```text
+id: 2
+data: {"seq":2,"kind":"stage","stage":"parse_original_contract","status":"done","at":"2026-10-29T18:03:01.120Z","cached":true}
+
 id: 4
 data: {"seq":4,"kind":"stage","stage":"extraction_agent","status":"started","at":"2026-10-29T18:03:11.412Z"}
 
@@ -250,7 +253,7 @@ id: 11
 data: {"seq":11,"kind":"job","status":"done","at":"2026-10-29T18:03:40.009Z"}
 ```
 
-A `stage` event (`started`, `done` or `failed`) is published for each of the five stages; the `job` event (`done`, `human_review` or `failed`) is always the last one, and the server closes the stream after it. A reconnect with `Last-Event-ID` continues from the next event, and a quiet stream gets a `: keep-alive` comment every 15 s. The semantic retry runs inside its stage's span, so it has no event of its own. `GET /analyses/{id}` stays the source of truth for the result and the fallback when the stream fails. Browsers' `EventSource` cannot send `X-API-Key`, so clients read the stream with `fetch`.
+A `stage` event (`started`, `done` or `failed`) is published for each of the five stages. A `done` event carries `"cached": true` when the stage recorded `cache_hit` on its span, which today means a parse stage served from the parse cache; every other event omits the field (it is never `false` or `null`), so the front end shows "Cached" instead of "Done". The `job` event (`done`, `human_review` or `failed`) is always the last one, and the server closes the stream after it. A reconnect with `Last-Event-ID` continues from the next event, and a quiet stream gets a `: keep-alive` comment every 15 s. The semantic retry runs inside its stage's span, so it has no event of its own. `GET /analyses/{id}` stays the source of truth for the result and the fallback when the stream fails. Browsers' `EventSource` cannot send `X-API-Key`, so clients read the stream with `fetch`.
 
 Known limitation: each open stream waits for new events in a thread of the default executor, for up to 15 s per wait, so many concurrent streams queue behind each other. That is fine for the demo; a production deployment would use per-job asyncio notifications or Redis.
 

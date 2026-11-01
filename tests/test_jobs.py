@@ -25,6 +25,12 @@ from stages import StageName
 
 OWNER = "a" * 64
 ENVELOPE = {"error": "UpstreamError", "stage": "parse", "message": "m", "run_id": "r"}
+CACHED_DONE: dict[str, object] = {
+    "stage": "parse_original_contract",
+    "status": "done",
+    "at": "1970-01-01T00:00:00.000Z",
+    "cached": True,
+}
 
 
 def new_job() -> Job:
@@ -190,6 +196,35 @@ def test_a_logged_job_event_becomes_the_public_terminal_event() -> None:
 
 def test_a_logged_event_outside_the_contract_is_rejected() -> None:
     logged = JobEvent(seq=1, kind=EventKind.JOB, payload={"status": "running", "at": "x"})
+
+    with pytest.raises(ValidationError):
+        to_progress_event(logged)
+
+
+def test_a_stage_served_from_the_parse_cache_carries_cached_true_and_no_other_does() -> None:
+    cached = stage_event_payload(
+        StageName.PARSE_ORIGINAL_CONTRACT, StageStatus.DONE, at=0.0, cached=True
+    )
+    fresh = stage_event_payload(StageName.PARSE_ORIGINAL_CONTRACT, StageStatus.DONE, at=0.0)
+
+    assert cached["cached"] is True
+    assert "cached" not in fresh
+
+
+def test_a_logged_cached_stage_event_keeps_cached_and_an_uncached_one_omits_it() -> None:
+    cached = to_progress_event(JobEvent(seq=2, kind=EventKind.STAGE, payload=CACHED_DONE))
+    fresh = to_progress_event(
+        JobEvent(seq=2, kind=EventKind.STAGE, payload={**CACHED_DONE, "cached": None})
+    )
+
+    assert isinstance(cached, StageEvent)
+    assert cached.cached is True
+    assert cached.model_dump(mode="json")["cached"] is True
+    assert "cached" not in fresh.model_dump(mode="json")
+
+
+def test_cached_false_is_outside_the_contract_because_cached_is_omitted_instead() -> None:
+    logged = JobEvent(seq=2, kind=EventKind.STAGE, payload={**CACHED_DONE, "cached": False})
 
     with pytest.raises(ValidationError):
         to_progress_event(logged)

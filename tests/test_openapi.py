@@ -54,6 +54,17 @@ def test_each_event_shape_lists_its_fields_and_its_kind() -> None:
     assert stage["properties"]["at"]["format"] == "date-time"
 
 
+def test_the_stage_event_documents_cached_as_an_optional_true() -> None:
+    cached = openapi()["components"]["schemas"]["StageEvent"]["properties"]["cached"]
+
+    # Exactly a `true` constant: the field is omitted rather than null, so no anyOf with null.
+    assert {k: v for k, v in cached.items() if k not in {"title", "description"}} == {
+        "const": True,
+        "type": "boolean",
+    }
+    assert "cache" in cached["description"]
+
+
 def test_the_events_endpoint_documents_last_event_id_and_the_api_key() -> None:
     operation = openapi()["paths"][EVENTS_PATH]["get"]
 

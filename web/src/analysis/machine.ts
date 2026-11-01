@@ -12,7 +12,8 @@ import {
   type StageName,
 } from "@/api/contract";
 
-export type StageProgress = "pending" | "running" | "done" | "failed";
+/** `cached` is a `done` Stage the API served from its parse cache, so it finished at once. */
+export type StageProgress = "pending" | "running" | "done" | "cached" | "failed";
 export type StageBoard = Record<StageName, StageProgress>;
 
 export type AnalysisState =
@@ -65,10 +66,7 @@ function onRunning(
       return event.event.kind === "stage"
         ? {
             ...state,
-            stages: {
-              ...state.stages,
-              [event.event.stage]: PROGRESS_BY_STATUS[event.event.status],
-            },
+            stages: { ...state.stages, [event.event.stage]: progressOf(event.event) },
           }
         : state;
     case "settled":
@@ -78,6 +76,10 @@ function onRunning(
     default:
       return state;
   }
+}
+
+function progressOf(event: Extract<ProgressEvent, { kind: "stage" }>): StageProgress {
+  return event.status === "done" && event.cached ? "cached" : PROGRESS_BY_STATUS[event.status];
 }
 
 function settle(
