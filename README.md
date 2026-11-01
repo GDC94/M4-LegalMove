@@ -271,6 +271,8 @@ echo "VITE_API_KEY=<one of API_KEYS>" > .env.local
 pnpm dev
 ```
 
+The `Makefile` wraps the same commands: `make api` starts the API, `make web` installs and starts the front end, and `make dev` runs both in one terminal (Ctrl-C stops both). `web/.env.local` still has to exist first.
+
 The Vite dev server (and `pnpm preview`) proxies `/api/*` to `http://127.0.0.1:8000` (override with `VITE_API_PROXY_TARGET`), so the browser stays same-origin. The front end must always be served from the same origin as `/api`: the API sends no CORS headers and `X-API-Key` forces a preflight, so calling uvicorn directly from another origin cannot work. `web/.env.example` lists `VITE_API_KEY` and `VITE_API_PROXY_TARGET`.
 
 | Command (in `web/`) | What it does |
