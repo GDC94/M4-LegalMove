@@ -7,3 +7,4 @@ outputs/*
 !outputs/baseline.json
 !outputs/validation_run1.json
 !outputs/validation_run2.json
+.DS_Store
