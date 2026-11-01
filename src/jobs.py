@@ -3,10 +3,14 @@
 import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Protocol
+from typing import Annotated, Literal, Protocol
+
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from models import ContractChangeOutput
+from stages import StageName
 
 
 class JobState(StrEnum):
@@ -90,11 +94,81 @@ class Job:
 
 @dataclass(frozen=True)
 class JobEvent:
-    """One entry of a job's append-only event log; `seq` grows by one per job (used from 16b)."""
+    """One entry of a job's append-only event log; `seq` grows by one per job."""
 
     seq: int
     kind: str
     payload: Mapping[str, object]
+
+
+class EventKind(StrEnum):
+    """Discriminator of the progress stream: a Stage moved, or the job reached its end."""
+
+    STAGE = "stage"
+    JOB = "job"
+
+
+class StageStatus(StrEnum):
+    """No `retrying`: the semantic retry runs inside the same span (decision 111)."""
+
+    STARTED = "started"
+    DONE = "done"
+    FAILED = "failed"
+
+
+def format_event_time(timestamp: float) -> str:
+    """UTC with milliseconds and a `Z`, the shape a browser's Date parses everywhere."""
+    moment = datetime.fromtimestamp(timestamp, UTC)
+    return moment.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def stage_event_payload(stage: StageName, status: StageStatus, *, at: float) -> dict[str, object]:
+    return {"stage": stage.value, "status": status.value, "at": format_event_time(at)}
+
+
+def job_event_payload(state: JobState, *, at: float) -> dict[str, object]:
+    """Only a terminal state ends the stream, so only a terminal state may be published."""
+    if not is_terminal(state):
+        raise ValueError(f"a job event needs a terminal state, not {state.value}")
+    return {"status": state.value, "at": format_event_time(at)}
+
+
+EVENT_TIME = Field(
+    description="UTC time the event was published, with milliseconds",
+    json_schema_extra={"format": "date-time"},
+)
+
+
+class StageEvent(BaseModel):
+    """A Stage started, finished or failed."""
+
+    model_config = ConfigDict(frozen=True)
+
+    seq: int
+    kind: Literal[EventKind.STAGE]
+    stage: StageName
+    status: StageStatus
+    at: str = EVENT_TIME
+
+
+class JobFinishedEvent(BaseModel):
+    """The job reached its terminal state; it is always the last event of the stream."""
+
+    model_config = ConfigDict(frozen=True)
+
+    seq: int
+    kind: Literal[EventKind.JOB]
+    status: Literal[JobState.DONE, JobState.HUMAN_REVIEW, JobState.FAILED]
+    at: str = EVENT_TIME
+
+
+ProgressEvent = Annotated[StageEvent | JobFinishedEvent, Field(discriminator="kind")]
+PROGRESS_EVENT: TypeAdapter[StageEvent | JobFinishedEvent] = TypeAdapter(ProgressEvent)
+
+
+def to_progress_event(event: JobEvent) -> StageEvent | JobFinishedEvent:
+    """The public shape of one logged event; a payload outside the contract fails loudly."""
+    return PROGRESS_EVENT.validate_python({"seq": event.seq, "kind": event.kind, **event.payload})
 
 
 class JobStore(Protocol):
@@ -110,7 +184,9 @@ class JobStore(Protocol):
 
     def discard(self, job_id: str) -> None: ...
 
-    def expire(self) -> int: ...
+    def expire(self) -> Sequence[str]:
+        """The ids of the jobs dropped since the last call, so their events can go too."""
+        ...
 
 
 class JobEvents(Protocol):
@@ -121,6 +197,8 @@ class JobEvents(Protocol):
     def read_since(self, job_id: str, seq: int) -> Sequence[JobEvent]: ...
 
     def wait_for(self, job_id: str, seq: int, timeout_seconds: float) -> Sequence[JobEvent]: ...
+
+    def discard(self, job_id: str) -> None: ...
 
 
 class JobRunner(Protocol):

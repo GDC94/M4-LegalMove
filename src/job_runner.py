@@ -18,9 +18,19 @@ from composition import (
 )
 from config import APP_VERSION
 from errors import NeedsHumanReviewError, ObservabilityError
-from jobs import JobState, JobStore, JobUpdate, QueueFullError
-from observability import TraceAttributes
+from jobs import (
+    EventKind,
+    Job,
+    JobEvents,
+    JobState,
+    JobStore,
+    JobUpdate,
+    QueueFullError,
+    job_event_payload,
+)
+from observability import TraceAttributes, TraceLifecycle
 from pipeline import AnalysisRequest, AnalysisResult, run_analysis
+from progress_tracer import ProgressTracer
 
 logger = logging.getLogger("legalmove")
 
@@ -35,12 +45,14 @@ class UploadedImages:
     amendment: bytes
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class JobServices:
-    """What a worker needs: the store and a factory of one fresh Container (tracer, budget)."""
+    """What a worker needs: store, event log, a fresh tracer and a Container built around it."""
 
     store: JobStore
-    build_container: Callable[[], Container]
+    events: JobEvents
+    build_tracer: Callable[[], TraceLifecycle]
+    build_container: Callable[[TraceLifecycle], Container]
 
 
 @dataclass(frozen=True)
@@ -56,16 +68,31 @@ def execute_job(job_id: str, images: UploadedImages, services: JobServices) -> N
     container: Container | None = None
     try:
         with tempfile.TemporaryDirectory(prefix=JOB_DIRECTORY_PREFIX) as directory:
-            container = services.build_container()
+            container = services.build_container(track_progress(services, job_id))
             request = write_images(Path(directory), images)
             outcome = analyse(container, request, context, trace_recorder(services.store, job_id))
     except Exception as error:
         outcome = describe_failure(error, context)
     try:
-        services.store.transition(job_id, outcome.state, outcome.update)
+        finish(services, job_id, outcome)
     finally:
         if container is not None:
             flush_quietly(container)
+
+
+def track_progress(services: JobServices, job_id: str) -> ProgressTracer:
+    """The job's own tracer, decorated so every Stage also lands in the job's event log."""
+    return ProgressTracer(services.build_tracer(), services.events, job_id)
+
+
+def finish(services: JobServices, job_id: str, outcome: Outcome) -> Job:
+    """Store first, then publish: a client that sees the job event can already read the result."""
+    job = services.store.transition(job_id, outcome.state, outcome.update)
+    if job.finished_at is None:
+        # A terminal transition always stamps finished_at; a guessed time would hide the bug.
+        raise RuntimeError(f"terminal job {job_id} has no finished_at")
+    services.events.append(job_id, EventKind.JOB, job_event_payload(job.state, at=job.finished_at))
+    return job
 
 
 def write_images(directory: Path, images: UploadedImages) -> AnalysisRequest:

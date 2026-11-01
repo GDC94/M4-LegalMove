@@ -3,7 +3,8 @@
 import logging
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -17,10 +18,18 @@ from errors import (
     UpstreamError,
     ValidationIssue,
 )
-from job_runner import JobServices, ThreadPoolJobRunner, UploadedImages, execute_job
-from jobs import Job, JobState, QueueFullError
-from jobs_memory import InMemoryJobStore
+from job_runner import (
+    JobServices,
+    Outcome,
+    ThreadPoolJobRunner,
+    UploadedImages,
+    execute_job,
+    finish,
+)
+from jobs import Job, JobEvent, JobState, JobUpdate, QueueFullError
+from jobs_memory import InMemoryJobEvents, InMemoryJobStore
 from models import DocumentRole, ParsedContract
+from observability import TraceLifecycle
 from pipeline import PipelineStages
 from pipeline_doubles import StubStages
 
@@ -39,11 +48,13 @@ class Harness:
     ) -> None:
         self.tracer = RecordingLifecycleTracer()
         self.store = InMemoryJobStore(ttl_seconds=3600)
+        self.events = InMemoryJobEvents()
         self.paths: list[Path] = []
         self.contents: list[bytes] = []
         self.builds = 0
         self.build_error: Exception | None = None
-        self._stub = StubStages(self.tracer, failures=failures or {})
+        self._failures = failures or {}
+        self._stub = StubStages(self.tracer, failures=self._failures)
         self._budget = budget
         self.job = Job.create(OWNER, now=0.0)
         self.store.create(self.job)
@@ -53,14 +64,19 @@ class Harness:
         self.contents.append(path.read_bytes())
         return self._stub.parse_contract_image(path, role)
 
-    def build_container(self) -> Container:
+    def build_tracer(self) -> TraceLifecycle:
+        return self.tracer
+
+    def build_container(self, tracer: TraceLifecycle) -> Container:
+        """Stages built around the tracer the runner hands over, as the real wiring does."""
         self.builds += 1
         if self.build_error:
             raise self.build_error
+        self._stub.tracer = tracer
         ports = self._stub.ports()
         stages = PipelineStages(self.parse, ports.contextualize, ports.extract)
         return Container(
-            tracer=self.tracer,
+            tracer=tracer,
             stages=stages,
             budget=self._budget or CallBudget(300),
             environment="development",
@@ -68,7 +84,13 @@ class Harness:
         )
 
     def run(self) -> Job:
-        execute_job(self.job.id, IMAGES, JobServices(self.store, self.build_container))
+        services = JobServices(
+            store=self.store,
+            events=self.events,
+            build_tracer=self.build_tracer,
+            build_container=self.build_container,
+        )
+        execute_job(self.job.id, IMAGES, services)
         stored = self.store.get(self.job.id, OWNER)
         assert stored is not None
         return stored
@@ -242,6 +264,94 @@ def test_a_running_job_exposes_its_trace_id_as_soon_as_the_root_opens() -> None:
     assert set(trace_ids) == {"trace-abc"}
 
 
+def logged(harness: Harness) -> list[tuple[str, object, object]]:
+    return [
+        (event.kind, event.payload.get("stage"), event.payload["status"])
+        for event in harness.events.read_since(harness.job.id, 0)
+    ]
+
+
+def test_a_job_publishes_each_stage_and_then_the_done_job_event() -> None:
+    harness = Harness()
+
+    harness.run()
+
+    stages = [
+        "parse_original_contract",
+        "parse_amendment_contract",
+        "contextualization_agent",
+        "extraction_agent",
+        "output_validation",
+    ]
+    expected = [("stage", stage, status) for stage in stages for status in ("started", "done")]
+    assert logged(harness) == [*expected, ("job", None, "done")]
+    seqs = [event.seq for event in harness.events.read_since(harness.job.id, 0)]
+    assert seqs == list(range(1, 12))
+
+
+def test_a_failing_stage_publishes_failed_and_the_job_ends_with_its_terminal_event() -> None:
+    harness = Harness(failures={"extraction_agent": InvalidExtractionError([ISSUE])})
+
+    job = harness.run()
+
+    assert job.state is JobState.HUMAN_REVIEW
+    assert logged(harness)[-3:] == [
+        ("stage", "extraction_agent", "started"),
+        ("stage", "extraction_agent", "failed"),
+        ("job", None, "human_review"),
+    ]
+
+
+def test_an_unexpected_failure_publishes_the_failed_job_event_last() -> None:
+    harness = Harness(failures={"parse_original_contract": KeyError("x")})
+
+    harness.run()
+
+    assert logged(harness) == [
+        ("stage", "parse_original_contract", "started"),
+        ("stage", "parse_original_contract", "failed"),
+        ("job", None, "failed"),
+    ]
+
+
+def test_a_container_that_cannot_be_built_still_publishes_the_failed_job_event() -> None:
+    harness = Harness()
+    harness.build_error = ObservabilityError("tracer initialisation failed: ValueError")
+
+    harness.run()
+
+    assert logged(harness) == [("job", None, "failed")]
+
+
+def test_the_job_event_is_published_once_the_terminal_state_is_stored() -> None:
+    harness = Harness()
+    seen: list[JobState] = []
+    append = harness.events.append
+
+    def spy(job_id: str, kind: str, payload: Mapping[str, object]) -> JobEvent:
+        if kind == "job":
+            stored = harness.store.get(job_id, OWNER)
+            seen.append(stored.state if stored else JobState.PENDING)
+        return append(job_id, kind, payload)
+
+    harness.events.append = spy  # type: ignore[method-assign]  # spy on the real log, one test
+
+    harness.run()
+
+    assert seen == [JobState.DONE]
+
+
+def test_the_job_event_carries_the_time_the_job_finished() -> None:
+    harness = Harness()
+    harness.store = InMemoryJobStore(ttl_seconds=3600, clock=lambda: 30.5)
+    harness.store.create(harness.job)
+
+    harness.run()
+
+    [terminal] = harness.events.read_since(harness.job.id, 10)
+    assert terminal.payload["at"] == "1970-01-01T00:00:30.500Z"
+
+
 class Gate:
     """Holds worker threads inside a task until the test lets them go."""
 
@@ -318,9 +428,11 @@ def test_a_task_that_raises_does_not_kill_the_pool(caplog: pytest.LogCaptureFixt
     with caplog.at_level(logging.ERROR, logger="legalmove"):
         runner.submit(explode)
         runner.submit(done.set)
+        # Wait before shutdown: shutdown cancels a queued task the worker has not picked up yet.
+        finished = done.wait(timeout=5)
         runner.shutdown()
 
-    assert done.is_set()
+    assert finished
     assert "RuntimeError" in caplog.text
 
 
@@ -361,3 +473,28 @@ def test_a_submit_after_shutdown_is_a_full_queue_and_takes_no_slot() -> None:
         runner.submit(lambda: None)
 
     assert runner.pending == 0
+
+
+class ClocklessStore(InMemoryJobStore):
+    """A broken store whose terminal jobs lose their finish time."""
+
+    def transition(self, job_id: str, target: JobState, update: JobUpdate | None = None) -> Job:
+        return replace(super().transition(job_id, target, update), finished_at=None)
+
+
+def test_a_terminal_job_without_a_finish_time_fails_loudly_instead_of_publishing() -> None:
+    harness = Harness()
+    store = ClocklessStore(ttl_seconds=3600)
+    store.create(harness.job)
+    store.transition(harness.job.id, JobState.RUNNING)
+    services = JobServices(
+        store=store,
+        events=harness.events,
+        build_tracer=harness.build_tracer,
+        build_container=harness.build_container,
+    )
+
+    with pytest.raises(RuntimeError, match="finished_at"):
+        finish(services, harness.job.id, Outcome(JobState.DONE, JobUpdate()))
+
+    assert harness.events.read_since(harness.job.id, 0) == []

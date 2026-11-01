@@ -55,6 +55,7 @@ src/
 ├── jobs.py                         dominio de jobs: JobState, Job, JobEvent y los puertos JobStore, JobEvents, JobRunner, RateLimiter
 ├── jobs_memory.py                  adaptadores en memoria: InMemoryJobStore (TTL), InMemoryJobEvents, InMemoryRateLimiter
 ├── job_runner.py                   ThreadPoolJobRunner + execute_job: corre un job y es dueño del ciclo de vida de su tracer
+├── progress_tracer.py              ProgressTracer: decorador de TraceLifecycle que publica los eventos de etapa del job (decisión 111)
 ├── pipeline.py                     run_analysis(): orquesta las etapas, sin conocer Langfuse
 ├── image_parser.py        *        validación, base64, llamada multimodal
 ├── models.py              *        ContractChangeOutput + modelos internos + enums
@@ -96,7 +97,7 @@ README.md                  *
 | Dominio | `models.py`, `checks.py`, `section_comparison.py`, `text_normalization.py`, `errors.py`, `prompt_blocks.py`, `budget.py`, `stages.py`, `jobs.py` | Pydantic y lógica determinista. No importan LangChain, OpenAI, Langfuse, FastAPI ni `config.py` |
 | Aplicación | `pipeline.py` (`run_analysis()`) | Orquesta las etapas a través de los puertos. No conoce Langfuse ni la configuración |
 | Puertos | `PipelineTracer` y `StageSpan` (Protocol, sección 5.2); el `chat_model` que recibe cada `build_*` | Los módulos de negocio dependen de la abstracción, nunca del proveedor |
-| Adaptadores | `observability.py` (Langfuse), `image_parser.py`, `budgeted_model.py`, `agents/` (OpenAI vía LangChain), `jobs_memory.py` y `job_runner.py` (jobs) | Únicos módulos que tocan infraestructura externa. `fastapi` y `starlette` solo en `api.py`; `langfuse` solo en `composition.py` y `observability.py` |
+| Adaptadores | `observability.py` (Langfuse), `image_parser.py`, `budgeted_model.py`, `agents/` (OpenAI vía LangChain), `jobs_memory.py`, `job_runner.py` y `progress_tracer.py` (jobs) | Únicos módulos que tocan infraestructura externa. `fastapi` y `starlette` solo en `api.py`; `langfuse` solo en `composition.py` y `observability.py` |
 | Raíces de composición | `main.py` (CLI) y `api.py` (HTTP) | Únicos que cargan la configuración (`load_settings()`, `load_api_settings()`) y cablean adaptadores con puertos. `composition.py` aloja el cableado que comparten (contenedor `@dataclass(frozen=True)`, `build_stages`, sobre de error); ninguna raíz importa a la otra |
 
 Regla de dependencias: dominio ← aplicación ← adaptadores ← raíces de composición (`main.py`, `api.py`). Las flechas solo apuntan hacia adentro; un módulo nunca importa a uno de una capa más externa. Los tests de arquitectura por AST (sección 6.2) hacen cumplir estas reglas en CI, de modo que la arquitectura es declarada y verificada, no inferida. `CLAUDE.md` repite esta tabla para que cada ticket se implemente contra ella.
@@ -452,6 +453,8 @@ Es **un solo** reintento para todas las causas juntas, no uno por causa. Si el �
 
 Los errores de red y de rate limit los maneja aparte `LLM_MAX_RETRIES`; el presupuesto total del pipeline puede impedir un nuevo intento aunque todavía queden retries locales (sección 5.1).
 
+**El reintento no es observable desde el puerto.** Corre dentro del mismo span `contextualization_agent` o `extraction_agent` y solo cambia el `run_name` de LangChain, así que un decorador de `stage()` no lo ve: el progreso por etapa de la API (16b) no tiene `attempt` ni evento `retrying` (decisión 111).
+
 ### 4.5 Jerarquía de errores
 
 Todos heredan de `LegalMoveError`. Cada error declara la etapa en la que ocurrió (`stage`) y su `exit_code`.
@@ -561,6 +564,7 @@ Los agentes, el parser y `pipeline.py` no importan `langfuse`. Dependen de un `P
 | `StageSpan` (handle) | Permite `set_output()`, `set_metadata()` y `set_error()` sin exponer Langfuse al pipeline |
 | `LangfuseTracer` (adaptador) | Implementa el puerto con `start_as_current_observation`, `propagate_attributes` y `CallbackHandler` |
 | `RecordingTracer` (doble de test) | Graba las etapas y los scores, para que los tests verifiquen la jerarquía sin red |
+| `ProgressTracer` (decorador, `progress_tracer.py`) | Envuelve el `TraceLifecycle` de cada job de la API: delega todo sin tocarlo y, por cada `stage()`, publica en el `JobEvents` del job un evento `started` y después `done` o `failed`, sin tragar el error. La traza es idéntica con y sin decorador (decisión 111) |
 
 Como en `orchestration`, un test por AST verifica que solo `observability.py` y `main.py` importan `langfuse`.
 
@@ -589,6 +593,8 @@ Atributos propagados desde el span raíz (`propagate_attributes`):
 - `environment=APP_ENV`;
 - `version`: `APP_VERSION` (constante de `config.py`);
 - `tags=["legalmove"]`.
+
+La jerarquía es la misma en la CLI y en la API: `ProgressTracer` no agrega spans ni modifica los existentes, solo publica eventos de progreso fuera de la traza (decisión 111).
 
 ### 5.4 Qué registra cada span
 
@@ -630,7 +636,7 @@ Si una etapa falla, su span queda con `level="ERROR"` y el mensaje de error, y e
 ### 5.7 Ciclo de vida
 
 - **Un cliente por proceso.** En la CLI lo crea `main.py` después de generar el `run_id` local, una vez por corrida. En la API lo crea el `lifespan` de `api.py` (`connect_langfuse` con `auth_check()`; si falla, la API no arranca) y se hace un `flush()` final en el shutdown.
-- **Tracer y raíz por corrida.** `main.py` y `job_runner.py` son los dueños del ciclo de vida: cada uno abre la raíz (`open_root`) y hace `flush()` de su tracer. En la API cada job construye su propio `LangfuseTracer` sobre el cliente del proceso (`build_tracer`), con `session_id` igual al id del job. `pipeline.py` solo abre etapas mediante el puerto.
+- **Tracer y raíz por corrida.** `main.py` y `job_runner.py` son los dueños del ciclo de vida: cada uno abre la raíz (`open_root`) y hace `flush()` de su tracer. En la API cada job construye su propio `LangfuseTracer` sobre el cliente del proceso (`build_tracer`), envuelto en `ProgressTracer` para publicar el progreso por etapa, con `session_id` igual al id del job. `pipeline.py` solo abre etapas mediante el puerto.
 - **Éxito fail-closed:** el JSON se bufferiza, `flush()` debe completar y recién después se escribe stdout. Una falla produce `ObservabilityError`.
 - **Error de negocio:** `flush()` corre en un `finally`; si también falla, se preserva el error original y se registra la falla de observabilidad.
 - `run_id` sale siempre; `trace_id` puede ser `null` si la inicialización de Langfuse falló (sección 4.7).
@@ -660,6 +666,7 @@ Se escriben con TDD estricto, un ticket por vez. Corren sin red y sin `.env`, y 
 | Reintentos | Mapa o extracción: primer intento inválido y segundo válido; dos inválidos dan su error con `issues`; `unknown` no reintenta; el feedback interno queda separado del error público; cualquier cita sin grounding es dura |
 | `main.py` | `run_id` siempre y `trace_id` nullable; stdout bufferizado hasta `flush()`; `ObservabilityError`; sobre sanitizado; cada error y exit code; preservación del error original si también falla el flush |
 | `observability.py` | `StageSpan` actualiza output/metadata/error; masking; imagen ausente; lifecycle y flush solo en `main.py` |
+| `progress_tracer.py` y SSE | El decorador delega `open_root`, `flush`, `score`, `trace_id` y `callbacks`; publica `started`/`done`/`failed` con `seq` creciente y relanza el error original; la traza grabada es idéntica con y sin decorador. El evento `job` sale después del último evento de etapa. El stream respeta el orden, `Last-Event-ID`, el keep-alive y el cierre tras el evento `job`, con `401`/`404` al abrir y la espera fuera del event loop |
 | `config.py` | Defaults y validaciones cruzadas; host de producción aprobado; caché según ambiente; presupuesto de 300 s; sin fallback; `APP_VERSION`. En `evals/`: `EvalSettings` valida `JUDGE_MODEL` |
 
 **Costura de inyección:** los fake chat models de LangChain no soportan `with_structured_output` (trampa heredada). Por eso:
@@ -676,9 +683,9 @@ Se escriben con TDD estricto, un ticket por vez. Corren sin red y sin `.env`, y 
 Igual que en `orchestration`, con AST:
 - `agents/`, `image_parser.py`, `pipeline.py`, `checks.py`, `section_comparison.py`, `text_normalization.py` y `models.py` no importan `langfuse`;
 - solo las raíces de composición (`COMPOSITION_ROOTS = {main.py, api.py}`) cargan configuración: `main.py` llama a `load_settings()` y `api.py` a `load_api_settings()`; ninguna importa a la otra y las dos importan `composition.py`;
-- solo `LIFECYCLE_OWNERS = {main.py, job_runner.py}` abren la raíz del trace (`open_root`);
+- solo `LIFECYCLE_OWNERS = {main.py, job_runner.py}` abren la raíz del trace (`open_root`); `observability.py` y `progress_tracer.py` la implementan (el adaptador y el decorador que la reenvía) y no cuentan como usuarios;
 - `langfuse` solo se importa en `composition.py` y `observability.py`; `fastapi` y `starlette` solo en `api.py`;
-- `jobs.py` y `stages.py` están en `DOMAIN_MODULES`, y el dominio y `pipeline.py` no importan los adaptadores nuevos (`composition`, `jobs_memory`, `job_runner`, `api`);
+- `jobs.py` y `stages.py` están en `DOMAIN_MODULES`, y el dominio y `pipeline.py` no importan los adaptadores nuevos (`composition`, `jobs_memory`, `job_runner`, `progress_tracer`, `api`); solo `job_runner.py` importa `progress_tracer`;
 - todo `tracer.stage(...)` de `src/` recibe un `StageName`, nunca un literal;
 - ningún texto de los golden cases aparece dentro de `src/`, para que nadie lo "enseñe" al prompt;
 - `requirements.txt` fija las versiones de las dependencias declaradas;
@@ -1158,6 +1165,7 @@ Reemplaza a los ADRs mientras estén diferidos. Si más adelante se escriben, ca
 | 108 | La API HTTP y la ejecución por jobs entran en alcance como fase 3; la CLI sigue siendo el entregable de la consigna. Reemplaza §1 "Fuera de alcance" y la limitación de §7.2. El dominio no cambia; `pipeline.py` solo usa `StageName` en lugar de strings | El sistema tiene que poder ir a producción y ahí no se controla cómo se lo invoca; un front necesita una API. El plan contradiría al repo si la API se agregara sin escribirlo | 1, 7.2 | 2026-10-31 |
 | 109 | Contrato por jobs: `POST /analyses` responde `202 {id}` y `GET /analyses/{id}` expone el estado (`pending`, `running`, `done`, `human_review`, `failed`) y el resultado; el progreso por SSE llega en 16b. Cuatro puertos como `Protocol` en `jobs.py` (`JobStore`, `JobEvents`, `JobRunner`, `RateLimiter`) con adaptadores en memoria en `jobs_memory.py` y `job_runner.py`; la infraestructura real (Redis, cola) entra después como adaptadores sin tocar el dominio. Sin cancelación, jobs ligados a la key (`sha256`, `404` para otra key), rate limit propio sin `slowapi` y cola acotada con `503` + `Retry-After` | Un análisis tarda decenas de segundos: una respuesta síncrona deja conexiones colgadas y no limita la concurrencia (`BackgroundTasks` tampoco). Los puertos mantienen reemplazable el almacenamiento | 1, 4.5 | 2026-10-31 |
 | 110 | Dos raíces de composición (`main.py`, `api.py`) que comparten `composition.py`, y dos dueños del ciclo de vida del tracer (`main.py`, `job_runner.py`). Un cliente de Langfuse por proceso en la API (`lifespan`, con `auth_check()` y `flush()` final) y un tracer, una raíz y un `flush()` por job, con `session_id` = id del job = `run_id` del sobre. `ApiSettings(Settings)` agrega `API_KEYS` y los límites sin romper la CLI (patrón de la decisión 32). Reescribe §4.6, §5.7 y §6.2 | Un tracer compartido mezclaría los `trace_id` de jobs concurrentes; `API_KEYS` en `Settings` rompería la CLI. Las reglas de capas siguen verificándose por AST | 4.6, 5.7, 6.2 | 2026-10-31 |
+| 111 | Progreso por etapa vía `ProgressTracer`, decorador de `TraceLifecycle` completo (el runner necesita `open_root` y `flush` a través de él) que `execute_job` arma sobre el tracer de cada job: publica `started` y `done` o `failed` por etapa en el `JobEvents` del job, y `job_runner.py` publica el evento `job` terminal después de guardar el estado. Dos formas en el mismo stream con discriminador `kind` (`stage` y `job`), ambas con `seq` y `at`, documentadas en el OpenAPI como `oneOf`. `GET /analyses/{id}/events` es SSE a mano con `StreamingResponse` (sin `sse-starlette`): `id: <seq>`, `Last-Event-ID`, `: keep-alive` cada 15 s, cierre tras el evento `job`, `404` solo al abrir, y la espera en `asyncio.to_thread` sobre el `threading.Condition` del log. Sin `attempt`: el reintento semántico corre dentro del mismo span y no es observable desde el puerto; observarlo queda como ticket derivado (callbacks de LangChain). `pipeline.py` y las etapas no cambian | Un decorador del puerto mantiene el pipeline ignorante del progreso y la traza idéntica; `Condition` + `to_thread` deja el log testeable sin event loop y compartido entre polling y stream; el polling sigue siendo la fuente de verdad y el respaldo | 4.4, 5.2, 5.3, 6.1, 6.2 | 2026-11-01 |
 
 ## 9. Diagrama de LegalMove pipeline
 

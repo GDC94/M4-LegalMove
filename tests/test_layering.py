@@ -25,9 +25,14 @@ COMPOSITION_ROOTS = {"main.py", "api.py"}
 # Own the trace lifecycle (open_root); composition.py and observability.py only flush the
 # process-wide Langfuse client, which is not a tracer.
 LIFECYCLE_OWNERS = {"main.py", "job_runner.py"}
+# Implements TraceLifecycle rather than using it: the Langfuse adapter.
+LIFECYCLE_IMPLEMENTERS = {"observability.py"}
+# The decorator may touch open_root and flush only to forward them from methods of the same
+# name (decision 111); any other use counts as using the lifecycle.
+LIFECYCLE_FORWARDERS = {"progress_tracer.py"}
 # Decision 9 allows main.py and job_runner.py too; neither needs it, so the rule is the exact set.
 LANGFUSE_IMPORTERS = {"composition.py", "observability.py"}
-NEW_ADAPTERS = {"composition", "jobs_memory", "job_runner", "api"}
+NEW_ADAPTERS = {"composition", "jobs_memory", "job_runner", "progress_tracer", "api"}
 INFRASTRUCTURE = {
     "langchain",
     "langchain_core",
@@ -175,19 +180,38 @@ def test_no_module_imports_a_composition_root() -> None:
     assert importers == set()
 
 
-def attribute_users(attribute: str) -> set[str]:
-    return {
-        path.name
-        for path in source_files()
-        if any(
-            isinstance(node, ast.Attribute) and node.attr == attribute
-            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
-        )
+def attribute_lines(node: ast.AST, attribute: str) -> list[int]:
+    return [
+        child.lineno
+        for child in ast.walk(node)
+        if isinstance(child, ast.Attribute) and child.attr == attribute
+    ]
+
+
+def stray_attribute_lines(tree: ast.Module, attribute: str) -> list[int]:
+    """Uses of `attribute` outside a `def attribute` body, which may only forward it."""
+    forwarding = {
+        line
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == attribute
+        for line in attribute_lines(node, attribute)
     }
+    return [line for line in attribute_lines(tree, attribute) if line not in forwarding]
+
+
+def uses_attribute(path: Path, attribute: str) -> bool:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    if path.name in LIFECYCLE_FORWARDERS:
+        return bool(stray_attribute_lines(tree, attribute))
+    return bool(attribute_lines(tree, attribute))
+
+
+def attribute_users(attribute: str) -> set[str]:
+    return {path.name for path in source_files() if uses_attribute(path, attribute)}
 
 
 def test_only_the_lifecycle_owners_open_the_root_span() -> None:
-    users = attribute_users("open_root") - {"observability.py"}  # the adapter defines it
+    users = attribute_users("open_root") - LIFECYCLE_IMPLEMENTERS
 
     assert users == LIFECYCLE_OWNERS
 
@@ -195,7 +219,41 @@ def test_only_the_lifecycle_owners_open_the_root_span() -> None:
 def test_only_the_lifecycle_owners_and_the_client_adapters_flush() -> None:
     users = attribute_users("flush")
 
-    assert users <= LIFECYCLE_OWNERS | {"observability.py", "composition.py"}
+    assert users <= LIFECYCLE_OWNERS | LIFECYCLE_IMPLEMENTERS | {"composition.py"}
+
+
+FORWARDING_SAMPLE = """
+class Decorator:
+    def open_root(self, *args):
+        return self._inner.open_root(*args)
+
+    def flush(self):
+        self._inner.flush()
+
+    def stage(self, name):
+        self._inner.flush()
+        return self._inner.open_root(name)
+"""
+
+
+def test_forwarding_inside_a_method_of_the_same_name_is_not_a_stray_use() -> None:
+    tree = ast.parse(FORWARDING_SAMPLE)
+
+    assert stray_attribute_lines(tree, "open_root") == [11]
+    assert stray_attribute_lines(tree, "flush") == [10]
+
+
+def test_the_progress_tracer_only_forwards_open_root_and_flush() -> None:
+    tree = ast.parse((SRC / "progress_tracer.py").read_text(encoding="utf-8"))
+
+    assert stray_attribute_lines(tree, "open_root") == []
+    assert stray_attribute_lines(tree, "flush") == []
+
+
+def test_only_the_job_runner_wires_the_progress_tracer() -> None:
+    importers = {path.name for path in source_files() if "progress_tracer" in runtime_imports(path)}
+
+    assert importers == {"job_runner.py"}
 
 
 def test_runtime_imports_ignores_type_checking_blocks(tmp_path: Path) -> None:

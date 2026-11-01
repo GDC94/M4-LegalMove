@@ -4,6 +4,7 @@ import threading
 import time
 from collections import defaultdict, deque
 from collections.abc import Callable, Mapping, Sequence
+from threading import Condition
 
 from jobs import Job, JobEvent, JobState, JobUpdate, is_terminal
 
@@ -16,6 +17,8 @@ class InMemoryJobStore:
         self._clock = clock
         self._lock = threading.Lock()
         self._jobs: dict[str, Job] = {}
+        # Dropped on read, not yet reported: the next sweep names them so callers can clean up.
+        self._dropped: list[str] = []
 
     def create(self, job: Job) -> None:
         with self._lock:
@@ -27,6 +30,7 @@ class InMemoryJobStore:
             job = self._jobs.get(job_id)
             if job is not None and self._is_expired(job, self._clock()):
                 del self._jobs[job_id]
+                self._dropped.append(job_id)
                 job = None
         return job if job is not None and job.owner_key_hash == owner_key_hash else None
 
@@ -47,16 +51,18 @@ class InMemoryJobStore:
         with self._lock:
             self._jobs.pop(job_id, None)
 
-    def expire(self) -> int:
+    def expire(self) -> list[str]:
+        """The ids of every job dropped since the last call, swept now or on an earlier read."""
         with self._lock:
-            return self._sweep()
+            expired, self._dropped = [*self._dropped, *self._sweep()], []
+            return expired
 
-    def _sweep(self) -> int:
+    def _sweep(self) -> list[str]:
         now = self._clock()
         expired = [job_id for job_id, job in self._jobs.items() if self._is_expired(job, now)]
         for job_id in expired:
             del self._jobs[job_id]
-        return len(expired)
+        return expired
 
     def _is_expired(self, job: Job, now: float) -> bool:
         return (
@@ -66,33 +72,54 @@ class InMemoryJobStore:
         )
 
 
+class JobLog:
+    """One job's events, where `seq` is index + 1, and the Condition its readers wait on."""
+
+    def __init__(self, lock: threading.Lock) -> None:
+        self.events: list[JobEvent] = []
+        self.condition = Condition(lock)
+
+    def after(self, seq: int) -> list[JobEvent]:
+        return self.events[max(seq, 0) :]
+
+
 class InMemoryJobEvents:
-    """Append-only list per job with a growing `seq`; a Condition wakes the waiting readers."""
+    """Append-only list per job with a growing `seq`; an append wakes only that job's readers."""
 
     def __init__(self) -> None:
-        self._condition = threading.Condition()
-        self._events: dict[str, list[JobEvent]] = defaultdict(list)
+        self._lock = threading.Lock()
+        self._logs: dict[str, JobLog] = {}
 
     def append(self, job_id: str, kind: str, payload: Mapping[str, object]) -> JobEvent:
-        with self._condition:
-            log = self._events[job_id]
-            event = JobEvent(seq=len(log) + 1, kind=kind, payload=dict(payload))
-            log.append(event)
-            self._condition.notify_all()
+        with self._lock:
+            log = self._log(job_id)
+            event = JobEvent(seq=len(log.events) + 1, kind=kind, payload=dict(payload))
+            log.events.append(event)
+            log.condition.notify_all()
             return event
 
     def read_since(self, job_id: str, seq: int) -> Sequence[JobEvent]:
-        with self._condition:
-            return self._after(job_id, seq)
+        with self._lock:
+            # `.get`: a read never creates a log for an id a client merely asked about.
+            log = self._logs.get(job_id)
+            return log.after(seq) if log is not None else []
 
     def wait_for(self, job_id: str, seq: int, timeout_seconds: float) -> Sequence[JobEvent]:
-        with self._condition:
-            self._condition.wait_for(lambda: bool(self._after(job_id, seq)), timeout_seconds)
-            return self._after(job_id, seq)
+        with self._lock:
+            log = self._log(job_id)
+            log.condition.wait_for(lambda: bool(log.after(seq)), timeout_seconds)
+            return log.after(seq)
 
-    def _after(self, job_id: str, seq: int) -> list[JobEvent]:
-        # `.get`, not indexing: a defaultdict would create a log for every id a client asks about.
-        return [event for event in self._events.get(job_id, []) if event.seq > seq]
+    def discard(self, job_id: str) -> None:
+        with self._lock:
+            self._logs.pop(job_id, None)
+
+    def _log(self, job_id: str) -> JobLog:
+        """Callers hold the lock; a reader may wait on a job that has not published yet."""
+        log = self._logs.get(job_id)
+        if log is None:
+            log = self._logs[job_id] = JobLog(self._lock)
+        return log
 
 
 class InMemoryRateLimiter:

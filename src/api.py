@@ -1,18 +1,18 @@
-"""HTTP API (FastAPI): the second composition root; jobs run in the background, clients poll."""
+"""HTTP API (FastAPI), the second composition root: jobs run in the background; poll or stream."""
 
+import asyncio
 import hashlib
 import hmac
 import logging
 import time
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Security, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request, Security, status
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 from pydantic import Field, SecretStr, ValidationError, field_validator
 from starlette.concurrency import run_in_threadpool
@@ -29,8 +29,21 @@ from config import Settings, describe_problems
 from errors import ConfigurationError, InvalidImageError
 from image_parser import ImageLimits, detect_mime_type, inspect_image
 from job_runner import JobServices, ThreadPoolJobRunner, UploadedImages, execute_job
-from jobs import Job, JobRunner, JobState, JobStore, QueueFullError, RateLimiter
-from jobs_memory import InMemoryJobStore, InMemoryRateLimiter
+from jobs import (
+    EventKind,
+    Job,
+    JobEvent,
+    JobEvents,
+    JobRunner,
+    JobState,
+    JobStore,
+    ProgressEvent,
+    QueueFullError,
+    RateLimiter,
+    format_event_time,
+    to_progress_event,
+)
+from jobs_memory import InMemoryJobEvents, InMemoryJobStore, InMemoryRateLimiter
 
 logger = logging.getLogger("legalmove")
 
@@ -39,6 +52,11 @@ UPLOAD_FIELDS = ("original", "amendment")
 # Multipart framing and the form fields around the two files.
 MULTIPART_OVERHEAD_BYTES = 1_048_576
 QUEUE_RETRY_AFTER_SECONDS = 5
+# No real seq gets near 20 digits; a longer header is noise, and `int()` refuses past 4300.
+MAX_EVENT_ID_DIGITS = 20
+# Proxies and browsers drop an idle connection; a comment every 15 s keeps the stream open.
+KEEP_ALIVE_SECONDS = 15.0
+KEEP_ALIVE_COMMENT = ": keep-alive\n\n"
 
 
 class ApiSettings(Settings):
@@ -96,6 +114,7 @@ class ApiRuntime:
     store: JobStore
     limiter: RateLimiter
     runner: JobRunner
+    events: JobEvents
     services: JobServices
     clock: Callable[[], float]
     close: Callable[[], None]
@@ -106,6 +125,7 @@ def build_api_runtime() -> ApiRuntime:
     settings = load_api_settings()
     client = connect_langfuse(settings)
     store = InMemoryJobStore(ttl_seconds=settings.api_job_ttl_seconds)
+    events = InMemoryJobEvents()
     runner = ThreadPoolJobRunner(
         max_workers=settings.api_max_concurrent_jobs, max_pending=settings.api_max_pending_jobs
     )
@@ -123,8 +143,12 @@ def build_api_runtime() -> ApiRuntime:
             window_seconds=settings.api_rate_limit_window_seconds,
         ),
         runner=runner,
+        events=events,
         services=JobServices(
-            store, lambda: assemble_container(settings, build_tracer(client, settings))
+            store=store,
+            events=events,
+            build_tracer=lambda: build_tracer(client, settings),
+            build_container=lambda tracer: assemble_container(settings, tracer),
         ),
         clock=time.time,
         close=close,
@@ -182,7 +206,7 @@ async def create_analysis(
     request: Request, runtime: Runtime, owner: RateLimitedOwner
 ) -> JSONResponse:
     """Checks in order: key, rate limit (both dependencies), length, size, images, queue."""
-    runtime.store.expire()
+    expire_jobs(runtime)
     limit = runtime.settings.max_upload_bytes
     reject_unbounded_request(request, limit)
     images = await read_uploads(await request.form(max_files=2, max_fields=2), limit)
@@ -197,6 +221,95 @@ def read_analysis(job_id: str, runtime: Runtime, owner: Owner) -> dict[str, obje
     if job is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "analysis not found")
     return describe_job(job)
+
+
+class EventStreamResponse(JSONResponse):
+    """Documentation only: FastAPI writes a response model's schema for JSON response classes.
+
+    The endpoint returns a StreamingResponse; this class makes the OpenAPI document the
+    `text/event-stream` body as the `kind` union each `data:` line carries.
+    """
+
+    media_type = "text/event-stream"
+
+
+@router.get(
+    "/analyses/{job_id}/events",
+    response_model=ProgressEvent,
+    response_class=EventStreamResponse,
+    responses={
+        401: {"description": "missing or invalid API key"},
+        404: {"description": "not found"},
+    },
+)
+def stream_analysis_events(
+    job_id: str,
+    request: Request,
+    runtime: Runtime,
+    owner: Owner,
+    last_event_id: Annotated[str | None, Header()] = None,
+) -> StreamingResponse:
+    """One SSE frame per event from `Last-Event-ID`; the stream closes after the `job` event."""
+    if runtime.store.get(job_id, owner) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "analysis not found")
+    feed = EventFeed(events=runtime.events, job_id=job_id, is_disconnected=request.is_disconnected)
+    return StreamingResponse(
+        stream_events(feed, last_seq=parse_last_event_id(last_event_id)),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+def expire_jobs(runtime: ApiRuntime) -> None:
+    """A job's events leave with the job, so the log never outgrows the store."""
+    for job_id in runtime.store.expire():
+        runtime.events.discard(job_id)
+
+
+def parse_last_event_id(value: str | None) -> int:
+    """A missing or unreadable id replays from the start, which never loses an event."""
+    if value is None or len(value) > MAX_EVENT_ID_DIGITS:
+        return 0
+    if not (value.isascii() and value.isdigit()):
+        return 0
+    return int(value)
+
+
+@dataclass(frozen=True)
+class EventFeed:
+    """Where one stream reads from, and how it learns that its client went away."""
+
+    events: JobEvents
+    job_id: str
+    is_disconnected: Callable[[], Awaitable[bool]]
+
+
+async def stream_events(feed: EventFeed, *, last_seq: int) -> AsyncIterator[str]:
+    """Waits run in a worker thread (`asyncio.to_thread`), so the event loop never blocks."""
+    history = await asyncio.to_thread(feed.events.read_since, feed.job_id, 0)
+    if has_ended_by(history, last_seq):
+        return
+    # A cursor past the log would skip the terminal event when it comes; one rule then covers
+    # every path: deliver until the `job` event.
+    seq = min(last_seq, history[-1].seq if history else 0)
+    while not await feed.is_disconnected():
+        batch = await asyncio.to_thread(feed.events.wait_for, feed.job_id, seq, KEEP_ALIVE_SECONDS)
+        if not batch:
+            yield KEEP_ALIVE_COMMENT
+        for event in batch:
+            yield format_event(event)
+            seq = event.seq
+            if event.kind == EventKind.JOB:
+                return
+
+
+def has_ended_by(history: Sequence[JobEvent], seq: int) -> bool:
+    """The client already holds the terminal event, so waiting would only send keep-alives."""
+    return any(event.kind == EventKind.JOB and event.seq <= seq for event in history)
+
+
+def format_event(event: JobEvent) -> str:
+    return f"id: {event.seq}\ndata: {to_progress_event(event).model_dump_json()}\n\n"
 
 
 def reject_unbounded_request(request: Request, limit: int) -> None:
@@ -273,7 +386,7 @@ def describe_job(job: Job) -> dict[str, object]:
     body: dict[str, object] = {
         "id": job.id,
         "status": job.state.value,
-        "created_at": datetime.fromtimestamp(job.created_at, UTC).isoformat(),
+        "created_at": format_event_time(job.created_at),
         "trace_id": job.trace_id,
     }
     if job.state is JobState.DONE and job.output is not None:

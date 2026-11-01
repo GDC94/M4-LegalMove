@@ -1,18 +1,27 @@
-"""Job domain: states, valid transitions and the uuid4 hex identity (plan §4.5, decision 108)."""
+"""Job domain: states, transitions, uuid4 hex identity and progress events (decisions 108, 111)."""
 
 import re
 
 import pytest
+from pydantic import ValidationError
 
 from jobs import (
+    EventKind,
     InvalidTransitionError,
     Job,
     JobEvent,
+    JobFinishedEvent,
     JobState,
     JobUpdate,
+    StageEvent,
+    StageStatus,
     is_terminal,
+    job_event_payload,
+    stage_event_payload,
+    to_progress_event,
 )
 from models import ContractChangeOutput
+from stages import StageName
 
 OWNER = "a" * 64
 ENVELOPE = {"error": "UpstreamError", "stage": "parse", "message": "m", "run_id": "r"}
@@ -123,3 +132,64 @@ def test_a_job_event_orders_by_seq_and_carries_a_payload() -> None:
     event = JobEvent(seq=3, kind="stage", payload={"stage": "extraction_agent"})
 
     assert (event.seq, event.kind, event.payload) == (3, "stage", {"stage": "extraction_agent"})
+
+
+def test_a_stage_event_payload_names_the_stage_its_status_and_a_utc_millisecond_time() -> None:
+    payload = stage_event_payload(StageName.EXTRACTION_AGENT, StageStatus.STARTED, at=1.4125)
+
+    assert payload == {
+        "stage": "extraction_agent",
+        "status": "started",
+        "at": "1970-01-01T00:00:01.412Z",
+    }
+
+
+def test_a_job_event_payload_carries_the_terminal_state() -> None:
+    payload = job_event_payload(JobState.HUMAN_REVIEW, at=1_793_000_000.0)
+
+    assert payload == {"status": "human_review", "at": "2026-10-26T07:33:20.000Z"}
+
+
+def test_a_job_event_payload_rejects_a_state_that_is_not_terminal() -> None:
+    with pytest.raises(ValueError, match="running"):
+        job_event_payload(JobState.RUNNING, at=0.0)
+
+
+def test_a_logged_stage_event_becomes_the_public_stage_event() -> None:
+    logged = JobEvent(
+        seq=4,
+        kind=EventKind.STAGE,
+        payload=stage_event_payload(StageName.EXTRACTION_AGENT, StageStatus.FAILED, at=0.0),
+    )
+
+    event = to_progress_event(logged)
+
+    assert isinstance(event, StageEvent)
+    assert event.model_dump(mode="json") == {
+        "seq": 4,
+        "kind": "stage",
+        "stage": "extraction_agent",
+        "status": "failed",
+        "at": "1970-01-01T00:00:00.000Z",
+    }
+
+
+def test_a_logged_job_event_becomes_the_public_terminal_event() -> None:
+    logged = JobEvent(seq=11, kind=EventKind.JOB, payload=job_event_payload(JobState.DONE, at=0.0))
+
+    event = to_progress_event(logged)
+
+    assert isinstance(event, JobFinishedEvent)
+    assert event.model_dump(mode="json") == {
+        "seq": 11,
+        "kind": "job",
+        "status": "done",
+        "at": "1970-01-01T00:00:00.000Z",
+    }
+
+
+def test_a_logged_event_outside_the_contract_is_rejected() -> None:
+    logged = JobEvent(seq=1, kind=EventKind.JOB, payload={"status": "running", "at": "x"})
+
+    with pytest.raises(ValidationError):
+        to_progress_event(logged)

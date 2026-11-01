@@ -1,148 +1,38 @@
 """HTTP API: auth, limits, validation order, job polling and start-up (plan §4.5, decision 108)."""
 
-import io
 import time
-from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
-from typing import Any
+from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
 
 import api
-from api import ApiRuntime, ApiSettings, create_app, hash_api_key
+from api import create_app, hash_api_key
+from api_doubles import (
+    ISSUE,
+    KEY,
+    OTHER_KEY,
+    Harness,
+    auth,
+    files,
+    make_settings,
+    png,
+    poll,
+    post,
+    submit,
+)
 from budget import CallBudget
 from cli_doubles import RecordingLifecycleTracer
 from composition import Container
-from errors import InvalidExtractionError, ObservabilityError, UpstreamError, ValidationIssue
-from job_runner import JobServices, ThreadPoolJobRunner
-from jobs import Job, JobState, QueueFullError
-from jobs_memory import InMemoryJobStore, InMemoryRateLimiter
+from errors import InvalidExtractionError, ObservabilityError, UpstreamError
+from job_runner import ThreadPoolJobRunner
+from jobs import JobState
 from pipeline_doubles import StubStages
-
-KEY = "key-one"
-OTHER_KEY = "key-two"
-ISSUE = ValidationIssue(code="ungrounded_quote", path="changes[0].original_quote", message="m")
-
-
-def png(width: int = 600, height: int = 600, color: int = 255) -> bytes:
-    buffer = io.BytesIO()
-    Image.new("L", (width, height), color).save(buffer, format="PNG")
-    return buffer.getvalue()
-
-
-def make_settings(**overrides: Any) -> ApiSettings:
-    values = {
-        "openai_api_key": "sk-test",
-        "langfuse_public_key": "pk-lf-test",
-        "langfuse_secret_key": "sk-lf-test",
-        "api_keys": f"{KEY},{OTHER_KEY}",
-        **overrides,
-    }
-    return ApiSettings(_env_file=None, **values)
-
-
-class FakeClock:
-    def __init__(self) -> None:
-        self.now = 1_000.0
-
-    def __call__(self) -> float:
-        return self.now
-
-
-@dataclass
-class ManualRunner:
-    """Keeps submitted work until the test runs it; can be told to be full."""
-
-    tasks: list[Callable[[], None]] = field(default_factory=list)
-    full: bool = False
-    shutdowns: int = 0
-
-    def submit(self, work: Callable[[], None]) -> None:
-        if self.full:
-            raise QueueFullError("full")
-        self.tasks.append(work)
-
-    def shutdown(self) -> None:
-        self.shutdowns += 1
-
-    def run_all(self) -> None:
-        while self.tasks:
-            self.tasks.pop(0)()
-
-
-class SpyStore(InMemoryJobStore):
-    """Remembers every job id it was asked to create, even if the job is discarded later."""
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self.created: list[str] = []
-
-    def create(self, job: Job) -> None:
-        self.created.append(job.id)
-        super().create(job)
-
-
-@dataclass
-class Harness:
-    settings: ApiSettings = field(default_factory=make_settings)
-    clock: FakeClock = field(default_factory=FakeClock)
-    runner: ManualRunner = field(default_factory=ManualRunner)
-    failures: dict[str, BaseException] = field(default_factory=dict)
-    closed: int = 0
-    runtime_builds: int = 0
-
-    def __post_init__(self) -> None:
-        self.store = SpyStore(ttl_seconds=self.settings.api_job_ttl_seconds, clock=self.clock)
-        self.limiter = InMemoryRateLimiter(
-            requests=self.settings.api_rate_limit_requests,
-            window_seconds=self.settings.api_rate_limit_window_seconds,
-            clock=self.clock,
-        )
-
-    def build_container(self) -> Container:
-        tracer = RecordingLifecycleTracer()
-        stages = StubStages(tracer, failures=self.failures)
-        return Container(tracer, stages.ports(), CallBudget(300), "development", {})
-
-    def build_runtime(self) -> ApiRuntime:
-        self.runtime_builds += 1
-        return ApiRuntime(
-            settings=self.settings,
-            store=self.store,
-            limiter=self.limiter,
-            runner=self.runner,
-            services=JobServices(self.store, self.build_container),
-            clock=self.clock,
-            close=self.close,
-        )
-
-    def close(self) -> None:
-        self.closed += 1
-
-    def client(self) -> TestClient:
-        return TestClient(create_app(self.build_runtime))
-
-
-def auth(key: str = KEY) -> dict[str, str]:
-    return {"X-API-Key": key}
-
-
-def files(original: bytes | None = None, amendment: bytes | None = None) -> dict[str, Any]:
-    return {
-        "original": ("original.png", original if original is not None else png(), "image/png"),
-        "amendment": ("amendment.png", amendment if amendment is not None else png(), "image/png"),
-    }
 
 
 @pytest.fixture
 def harness() -> Iterator[Harness]:
     yield Harness()
-
-
-def post(client: TestClient, key: str | None = KEY, **uploads: Any) -> Any:
-    return client.post("/analyses", files=files(**uploads), headers=auth(key) if key else {})
 
 
 def test_post_answers_202_with_an_id_without_running_the_analysis(harness: Harness) -> None:
@@ -370,14 +260,6 @@ def test_a_runner_already_shut_down_is_503_and_leaves_no_job() -> None:
     assert harness.store.get(harness.store.created[0], hash_api_key(KEY)) is None
 
 
-def poll(client: TestClient, job_id: str, key: str = KEY) -> Any:
-    return client.get(f"/analyses/{job_id}", headers=auth(key))
-
-
-def submit(client: TestClient) -> str:
-    return str(post(client).json()["id"])
-
-
 def test_a_pending_job_shows_its_state_without_a_body(harness: Harness) -> None:
     with harness.client() as client:
         job_id = submit(client)
@@ -387,7 +269,8 @@ def test_a_pending_job_shows_its_state_without_a_body(harness: Harness) -> None:
     assert body["id"] == job_id
     assert body["status"] == "pending"
     assert body["trace_id"] is None
-    assert body["created_at"].endswith("+00:00")
+    # The same shape as the events' `at`: UTC, milliseconds and a `Z`.
+    assert body["created_at"] == "1970-01-01T00:16:40.000Z"
 
 
 def test_a_running_job_shows_running(harness: Harness) -> None:

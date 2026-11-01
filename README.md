@@ -95,9 +95,10 @@ Lightweight **Ports & Adapters** (hexagonal) on the flat `src/` layout the assig
 | Adapter | `src/agents/structured_output.py` | Shared `with_structured_output(..., strict=True, include_raw=True)` plumbing |
 | Domain | `src/stages.py`, `src/jobs.py` | `StageName` (every traced stage) and the job lifecycle with its ports (`JobStore`, `JobEvents`, `JobRunner`, `RateLimiter`) |
 | Adapter | `src/jobs_memory.py`, `src/job_runner.py` | In-memory store, event log and rate limiter; the bounded thread pool that runs a job and owns its tracer lifecycle |
+| Adapter | `src/progress_tracer.py` | `ProgressTracer`: decorates the job's tracer and logs a `started`, `done` or `failed` event per stage, leaving the trace untouched |
 | Shared wiring | `src/composition.py` | `build_stages`, `build_container`, `connect_langfuse`, `build_tracer` and the error envelope, used by both roots |
 | Composition root | `src/main.py` | CLI: loads settings, owns the trace lifecycle and turns errors into exit codes |
-| Composition root | `src/api.py` | HTTP API: `ApiSettings`, FastAPI app, auth, rate limit and job polling endpoints |
+| Composition root | `src/api.py` | HTTP API: `ApiSettings`, FastAPI app, auth, rate limit, job polling and the SSE progress stream |
 | Configuration | `src/config.py` | `Settings` (pydantic-settings, `SecretStr`) and `APP_VERSION` |
 
 The observability port keeps Langfuse out of the business code: agents, the parser and the pipeline receive a `PipelineTracer`; tests swap it for a `RecordingTracer`, so unit tests run with no network and no `.env`.
@@ -232,9 +233,24 @@ uv run uvicorn --app-dir src api:app
 |---|---|---|
 | `POST /analyses` (multipart `original`, `amendment`) | `X-API-Key` | `202 {"id"}`; `401` bad key, `429` rate limit, `411` no `Content-Length` (chunked upload), `413` upload too large, `422` invalid image, `503` + `Retry-After` queue full |
 | `GET /analyses/{id}` | `X-API-Key` | `{id, status, created_at, trace_id}` plus `output` when `done`, or `error` (the CLI envelope) when `human_review` or `failed`; `404` for an unknown, expired or foreign id |
+| `GET /analyses/{id}/events` | `X-API-Key` | `text/event-stream` of progress events; honours `Last-Event-ID`; `404` for an unknown, expired or foreign id (only when the stream opens) |
 | `GET /health` | none | `{"status": "ok"}` |
 
 `status` is `pending`, `running`, `done`, `human_review` or `failed`. The job id is also the `run_id` of the envelope and the Langfuse `session_id`.
+
+The progress stream sends one frame per event, `id: <seq>` and `data: <json>`, with two shapes told apart by `kind`:
+
+```text
+id: 4
+data: {"seq":4,"kind":"stage","stage":"extraction_agent","status":"started","at":"2026-10-29T18:03:11.412Z"}
+
+id: 11
+data: {"seq":11,"kind":"job","status":"done","at":"2026-10-29T18:03:40.009Z"}
+```
+
+A `stage` event (`started`, `done` or `failed`) is published for each of the five stages; the `job` event (`done`, `human_review` or `failed`) is always the last one, and the server closes the stream after it. A reconnect with `Last-Event-ID` continues from the next event, and a quiet stream gets a `: keep-alive` comment every 15 s. The semantic retry runs inside its stage's span, so it has no event of its own. `GET /analyses/{id}` stays the source of truth for the result and the fallback when the stream fails. Browsers' `EventSource` cannot send `X-API-Key`, so clients read the stream with `fetch`.
+
+Known limitation: each open stream waits for new events in a thread of the default executor, for up to 15 s per wait, so many concurrent streams queue behind each other. That is fine for the demo; a production deployment would use per-job asyncio notifications or Redis.
 
 ## Tracing
 

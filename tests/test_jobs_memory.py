@@ -1,9 +1,11 @@
 """In-memory adapters: job store with TTL, event log and sliding-window rate limiter."""
 
 import threading
+from typing import ClassVar
 
 import pytest
 
+import jobs_memory
 from jobs import InvalidTransitionError, Job, JobState, JobUpdate
 from jobs_memory import InMemoryJobEvents, InMemoryJobStore, InMemoryRateLimiter
 
@@ -93,18 +95,20 @@ def test_the_ttl_counts_from_the_end_of_the_job_not_from_its_creation() -> None:
     assert store.get(job.id, OWNER) is not None
 
 
-def test_expire_reports_how_many_jobs_it_dropped() -> None:
+def test_expire_reports_the_ids_of_the_jobs_it_dropped() -> None:
     clock = FakeClock()
     store = make_store(clock)
+    ids = []
     for _ in range(2):
         job = Job.create(OWNER, now=clock())
         store.create(job)
         store.transition(job.id, JobState.RUNNING)
         store.transition(job.id, JobState.FAILED, JobUpdate(error={}))
+        ids.append(job.id)
     clock.now += TTL
 
-    assert store.expire() == 2
-    assert store.expire() == 0
+    assert sorted(store.expire()) == sorted(ids)
+    assert store.expire() == []
 
 
 def test_discard_forgets_a_job_and_ignores_an_unknown_one() -> None:
@@ -190,6 +194,28 @@ def test_wait_for_times_out_with_nothing() -> None:
     assert events.wait_for("job-1", 0, timeout_seconds=0.01) == []
 
 
+def test_wait_for_from_a_seq_ignores_what_the_reader_already_has() -> None:
+    events = InMemoryJobEvents()
+    events.append("job-1", "stage", {})
+    waiter_result: list[object] = []
+
+    waiter = threading.Thread(
+        target=lambda: waiter_result.extend(events.wait_for("job-1", 1, timeout_seconds=5))
+    )
+    waiter.start()
+    second = events.append("job-1", "stage", {})
+    waiter.join(timeout=5)
+
+    assert waiter_result == [second]
+
+
+def test_an_event_of_another_job_does_not_end_the_wait() -> None:
+    events = InMemoryJobEvents()
+    events.append("job-2", "stage", {})
+
+    assert events.wait_for("job-1", 0, timeout_seconds=0.01) == []
+
+
 def finished_job(store: InMemoryJobStore, clock: FakeClock) -> Job:
     job = Job.create(OWNER, now=clock())
     store.create(job)
@@ -204,8 +230,10 @@ def test_a_read_checks_only_the_requested_job_and_leaves_the_sweep_to_expire() -
     clock.now += TTL
 
     assert store.get(polled.id, OWNER) is None  # the requested job is dropped on read
-    assert store.expire() == 1  # the other one was left for the sweep
+    # The other one was left for the sweep; the one dropped on read is still reported once.
+    assert sorted(store.expire()) == sorted([polled.id, other.id])
     assert store.get(other.id, OWNER) is None
+    assert store.expire() == []
 
 
 def test_recording_the_trace_id_keeps_the_state_and_is_not_a_transition() -> None:
@@ -221,3 +249,43 @@ def test_recording_the_trace_id_keeps_the_state_and_is_not_a_transition() -> Non
     assert stored is not None
     assert (stored.state, stored.trace_id, stored.finished_at) == (JobState.RUNNING, "t1", None)
     assert store.transition(job.id, JobState.DONE).trace_id == "t1"
+
+
+def test_discard_forgets_the_events_of_a_job_and_ignores_an_unknown_one() -> None:
+    events = InMemoryJobEvents()
+    events.append("job-1", "stage", {})
+    kept = events.append("job-2", "stage", {})
+
+    events.discard("job-1")
+    events.discard("job-1")
+
+    assert events.read_since("job-1", 0) == []
+    assert events.read_since("job-2", 0) == [kept]
+
+
+class CountingCondition(threading.Condition):
+    """Counts the wake-ups of each Condition the event log creates, in creation order."""
+
+    created: ClassVar[list[CountingCondition]] = []
+
+    def __init__(self, lock: threading.Lock | threading.RLock | None = None) -> None:
+        super().__init__(lock)
+        self.notifications = 0
+        CountingCondition.created.append(self)
+
+    def notify_all(self) -> None:
+        self.notifications += 1
+        super().notify_all()
+
+
+def test_an_append_wakes_only_the_readers_of_its_own_job(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(jobs_memory, "Condition", CountingCondition)
+    monkeypatch.setattr(CountingCondition, "created", [])
+    events = InMemoryJobEvents()
+
+    events.append("job-a", "stage", {})
+    for _ in range(3):
+        events.append("job-b", "stage", {})
+
+    assert [condition.notifications for condition in CountingCondition.created] == [1, 3]
+    assert [event.seq for event in events.wait_for("job-a", 0, timeout_seconds=0)] == [1]
