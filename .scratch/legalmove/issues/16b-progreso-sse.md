@@ -1,6 +1,6 @@
 # 16b: Progreso por etapa con SSE
 
-**Status:** aprobado para implementar (grilling del 2026-10-29, 26 decisiones)
+**Status:** cerrado el 2026-11-01 (commit `8c7a07b`; grilling del 2026-10-29, 26 decisiones)
 
 **Fase:** 3 — interfaz web
 

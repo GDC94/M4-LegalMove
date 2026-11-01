@@ -1,6 +1,6 @@
 # 16a: API de jobs con polling
 
-**Status:** aprobado para implementar (grilling del 2026-10-29, 26 decisiones)
+**Status:** cerrado el 2026-11-01 (commit `9944ab0`; grilling del 2026-10-29, 26 decisiones)
 
 **Fase:** 3 — interfaz web
 

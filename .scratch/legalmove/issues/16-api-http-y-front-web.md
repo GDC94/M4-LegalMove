@@ -1,6 +1,6 @@
 # 16: API HTTP con FastAPI y front web con React
 
-**Status:** aprobado para implementar (grilling del 2026-10-29, 26 decisiones); ticket paraguas, se implementa por rebanadas: 16a, 16b y 16c
+**Status:** cerrado el 2026-11-01 (16a `9944ab0`, 16b `8c7a07b`, 16c `97cc5b0`; grilling del 2026-10-29, 26 decisiones); ticket paraguas, implementado por rebanadas
 
 **Fase:** 3 — interfaz web
 

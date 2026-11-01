@@ -1,6 +1,6 @@
 # 16c: Front con React y TypeScript
 
-**Status:** aprobado para implementar (grilling del 2026-10-29, 26 decisiones)
+**Status:** cerrado el 2026-11-01 (commit `97cc5b0`; grilling del 2026-10-29, 26 decisiones)
 
 **Fase:** 3 — interfaz web
 
