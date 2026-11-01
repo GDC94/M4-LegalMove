@@ -22,6 +22,9 @@ LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 class Settings(BaseSettings):
     """Every runtime knob of plan §5.1; secrets stay as SecretStr."""
 
+    # pydantic-settings parses env_file with python-dotenv (dotenv_values), so the assignment's
+    # dotenv requirement is met without load_dotenv(): that would copy the real .env into
+    # os.environ, where the unit-test isolation fixture cannot remove it.
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     openai_api_key: SecretStr
