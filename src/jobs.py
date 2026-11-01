@@ -10,7 +10,8 @@ from typing import Annotated, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 from pydantic.config import JsonDict
 
-from models import ContractChangeOutput
+from change_details import ChangeDetail
+from models import AmendmentKind, ContractChangeOutput
 from stages import StageName
 
 
@@ -50,6 +51,8 @@ class JobUpdate:
     trace_id: str | None = None
     output: ContractChangeOutput | None = None
     error: Mapping[str, object] | None = None
+    changes: list[ChangeDetail] | None = None
+    amendment_kind: AmendmentKind | None = None
 
 
 @dataclass(frozen=True)
@@ -64,6 +67,8 @@ class Job:
     output: ContractChangeOutput | None = None
     error: Mapping[str, object] | None = None
     finished_at: float | None = None
+    changes: list[ChangeDetail] | None = None
+    amendment_kind: AmendmentKind | None = None
 
     @classmethod
     def create(cls, owner_key_hash: str, *, now: float) -> Job:
@@ -89,6 +94,8 @@ class Job:
             trace_id=update.trace_id or self.trace_id,
             output=update.output,
             error=update.error,
+            changes=update.changes,
+            amendment_kind=update.amendment_kind,
             finished_at=now if is_terminal(target) else None,
         )
 

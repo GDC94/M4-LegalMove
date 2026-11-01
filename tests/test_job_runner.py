@@ -28,7 +28,7 @@ from job_runner import (
 )
 from jobs import Job, JobEvent, JobState, JobUpdate, QueueFullError
 from jobs_memory import InMemoryJobEvents, InMemoryJobStore
-from models import DocumentRole, ParsedContract
+from models import AmendmentKind, DocumentRole, ParsedContract
 from observability import TraceLifecycle
 from pipeline import PipelineStages
 from pipeline_doubles import StubStages
@@ -106,6 +106,39 @@ def test_a_successful_analysis_ends_done_with_the_public_output_and_the_trace_id
     assert job.output.sections_changed == ["1"]
     assert job.error is None
     assert job.trace_id == "trace-abc"
+
+
+def test_a_done_job_keeps_the_change_details_and_the_amendment_kind() -> None:
+    job = Harness().run()
+
+    assert job.amendment_kind is AmendmentKind.RESTATED
+    assert job.changes is not None
+    [detail] = job.changes
+    assert (detail.section_id, detail.section_title) == ("1", "Precio")
+    assert detail.original_quote == "$ 1.500.000"
+    assert detail.amendment_quote == "$ 1.850.000"
+
+
+def test_the_root_span_output_stays_the_public_contract_output() -> None:
+    harness = Harness()
+
+    job = harness.run()
+
+    [(root, _)] = harness.tracer.roots
+    assert job.output is not None
+    assert root.output == job.output.model_dump(mode="json")
+    assert set(root.output) == {"sections_changed", "topics_touched", "summary_of_the_change"}
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [InvalidExtractionError([ISSUE]), UpstreamError("down")],
+    ids=["human_review", "failed"],
+)
+def test_a_job_that_does_not_end_done_has_no_change_details(failure: BaseException) -> None:
+    job = Harness(failures={"extraction_agent": failure}).run()
+
+    assert (job.changes, job.amendment_kind) == (None, None)
 
 
 def test_the_images_reach_the_parser_as_files_with_the_uploaded_bytes() -> None:

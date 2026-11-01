@@ -8,7 +8,7 @@ import { z } from "zod";
 export const MAX_IMAGE_BYTES = 10_000_000;
 export const ACCEPTED_TYPES = ["image/png", "image/jpeg"] as const;
 
-function imageFile(missing: string) {
+export function imageFile(missing: string) {
   return z
     .file({ error: (issue) => (issue.input === undefined ? missing : "Choose an image file.") })
     .mime([...ACCEPTED_TYPES], { error: "Choose a PNG or JPEG image." })

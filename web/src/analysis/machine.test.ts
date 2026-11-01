@@ -63,6 +63,8 @@ describe("analysis state machine", () => {
     expect(run(...RUNNING, { type: "settled", body: DONE_BODY })).toMatchObject({
       phase: "done",
       output: DONE_BODY.output,
+      changes: DONE_BODY.changes,
+      amendment_kind: "delta",
     });
     expect(run(...RUNNING, { type: "settled", body: HUMAN_REVIEW_BODY })).toMatchObject({
       phase: "human_review",
@@ -71,6 +73,16 @@ describe("analysis state machine", () => {
     expect(run(...RUNNING, { type: "settled", body: FAILED_BODY })).toMatchObject({
       phase: "failed",
       envelope: FAILED_BODY.error,
+    });
+  });
+
+  it("settles a done body without details on no changes and no kind", () => {
+    const body = { ...DONE_BODY, changes: undefined, amendment_kind: undefined };
+
+    expect(run(...RUNNING, { type: "settled", body })).toMatchObject({
+      phase: "done",
+      changes: [],
+      amendment_kind: null,
     });
   });
 

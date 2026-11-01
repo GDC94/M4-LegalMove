@@ -5,9 +5,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from change_details import ChangeDetail
 from errors import ValidationIssue
 from jobs import JobState
-from models import ContractChangeOutput
+from models import AmendmentKind, ContractChangeOutput
 
 
 class AnalysisCreated(BaseModel):
@@ -40,7 +41,7 @@ class ErrorEnvelope(BaseModel):
 
 
 class AnalysisBody(BaseModel):
-    """`GET /analyses/{id}`: `output` only when `done`, `error` only on the other two ends."""
+    """`GET /analyses/{id}`: the result fields only when `done`, `error` on the other two ends."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -49,6 +50,8 @@ class AnalysisBody(BaseModel):
     created_at: str = Field(json_schema_extra={"format": "date-time"})
     trace_id: str | None
     output: ContractChangeOutput | None = None
+    changes: list[ChangeDetail] | None = None
+    amendment_kind: AmendmentKind | None = None
     error: ErrorEnvelope | None = None
 
 

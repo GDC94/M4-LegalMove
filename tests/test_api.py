@@ -296,6 +296,47 @@ def test_a_done_job_returns_the_public_output(harness: Harness) -> None:
     assert "error" not in body
 
 
+def test_a_done_job_returns_the_change_details_and_the_amendment_kind(harness: Harness) -> None:
+    with harness.client() as client:
+        job_id = submit(client)
+        harness.runner.run_all()
+        body = poll(client, job_id).json()
+
+    assert body["amendment_kind"] == "restated"
+    assert body["changes"] == [
+        {
+            "section_id": "1",
+            "section_title": "Precio",
+            "change_type": "modified",
+            "topic": "price_payment",
+            "description": "El precio pasa de $ 1.500.000 a $ 1.850.000",
+            "original_quote": "$ 1.500.000",
+            "amendment_quote": "$ 1.850.000",
+        }
+    ]
+
+
+def test_only_a_done_job_carries_the_change_details(harness: Harness) -> None:
+    review = Harness(failures={"extraction_agent": InvalidExtractionError([ISSUE])})
+    failed = Harness(failures={"parse_original_contract": UpstreamError("down")})
+    bodies = []
+    with harness.client() as client:
+        pending_id = submit(client)
+        bodies.append(poll(client, pending_id).json())
+        harness.store.transition(pending_id, JobState.RUNNING)
+        bodies.append(poll(client, pending_id).json())
+    for other in (review, failed):
+        with other.client() as client:
+            job_id = submit(client)
+            other.runner.run_all()
+            bodies.append(poll(client, job_id).json())
+
+    assert len(bodies) == 4
+    for body in bodies:
+        assert "changes" not in body
+        assert "amendment_kind" not in body
+
+
 def test_a_human_review_job_returns_the_cli_envelope_with_issues() -> None:
     harness = Harness(failures={"extraction_agent": InvalidExtractionError([ISSUE])})
 

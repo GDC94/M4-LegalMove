@@ -4,6 +4,7 @@ import {
   analysisBodySchema,
   type analysisCreatedSchema,
   type apiProblemSchema,
+  changeDetailSchema,
   type errorEnvelopeSchema,
   progressEventSchema,
 } from "./contract";
@@ -25,11 +26,22 @@ const DONE_BODY = {
   },
 };
 
+const CHANGE = {
+  section_id: "3",
+  section_title: "Price",
+  change_type: "modified",
+  topic: "price_payment",
+  description: "The price goes from 100 to 120.",
+  original_quote: "USD 100",
+  amendment_quote: "USD 120",
+};
+
 describe("contract schemas", () => {
   // `satisfies` in contract.ts only proves the schema fits the type; these prove the reverse too,
   // so a field the backend adds or drops breaks `tsc` here.
   it("infer exactly the types generated from the OpenAPI", () => {
     expectTypeOf<z.output<typeof analysisBodySchema>>().toEqualTypeOf<Schemas["AnalysisBody"]>();
+    expectTypeOf<z.output<typeof changeDetailSchema>>().toEqualTypeOf<Schemas["ChangeDetail"]>();
     expectTypeOf<z.output<typeof errorEnvelopeSchema>>().toEqualTypeOf<Schemas["ErrorEnvelope"]>();
     expectTypeOf<z.output<typeof analysisCreatedSchema>>().toEqualTypeOf<
       Schemas["AnalysisCreated"]
@@ -59,6 +71,26 @@ describe("contract schemas", () => {
   it("reject a body with an unknown status or a missing field", () => {
     expect(analysisBodySchema.safeParse({ ...DONE_BODY, status: "cancelled" }).success).toBe(false);
     expect(analysisBodySchema.safeParse({ ...DONE_BODY, trace_id: undefined }).success).toBe(false);
+  });
+
+  it("accept a change detail and reject an unknown change_type or topic", () => {
+    expect(changeDetailSchema.parse(CHANGE).section_title).toBe("Price");
+    expect(changeDetailSchema.parse({ ...CHANGE, section_title: null }).section_title).toBeNull();
+    expect(changeDetailSchema.safeParse({ ...CHANGE, change_type: "renamed" }).success).toBe(false);
+    expect(changeDetailSchema.safeParse({ ...CHANGE, topic: "price" }).success).toBe(false);
+  });
+
+  it("carry the change details and the amendment kind on a done body", () => {
+    const body = analysisBodySchema.parse({
+      ...DONE_BODY,
+      changes: [CHANGE],
+      amendment_kind: "delta",
+    });
+    expect(body.changes).toEqual([CHANGE]);
+    expect(body.amendment_kind).toBe("delta");
+    expect(analysisBodySchema.safeParse({ ...DONE_BODY, amendment_kind: "diff" }).success).toBe(
+      false,
+    );
   });
 
   it("accept cached only as true on a stage event, and an event without it", () => {

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw/http";
 import { describe, expect, it } from "vitest";
@@ -85,13 +85,136 @@ function serveAnalysis(options: { events: ProgressEvent[]; body: AnalysisBody })
   return posted;
 }
 
+async function chooseOriginal(
+  user: ReturnType<typeof userEvent.setup>,
+  file = pngFile("contract.png"),
+) {
+  await user.upload(fileInput("Original contract"), file);
+}
+
+async function chooseAmendment(
+  user: ReturnType<typeof userEvent.setup>,
+  file = pngFile("addendum.png"),
+) {
+  await user.upload(await amendmentInput(), file);
+}
+
+async function amendmentInput(): Promise<HTMLInputElement> {
+  const group = await screen.findByRole("group", { name: "Amendment" });
+  return within(group).getByLabelText("Upload attachments") as HTMLInputElement;
+}
+
 async function submitPair(user: ReturnType<typeof userEvent.setup>) {
-  await user.upload(fileInput("Original contract"), pngFile("contract.png"));
-  await user.upload(fileInput("Amendment"), pngFile("addendum.png"));
+  await chooseOriginal(user);
+  await chooseAmendment(user);
   await user.click(screen.getByRole("button", { name: "Analyze" }));
 }
 
+const PDF = () => new File(["%PDF-1.7"], "scan.pdf", { type: "application/pdf" });
+
 describe("upload form", () => {
+  it("starts with only the original contract upload and Analyze disabled", () => {
+    renderScreen();
+
+    expect(screen.getByRole("group", { name: "Original contract" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Amendment" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Analyze" })).toBeDisabled();
+    expect(screen.getByRole("heading", { name: "Upload the original contract" })).toBeVisible();
+  });
+
+  it("marks the current step in a two-item list", async () => {
+    const user = renderScreen();
+    const steps = () => screen.getAllByRole("listitem").filter((item) => item.closest("ol"));
+    expect(steps()).toHaveLength(2);
+    expect(steps()[0]).toHaveAttribute("aria-current", "step");
+
+    await chooseOriginal(user);
+
+    await screen.findByRole("group", { name: "Amendment" });
+    expect(steps()[0]).not.toHaveAttribute("aria-current");
+    expect(steps()[1]).toHaveAttribute("aria-current", "step");
+  });
+
+  it("stays on step 1 with an alert and no file when the original is not an image", async () => {
+    const user = renderScreen();
+
+    await chooseOriginal(user, PDF());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Choose a PNG or JPEG image.");
+    expect(screen.getByRole("group", { name: "Original contract" })).toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Amendment" })).not.toBeInTheDocument();
+    expect(screen.queryByText("scan.pdf")).not.toBeInTheDocument();
+  });
+
+  it("advances on a valid image, focuses the step 2 title and announces the step", async () => {
+    const user = renderScreen();
+    const live = screen.getByRole("status");
+    expect(live).toBeEmptyDOMElement();
+
+    await chooseOriginal(user);
+
+    const title = await screen.findByRole("heading", { name: "Upload the amendment" });
+    await waitFor(() => expect(title).toHaveFocus());
+    expect(title).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByRole("status")).toBe(live);
+    expect(live).toHaveTextContent("Step 2 of 2: amendment");
+    expect(screen.getByText("contract.png")).toBeInTheDocument();
+  });
+
+  it("rejects an invalid amendment in step 2 without leaving the step", async () => {
+    const user = renderScreen();
+    await chooseOriginal(user);
+
+    await chooseAmendment(user, PDF());
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Choose a PNG or JPEG image.");
+    expect(screen.getByRole("heading", { name: "Upload the amendment" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Analyze" })).toBeDisabled();
+  });
+
+  it("enables Analyze once both images are valid", async () => {
+    const user = renderScreen();
+    await chooseOriginal(user);
+    await chooseAmendment(user);
+
+    expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
+  });
+
+  it("lets the amendment be removed, which disables Analyze again", async () => {
+    const user = renderScreen();
+    await chooseOriginal(user);
+    await chooseAmendment(user);
+    const group = screen.getByRole("group", { name: "Amendment" });
+
+    await user.click(
+      await within(group).findByRole("button", { name: "Remove addendum.png" }, { timeout: 3000 }),
+    );
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Analyze" })).toBeDisabled());
+  });
+
+  it("Change goes back to step 1, keeps the amendment and focuses the step 1 title", async () => {
+    const user = renderScreen();
+    await chooseOriginal(user);
+    await chooseAmendment(user);
+
+    await user.click(screen.getByRole("button", { name: "Change" }));
+
+    const title = await screen.findByRole("heading", { name: "Upload the original contract" });
+    await waitFor(() => expect(title).toHaveFocus());
+    expect(screen.getByRole("status")).toHaveTextContent("Step 1 of 2: original contract");
+    expect(screen.getByText("addendum.png")).toBeInTheDocument();
+    expect(screen.queryByText("contract.png")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Analyze" })).toBeDisabled();
+
+    await chooseOriginal(user, pngFile("replacement.png"));
+
+    await screen.findByRole("heading", { name: "Upload the amendment" });
+    expect(screen.getByText("replacement.png")).toBeInTheDocument();
+    expect(screen.getByText("addendum.png")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Analyze" })).toBeEnabled();
+  });
+
   it("sends both images in the multipart under the role of their own upload", async () => {
     const posted = serveAnalysis({
       events: [...ALL_STAGES_DONE, finished(11, "done")],
@@ -105,16 +228,19 @@ describe("upload form", () => {
     expect(posted).toEqual([{ original: "contract.png", amendment: "addendum.png" }]);
   });
 
-  it("does not send with a single image", async () => {
+  it("sends the replaced original with the amendment kept from before", async () => {
     const posted = serveAnalysis({ events: [], body: DONE_BODY });
     const user = renderScreen();
+    await chooseOriginal(user);
+    await chooseAmendment(user);
+    await user.click(screen.getByRole("button", { name: "Change" }));
+    await chooseOriginal(user, pngFile("replacement.png"));
 
-    await user.upload(fileInput("Original contract"), pngFile("contract.png"));
-    await user.click(screen.getByRole("button", { name: "Analyze" }));
+    await user.click(await screen.findByRole("button", { name: "Analyze" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Choose the amendment image.");
-    expect(dropZone("Amendment")).toHaveAccessibleDescription("Choose the amendment image.");
-    expect(posted).toEqual([]);
+    await waitFor(() =>
+      expect(posted).toEqual([{ original: "replacement.png", amendment: "addendum.png" }]),
+    );
   });
 
   it("moves focus to the progress heading once the form gives way to the stepper", async () => {
@@ -165,26 +291,17 @@ describe("upload form", () => {
   });
 
   it("rejects a type that is not PNG or JPEG and an image over the limit", async () => {
-    const posted = serveAnalysis({ events: [], body: DONE_BODY });
     const user = renderScreen();
 
-    await user.upload(
-      fileInput("Original contract"),
-      new File(["GIF89a"], "scan.gif", { type: "image/gif" }),
-    );
-    await user.upload(fileInput("Amendment"), pngFile("huge.png", MAX_IMAGE_BYTES + 1));
-    await user.click(screen.getByRole("button", { name: "Analyze" }));
-
+    await chooseOriginal(user, new File(["GIF89a"], "scan.gif", { type: "image/gif" }));
     expect(await screen.findByText("Choose a PNG or JPEG image.")).toHaveRole("alert");
-    expect(screen.getByText("huge.png is over 10 MB.")).toHaveRole("alert");
-    // The GIF filled its upload, so the drop zone is disabled: the group carries the message.
-    expect(screen.getByRole("group", { name: "Original contract" })).toHaveAccessibleDescription(
-      "Choose a PNG or JPEG image.",
-    );
-    expect(dropZone("Amendment")).toHaveAccessibleDescription(
-      "huge.png is over 10 MB. Choose the amendment image.",
-    );
-    expect(posted).toEqual([]);
+
+    await chooseOriginal(user);
+    await chooseAmendment(user, pngFile("huge.png", MAX_IMAGE_BYTES + 1));
+
+    expect(await screen.findByText("huge.png is over 10 MB.")).toHaveRole("alert");
+    expect(dropZone("Amendment")).toHaveAccessibleDescription("huge.png is over 10 MB.");
+    expect(screen.getByRole("button", { name: "Analyze" })).toBeDisabled();
   });
 });
 
@@ -196,9 +313,12 @@ describe("terminal views", () => {
     await submitPair(user);
 
     const result = await screen.findByRole("region", { name: "Legal changes" });
-    expect(within(result).getByText("3")).toBeInTheDocument();
-    expect(within(result).getByText("new:5")).toBeInTheDocument();
-    expect(within(result).getByText("price")).toBeInTheDocument();
+    expect(within(result).getAllByText("3").length).toBeGreaterThan(0);
+    expect(within(result).getAllByText("new:5").length).toBeGreaterThan(0);
+    expect(within(result).getByText("price_payment")).toBeInTheDocument();
+    expect(within(result).getByRole("heading", { name: "Change details" })).toBeInTheDocument();
+    expect(within(result).getAllByRole("article")).toHaveLength(2);
+    expect(within(result).getByText("delta")).toBeInTheDocument();
     expect(
       within(result).getByText(DONE_BODY.output?.summary_of_the_change ?? ""),
     ).toBeInTheDocument();

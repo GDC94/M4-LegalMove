@@ -51,6 +51,10 @@ describe("useAnalysis", () => {
 
     await waitFor(() => expect(result.current.state.phase).toBe("done"));
     expect(client.createAnalysis).toHaveBeenCalledTimes(1);
+    expect(result.current.state).toMatchObject({
+      changes: DONE_BODY.changes,
+      amendment_kind: "delta",
+    });
   });
 
   it("keeps polling through a transient error and settles on the body", async () => {

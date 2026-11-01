@@ -115,6 +115,31 @@ def test_the_analysis_body_documents_its_fields_and_the_terminal_bodies() -> Non
     assert "issues" in envelope["properties"]
 
 
+def test_the_change_detail_and_its_enums_are_documented() -> None:
+    schemas = openapi()["components"]["schemas"]
+    body, detail = schemas["AnalysisBody"], schemas["ChangeDetail"]
+
+    assert set(detail["required"]) == {
+        "section_id",
+        "section_title",
+        "change_type",
+        "topic",
+        "description",
+        "original_quote",
+        "amendment_quote",
+    }
+    assert schemas["ChangeType"]["enum"] == ["added", "removed", "modified"]
+    assert schemas["AmendmentKind"]["enum"] == ["restated", "delta", "unknown"]
+    assert "price_payment" in schemas["Topic"]["enum"]
+    assert {"$ref": "#/components/schemas/AmendmentKind"} in body["properties"]["amendment_kind"][
+        "anyOf"
+    ]
+    changes = body["properties"]["changes"]["anyOf"]
+    assert {"type": "array", "items": {"$ref": "#/components/schemas/ChangeDetail"}} in [
+        {key: option[key] for key in ("type", "items")} for option in changes if "items" in option
+    ]
+
+
 @pytest.mark.parametrize(
     "failures",
     [

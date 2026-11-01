@@ -275,6 +275,16 @@
   },
   "components": {
     "schemas": {
+      "AmendmentKind": {
+        "type": "string",
+        "enum": [
+          "restated",
+          "delta",
+          "unknown"
+        ],
+        "title": "AmendmentKind",
+        "description": "How an Amendment expresses its changes (plan §2.2)."
+      },
       "AnalysisBody": {
         "properties": {
           "id": {
@@ -310,6 +320,30 @@
               }
             ]
           },
+          "changes": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ChangeDetail"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changes"
+          },
+          "amendment_kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AmendmentKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "error": {
             "anyOf": [
               {
@@ -330,7 +364,7 @@
           "trace_id"
         ],
         "title": "AnalysisBody",
-        "description": "`GET /analyses/{id}`: `output` only when `done`, `error` only on the other two ends."
+        "description": "`GET /analyses/{id}`: the result fields only when `done`, `error` on the other two ends."
       },
       "AnalysisCreated": {
         "properties": {
@@ -361,6 +395,80 @@
         ],
         "title": "ApiProblem",
         "description": "Body of every refusal: one sentence that never quotes a document."
+      },
+      "ChangeDetail": {
+        "properties": {
+          "section_id": {
+            "type": "string",
+            "title": "Section Id"
+          },
+          "section_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section Title"
+          },
+          "change_type": {
+            "$ref": "#/components/schemas/ChangeType"
+          },
+          "topic": {
+            "$ref": "#/components/schemas/Topic"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "original_quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Quote"
+          },
+          "amendment_quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amendment Quote"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "section_id",
+          "section_title",
+          "change_type",
+          "topic",
+          "description",
+          "original_quote",
+          "amendment_quote"
+        ],
+        "title": "ChangeDetail",
+        "description": "One Change as the web client shows it: the Quotes are the contract's literal text."
+      },
+      "ChangeType": {
+        "type": "string",
+        "enum": [
+          "added",
+          "removed",
+          "modified"
+        ],
+        "title": "ChangeType",
+        "description": "Whether a Change is an Addition, a Removal or a Modification of a whole Section."
       },
       "ContractChangeOutput": {
         "properties": {
@@ -576,6 +684,31 @@
         ],
         "title": "StageStatus",
         "description": "No `retrying`: the semantic retry runs inside the same span (decision 111)."
+      },
+      "Topic": {
+        "type": "string",
+        "enum": [
+          "parties",
+          "object_scope",
+          "price_payment",
+          "term_duration",
+          "termination",
+          "obligations",
+          "deliverables_sla",
+          "penalties",
+          "liability_indemnity",
+          "warranties",
+          "confidentiality",
+          "intellectual_property",
+          "data_protection",
+          "insurance",
+          "assignment",
+          "governing_law_disputes",
+          "notices",
+          "other"
+        ],
+        "title": "Topic",
+        "description": "Closed taxonomy of legal and commercial Topics; `other` is allowed and monitored."
       },
       "ValidationError": {
         "properties": {

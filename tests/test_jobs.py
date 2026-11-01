@@ -5,6 +5,7 @@ import re
 import pytest
 from pydantic import ValidationError
 
+from change_details import ChangeDetail
 from jobs import (
     EventKind,
     InvalidTransitionError,
@@ -20,7 +21,7 @@ from jobs import (
     stage_event_payload,
     to_progress_event,
 )
-from models import ContractChangeOutput
+from models import AmendmentKind, ChangeType, ContractChangeOutput, Topic
 from stages import StageName
 
 OWNER = "a" * 64
@@ -228,3 +229,26 @@ def test_cached_false_is_outside_the_contract_because_cached_is_omitted_instead(
 
     with pytest.raises(ValidationError):
         to_progress_event(logged)
+
+
+def test_the_change_details_and_the_amendment_kind_travel_with_the_done_transition() -> None:
+    detail = ChangeDetail(
+        section_id="1",
+        section_title="Price",
+        change_type=ChangeType.MODIFIED,
+        topic=Topic.PRICE_PAYMENT,
+        description="d",
+        original_quote="a",
+        amendment_quote="b",
+    )
+    running = new_job().transition(JobState.RUNNING, now=101.0)
+
+    done = running.transition(
+        JobState.DONE,
+        now=102.0,
+        update=JobUpdate(output=output(), changes=[detail], amendment_kind=AmendmentKind.DELTA),
+    )
+
+    assert done.changes == [detail]
+    assert done.amendment_kind is AmendmentKind.DELTA
+    assert (new_job().changes, new_job().amendment_kind) == (None, None)

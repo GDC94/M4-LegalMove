@@ -1,5 +1,5 @@
 /** Bodies and SSE frames shaped exactly as the API sends them. */
-import type { AnalysisBody, ProgressEvent, StageName } from "@/api/contract";
+import type { AnalysisBody, ChangeDetail, ProgressEvent, StageName } from "@/api/contract";
 
 // Same origin as the page, like the `/api` proxy in development: no CORS preflight to mock.
 export const API = `${window.location.origin}/api`;
@@ -41,14 +41,36 @@ const BASE = { id: JOB_ID, created_at: "2026-10-29T18:03:00.000Z", trace_id: "tr
 
 export const RUNNING_BODY: AnalysisBody = { ...BASE, status: "running" };
 
+export const PRICE_CHANGE: ChangeDetail = {
+  section_id: "3",
+  section_title: "Price",
+  change_type: "modified",
+  topic: "price_payment",
+  description: "The monthly price rises from 100 to 120.",
+  original_quote: "The monthly price is USD 100.",
+  amendment_quote: "The monthly price is USD 120.",
+};
+
+export const RENEWAL_CHANGE: ChangeDetail = {
+  section_id: "new:5",
+  section_title: null,
+  change_type: "added",
+  topic: "term_duration",
+  description: "A renewal clause is added.",
+  original_quote: null,
+  amendment_quote: "The contract renews for one year unless either party objects.",
+};
+
 export const DONE_BODY: AnalysisBody = {
   ...BASE,
   status: "done",
   output: {
     sections_changed: ["3", "new:5"],
-    topics_touched: ["price", "term"],
+    topics_touched: ["price_payment", "term_duration"],
     summary_of_the_change: "The monthly price rises from 100 to 120 and a renewal clause is added.",
   },
+  changes: [PRICE_CHANGE, RENEWAL_CHANGE],
+  amendment_kind: "delta",
 };
 
 export const HUMAN_REVIEW_BODY: AnalysisBody = {

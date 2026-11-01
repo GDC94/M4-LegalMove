@@ -86,8 +86,14 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AmendmentKind
+         * @description How an Amendment expresses its changes (plan §2.2).
+         * @enum {string}
+         */
+        AmendmentKind: "restated" | "delta" | "unknown";
+        /**
          * AnalysisBody
-         * @description `GET /analyses/{id}`: `output` only when `done`, `error` only on the other two ends.
+         * @description `GET /analyses/{id}`: the result fields only when `done`, `error` on the other two ends.
          */
         AnalysisBody: {
             /** Id */
@@ -101,6 +107,9 @@ export interface components {
             /** Trace Id */
             trace_id: string | null;
             output?: components["schemas"]["ContractChangeOutput"] | null;
+            /** Changes */
+            changes?: components["schemas"]["ChangeDetail"][] | null;
+            amendment_kind?: components["schemas"]["AmendmentKind"] | null;
             error?: components["schemas"]["ErrorEnvelope"] | null;
         };
         /**
@@ -119,6 +128,30 @@ export interface components {
             /** Detail */
             detail: string;
         };
+        /**
+         * ChangeDetail
+         * @description One Change as the web client shows it: the Quotes are the contract's literal text.
+         */
+        ChangeDetail: {
+            /** Section Id */
+            section_id: string;
+            /** Section Title */
+            section_title: string | null;
+            change_type: components["schemas"]["ChangeType"];
+            topic: components["schemas"]["Topic"];
+            /** Description */
+            description: string;
+            /** Original Quote */
+            original_quote: string | null;
+            /** Amendment Quote */
+            amendment_quote: string | null;
+        };
+        /**
+         * ChangeType
+         * @description Whether a Change is an Addition, a Removal or a Modification of a whole Section.
+         * @enum {string}
+         */
+        ChangeType: "added" | "removed" | "modified";
         /**
          * ContractChangeOutput
          * @description The public contract of the assignment: the three fields Compliance consumes.
@@ -232,6 +265,12 @@ export interface components {
          * @enum {string}
          */
         StageStatus: "started" | "done" | "failed";
+        /**
+         * Topic
+         * @description Closed taxonomy of legal and commercial Topics; `other` is allowed and monitored.
+         * @enum {string}
+         */
+        Topic: "parties" | "object_scope" | "price_payment" | "term_duration" | "termination" | "obligations" | "deliverables_sla" | "penalties" | "liability_indemnity" | "warranties" | "confidentiality" | "intellectual_property" | "data_protection" | "insurance" | "assignment" | "governing_law_disputes" | "notices" | "other";
         /** ValidationError */
         ValidationError: {
             /** Location */

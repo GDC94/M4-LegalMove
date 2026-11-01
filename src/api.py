@@ -219,6 +219,16 @@ def enqueue_job(runtime: ApiRuntime, owner: str, uploads: dict[str, bytes]) -> J
     return job
 
 
+def describe_change_details(job: Job) -> dict[str, object]:
+    """Literal quotes, unmasked on purpose: the caller owns the documents (plan decision 114)."""
+    details: dict[str, object] = {}
+    if job.changes is not None:
+        details["changes"] = [change.model_dump(mode="json") for change in job.changes]
+    if job.amendment_kind is not None:
+        details["amendment_kind"] = job.amendment_kind.value
+    return details
+
+
 def describe_job(job: Job) -> dict[str, object]:
     body: dict[str, object] = {
         "id": job.id,
@@ -228,6 +238,7 @@ def describe_job(job: Job) -> dict[str, object]:
     }
     if job.state is JobState.DONE and job.output is not None:
         body["output"] = job.output.model_dump(mode="json")
+        body.update(describe_change_details(job))
     if job.error is not None:
         body["error"] = dict(job.error)
     return body

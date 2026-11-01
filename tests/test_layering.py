@@ -19,6 +19,7 @@ DOMAIN_MODULES = [
     "text_normalization.py",
     "jobs.py",
     "stages.py",
+    "change_details.py",
 ]
 WEB_FRAMEWORKS = {"fastapi", "starlette"}
 COMPOSITION_ROOTS = {"main.py", "api.py"}

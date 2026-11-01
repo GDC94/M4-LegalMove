@@ -1,4 +1,5 @@
 import { AnimatePresence } from "motion/react";
+import { useState } from "react";
 import { useAnalysis } from "@/analysis/use-analysis";
 import type { ApiClient } from "@/api/client";
 import { ErrorView } from "@/components/error-view";
@@ -19,6 +20,7 @@ export function AnalysisScreen({
   pollIntervalMs?: number;
 }) {
   const { state, submit, reset } = useAnalysis(client, pollIntervalMs);
+  const [formAnnouncement, setFormAnnouncement] = useState("");
   const isForm = state.phase === "idle" || state.phase === "uploading";
   const stages = isForm ? undefined : state.stages;
 
@@ -35,7 +37,11 @@ export function AnalysisScreen({
       <AnimatePresence mode="wait" initial={false}>
         {isForm ? (
           <ViewTransition key="form">
-            <UploadForm busy={state.phase === "uploading"} onSubmit={submit} />
+            <UploadForm
+              busy={state.phase === "uploading"}
+              onSubmit={submit}
+              onAnnounce={setFormAnnouncement}
+            />
           </ViewTransition>
         ) : (
           <ViewTransition key="analysis" className="space-y-8">
@@ -43,7 +49,12 @@ export function AnalysisScreen({
             <AnimatePresence initial={false}>
               {state.phase === "done" && (
                 <ViewTransition key="done">
-                  <ResultView output={state.output} onReset={reset} />
+                  <ResultView
+                    output={state.output}
+                    changes={state.changes}
+                    amendmentKind={state.amendment_kind}
+                    onReset={reset}
+                  />
                 </ViewTransition>
               )}
               {state.phase === "human_review" && (
@@ -61,9 +72,9 @@ export function AnalysisScreen({
         )}
       </AnimatePresence>
       {/* Outside the animated views: with `wait` the stepper mounts after the form's exit, and a
-          live region only announces changes, so one born inside it would swallow early stages. */}
+          live region only announces changes, so one born inside it would swallow early stages. It also reads out the form's steps. */}
       <p role="status" aria-live="polite" className="sr-only">
-        {stages ? describeProgress(stages) : ""}
+        {stages ? describeProgress(stages) : formAnnouncement}
       </p>
     </main>
   );

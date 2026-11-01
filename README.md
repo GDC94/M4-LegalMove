@@ -234,7 +234,7 @@ uv run uvicorn --app-dir src api:app
 | Endpoint | Auth | Answer |
 |---|---|---|
 | `POST /analyses` (multipart `original`, `amendment`) | `X-API-Key` | `202 {"id"}`; `401` bad key, `429` rate limit, `411` no `Content-Length` (chunked upload), `413` upload too large, `422` invalid image, `503` + `Retry-After` queue full |
-| `GET /analyses/{id}` | `X-API-Key` | `{id, status, created_at, trace_id}` plus `output` when `done`, or `error` (the CLI envelope) when `human_review` or `failed`; `404` for an unknown, expired or foreign id |
+| `GET /analyses/{id}` | `X-API-Key` | `{id, status, created_at, trace_id}` plus `output`, `changes` (one entry per Change with its Section title and the literal Quotes, unmasked) and `amendment_kind` when `done`, or `error` (the CLI envelope) when `human_review` or `failed`; `404` for an unknown, expired or foreign id |
 | `GET /analyses/{id}/events` | `X-API-Key` | `text/event-stream` of progress events; honours `Last-Event-ID`; `404` for an unknown, expired or foreign id (only when the stream opens) |
 | `GET /health` | none | `{"status": "ok"}` |
 
@@ -289,7 +289,7 @@ The Vite dev server (and `pnpm preview`) proxies `/api/*` to `http://127.0.0.1:8
 
 The contract has one source of truth, the FastAPI app. `PYTHONPATH=src uv run python scripts/export_openapi.py` writes `web/openapi.json` without reading `.env` or touching Langfuse, and `pnpm gen:types` turns it into TypeScript types. Both files are committed; CI regenerates them and fails on any diff. Every API body and SSE event passes a Zod schema declared with `satisfies z.ZodType<components["schemas"]["X"]>` before it reaches the screen, so a backend change breaks `tsc` and a body outside the contract shows an error instead of a partial result.
 
-The stream is read with `fetch` and a small SSE parser, because `EventSource` cannot send `X-API-Key`. After a cut the app reconnects with `Last-Event-ID`; after three failed reconnections it polls `GET /analyses/{id}` until the job ends, and reaches the same result either way. The upload form checks type (PNG or JPEG), size (10 MB, the API default) and that both images are present, as UX help only; the API's `413` and `422` are the checks that count.
+The stream is read with `fetch` and a small SSE parser, because `EventSource` cannot send `X-API-Key`. After a cut the app reconnects with `Last-Event-ID`; after three failed reconnections it polls `GET /analyses/{id}` until the job ends, and reaches the same result either way. The upload form takes the images in two steps, the original contract first and the amendment after it, and checks each file as it arrives: type (PNG or JPEG) and size (10 MB, the API default). It moves to the amendment only with a valid original, `Change` swaps the original and keeps the amendment, and `Analyze` needs both images. The checks are UX help only; the API's `413` and `422` are the checks that count.
 
 `VITE_API_KEY` is for the local demo only: Vite inlines it into the JavaScript bundle, so anyone who loads the page can read it. See Known limitations.
 

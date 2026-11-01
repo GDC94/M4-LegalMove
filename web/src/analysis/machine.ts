@@ -4,7 +4,9 @@
  * phase but idle, so a stuck upload or a slow analysis can always be abandoned.
  */
 import {
+  type AmendmentKind,
   type AnalysisBody,
+  type ChangeDetail,
   type ContractChangeOutput,
   type ErrorEnvelope,
   type ProgressEvent,
@@ -20,7 +22,13 @@ export type AnalysisState =
   | { phase: "idle" }
   | { phase: "uploading" }
   | { phase: "running"; jobId: string; stages: StageBoard }
-  | { phase: "done"; stages: StageBoard; output: ContractChangeOutput }
+  | {
+      phase: "done";
+      stages: StageBoard;
+      output: ContractChangeOutput;
+      changes: ChangeDetail[];
+      amendment_kind: AmendmentKind | null;
+    }
   | { phase: "human_review"; stages: StageBoard; envelope: ErrorEnvelope }
   | { phase: "failed"; stages?: StageBoard; message: string; envelope?: ErrorEnvelope };
 
@@ -87,7 +95,7 @@ function settle(
   body: AnalysisBody,
 ): AnalysisState {
   const { stages } = state;
-  if (body.status === "done" && body.output) return { phase: "done", stages, output: body.output };
+  if (body.status === "done" && body.output) return settleDone(stages, body, body.output);
   if (body.status === "human_review" && body.error) {
     return { phase: "human_review", stages, envelope: body.error };
   }
@@ -96,6 +104,20 @@ function settle(
   }
   if (body.status === "pending" || body.status === "running") return state;
   return { phase: "failed", stages, message: "The API answered outside its contract." };
+}
+
+function settleDone(
+  stages: StageBoard,
+  body: AnalysisBody,
+  output: ContractChangeOutput,
+): AnalysisState {
+  return {
+    phase: "done",
+    stages,
+    output,
+    changes: body.changes ?? [],
+    amendment_kind: body.amendment_kind ?? null,
+  };
 }
 
 function pendingStages(): StageBoard {

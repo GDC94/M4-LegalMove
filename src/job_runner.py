@@ -8,6 +8,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
+from change_details import build_change_details
 from composition import (
     Container,
     RunContext,
@@ -113,7 +114,13 @@ def analyse(
     record_trace: Callable[[str], None],
 ) -> Outcome:
     result = run_in_root(container, request, context, record_trace)
-    return Outcome(JobState.DONE, JobUpdate(trace_id=context.trace_id, output=result.output))
+    update = JobUpdate(
+        trace_id=context.trace_id,
+        output=result.output,
+        changes=build_change_details(result.extraction, result.context_map),
+        amendment_kind=result.context_map.amendment_kind,
+    )
+    return Outcome(JobState.DONE, update)
 
 
 def run_in_root(
