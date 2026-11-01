@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 CONTRACTS_README = ROOT / "data/test_contracts/README.md"
 ENV_EXAMPLE = ROOT / ".env.example"
+WEB_ENV_EXAMPLE = ROOT / "web/.env.example"
 # Frozen from blind validation run 2 (decision 101); committed, so the drift guard never skips.
 BASELINE = ROOT / "outputs/baseline.json"
 
@@ -164,3 +165,36 @@ def test_contracts_readme_describes_each_final_pair(pair: str) -> None:
     assert "sections_changed" in text
     assert "topics_touched" in text
     assert "Degradaciones" in text
+
+
+def test_usage_explains_how_to_run_the_api_and_the_web_front_together() -> None:
+    usage = read_section("Usage")
+
+    assert "### Web front end" in usage
+    assert "uv run uvicorn --app-dir src api:app" in usage
+    assert "pnpm dev" in usage
+
+
+def test_the_vite_api_key_limitation_is_documented() -> None:
+    limitations = read_section("Known limitations")
+
+    assert "`VITE_API_KEY`" in read_section("Usage")
+    assert "`VITE_API_KEY`" in limitations
+    assert "bundle" in limitations
+
+
+@pytest.mark.parametrize("variable", ["VITE_API_KEY", "VITE_API_PROXY_TARGET"])
+def test_web_env_example_lists_every_front_end_variable(variable: str) -> None:
+    """The front end's template names each variable the README documents, set or commented out."""
+    assert WEB_ENV_EXAMPLE.is_file(), "web/.env.example is missing"
+    text = WEB_ENV_EXAMPLE.read_text(encoding="utf-8")
+
+    assert re.search(rf"^(# )?{variable}=", text, flags=re.M)
+
+
+def test_the_front_end_is_documented_as_same_origin_only() -> None:
+    usage = read_section("Usage")
+
+    assert "`VITE_API_PROXY_TARGET`" in usage
+    assert "same origin" in usage
+    assert "VITE_API_URL" not in read_readme()

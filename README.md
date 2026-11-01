@@ -252,6 +252,40 @@ A `stage` event (`started`, `done` or `failed`) is published for each of the fiv
 
 Known limitation: each open stream waits for new events in a thread of the default executor, for up to 15 s per wait, so many concurrent streams queue behind each other. That is fine for the demo; a production deployment would use per-job asyncio notifications or Redis.
 
+### Web front end
+
+`web/` is a single-screen React app (Vite, React 19, TypeScript, Tailwind v4, TanStack Query, Zod) that uploads the pair, follows the analysis stage by stage and shows the legal changes or the reason for a human review. It needs Node 22 and `pnpm`.
+
+Run the API and the front end together, in two terminals:
+
+```bash
+# 1. API on http://127.0.0.1:8000 (needs API_KEYS and the usual keys in .env)
+uv run uvicorn --app-dir src api:app
+
+# 2. Front end on http://localhost:5173
+cd web
+pnpm install
+echo "VITE_API_KEY=<one of API_KEYS>" > .env.local
+pnpm dev
+```
+
+The Vite dev server (and `pnpm preview`) proxies `/api/*` to `http://127.0.0.1:8000` (override with `VITE_API_PROXY_TARGET`), so the browser stays same-origin. The front end must always be served from the same origin as `/api`: the API sends no CORS headers and `X-API-Key` forces a preflight, so calling uvicorn directly from another origin cannot work. `web/.env.example` lists `VITE_API_KEY` and `VITE_API_PROXY_TARGET`.
+
+| Command (in `web/`) | What it does |
+|---|---|
+| `pnpm dev` | Dev server with the API proxy |
+| `pnpm lint` | Biome lint and format check, with the React hooks rules |
+| `pnpm typecheck` | `tsc -b` in strict mode, including the type tests of the contract |
+| `pnpm test` | Vitest, Testing Library and MSW; no network |
+| `pnpm build` | Production bundle in `web/dist/`; it does not type-check, `pnpm typecheck` does |
+| `pnpm gen:types` | Regenerates `src/api/schema.d.ts` from `openapi.json` with `openapi-typescript` |
+
+The contract has one source of truth, the FastAPI app. `PYTHONPATH=src uv run python scripts/export_openapi.py` writes `web/openapi.json` without reading `.env` or touching Langfuse, and `pnpm gen:types` turns it into TypeScript types. Both files are committed; CI regenerates them and fails on any diff. Every API body and SSE event passes a Zod schema declared with `satisfies z.ZodType<components["schemas"]["X"]>` before it reaches the screen, so a backend change breaks `tsc` and a body outside the contract shows an error instead of a partial result.
+
+The stream is read with `fetch` and a small SSE parser, because `EventSource` cannot send `X-API-Key`. After a cut the app reconnects with `Last-Event-ID`; after three failed reconnections it polls `GET /analyses/{id}` until the job ends, and reaches the same result either way. The upload form checks type (PNG or JPEG), size (10 MB, the API default) and that both images are present, as UX help only; the API's `413` and `422` are the checks that count.
+
+`VITE_API_KEY` is for the local demo only: Vite inlines it into the JavaScript bundle, so anyone who loads the page can read it. See Known limitations.
+
 ## Tracing
 
 Each run is one Langfuse trace. The root span and the four stage spans follow the structure the assignment suggests; `output_validation` is added for the final checks.
@@ -381,7 +415,8 @@ A summary of the decision log in `plan.md` §8.4.
 - **Complex tables** are transcribed as text and may lose their structure.
 - **One original against one amendment.** Amendment chains (amendment 2 modifying amendment 1) are not supported.
 - **No legal-impact scoring** beyond the `Topic` taxonomy.
-- **One synchronous run per pair.** No HTTP API, batch processing or async execution.
+- **One run per pair.** The CLI is synchronous and has no batch mode. The HTTP API runs each pair as a job in a bounded pool, with in-memory state in a single process: jobs are lost on restart and there are no replicas.
+- **`VITE_API_KEY` lives in the web bundle.** The front end sends the API key from a build-time variable, so it ships inside the JavaScript bundle and anyone who loads the page can read it. It is fit for the local demo only; a real deployment needs a login or a backend-for-frontend.
 - **Sequential parsing.** The two images are parsed one after the other.
 - **Local cache.** It lives on the filesystem, is not shared between machines and is not encrypted by the application.
 - **Proper names are not masked** in Langfuse.

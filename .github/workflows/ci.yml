@@ -1,5 +1,7 @@
 # Minimal CI (plan §6.9): style gate and unit tests only. No secrets, so never
 # integration tests or evals; the golden images are committed, not regenerated.
+# The web job (ticket 16c) also re-exports the OpenAPI and regenerates the client
+# types: a backend change that is not committed to web/ fails the diff.
 name: CI
 
 on:
@@ -25,3 +27,43 @@ jobs:
         run: uv run mypy src
       - name: Unit tests
         run: uv run pytest
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - uses: astral-sh/setup-uv@v6
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      # The only `tsc -b`: `pnpm build` bundles without type-checking again.
+      - name: Type check
+        run: pnpm typecheck
+      - name: Unit tests
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+      # The export only builds the FastAPI app, so the runtime dependencies are enough.
+      - name: Install the API
+        working-directory: .
+        run: uv sync --locked --no-dev
+      - name: Export the OpenAPI
+        working-directory: .
+        run: PYTHONPATH=src uv run --no-dev python scripts/export_openapi.py
+      - name: Regenerate the client types
+        run: pnpm gen:types
+      - name: Contract matches the committed files
+        working-directory: .
+        run: git diff --exit-code -- web/openapi.json web/src/api/schema.d.ts

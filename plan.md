@@ -74,6 +74,13 @@ data/test_contracts/       *        ≥ 2 pares (PNG + source_*.txt) + README
 data/golden/                        golden set (sección 6.4)
 evals/                              render_plain.py, generate_golden.py, golden_case.py, golden_text.py, golden_render.py, golden_degrade.py, run_evals.py, settings.py (EvalSettings), metrics.py, eval_case.py, eval_report.py, judge.py, case_runner.py, experiment_publisher.py, langfuse_publisher.py
 outputs/                            eval_report.json (ignorado por git; incluye experiment_url), baseline.json (commiteado)
+scripts/export_openapi.py           exporta el OpenAPI de la API a web/openapi.json sin .env ni Langfuse (16c)
+web/                                front React (16c): Vite, React 19, TypeScript, Tailwind v4, TanStack Query, Zod, beUI; pnpm y Biome
+├── openapi.json                    OpenAPI congelado (commiteado; el CI lo regenera y falla si difiere)
+└── src/
+    ├── api/                        schema.d.ts (generado con openapi-typescript), esquemas Zod anclados con satisfies, cliente y parser SSE
+    ├── analysis/                   máquina de estados, esquema del formulario y hook que sigue el job (stream y polling)
+    └── components/                 vistas propias y bloques de beUI vendoreados (motion/)
 tests/
 ├── eval_doubles.py                 casos y corridas sintéticos y RecordingPublisher para los tests de evals
 └── evals/                          tests del generador de golden, del golden set commiteado y del runner de evals
@@ -1033,7 +1040,7 @@ Estructura obligatoria. Un test verifica que las secciones existan.
 | Arquitectura | Responsabilidad de cada módulo y del puerto de observabilidad |
 | Setup | Con uv y con pip (`requirements.txt`, sin navegador), Python 3.14, y el grupo `dev` (Playwright, jiwer) para los golden y las evals. Nota: OpenAI escala las imágenes a un máximo de 2048 px, así que una resolución mayor no mejora la lectura |
 | Configuración | Tabla de variables de entorno (sección 5.1) |
-| Uso | Comando, ejemplo de salida, tabla de exit codes, `--session-id` |
+| Uso | Comando, ejemplo de salida, tabla de exit codes, `--session-id`; API HTTP y cómo correr la API y el front juntos, con la limitación de `VITE_API_KEY` |
 | Trazabilidad | Jerarquía de spans, scores y captura de una traza en Langfuse |
 | Testing y evals | Cómo correr cada nivel y la tabla de resultados medidos |
 | Decisiones técnicas | Resumen del registro de decisiones (sección 8.4) |

@@ -9,12 +9,12 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request, Security, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
-from pydantic import Field, SecretStr, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import FormData, UploadFile
 
@@ -26,7 +26,7 @@ from composition import (
     flush_client,
 )
 from config import Settings, describe_problems
-from errors import ConfigurationError, InvalidImageError
+from errors import ConfigurationError, InvalidImageError, ValidationIssue
 from image_parser import ImageLimits, detect_mime_type, inspect_image
 from job_runner import JobServices, ThreadPoolJobRunner, UploadedImages, execute_job
 from jobs import (
@@ -44,6 +44,7 @@ from jobs import (
     to_progress_event,
 )
 from jobs_memory import InMemoryJobEvents, InMemoryJobStore, InMemoryRateLimiter
+from models import ContractChangeOutput
 
 logger = logging.getLogger("legalmove")
 
@@ -155,6 +156,75 @@ def build_api_runtime() -> ApiRuntime:
     )
 
 
+class AnalysisCreated(BaseModel):
+    """`202` body of `POST /analyses`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+
+
+class ApiProblem(BaseModel):
+    """Body of every refusal: one sentence that never quotes a document."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    detail: str
+
+
+class ErrorEnvelope(BaseModel):
+    """The CLI error envelope of plan §4.7; `issues` only on a Human Review."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    error: str
+    stage: str
+    message: str
+    run_id: str
+    trace_id: str | None
+    issues: list[ValidationIssue] | None = None
+
+
+class AnalysisBody(BaseModel):
+    """`GET /analyses/{id}`: `output` only when `done`, `error` only on the other two ends."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    status: JobState
+    created_at: str = Field(json_schema_extra={"format": "date-time"})
+    trace_id: str | None
+    output: ContractChangeOutput | None = None
+    error: ErrorEnvelope | None = None
+
+
+# Any: FastAPI types `responses` as dict[int | str, dict[str, Any]], and dict is invariant.
+def document_problems(*codes: int) -> dict[int | str, dict[str, Any]]:
+    """Documentation only: each refusal carries an ApiProblem, so the web client can parse it."""
+    return {code: {"model": ApiProblem, "description": REFUSALS[code]} for code in codes}
+
+
+# The runtime `detail` of each refusal; the OpenAPI descriptions are built from the same strings.
+UNAUTHORIZED_DETAIL = "missing or invalid API key"
+NOT_FOUND_DETAIL = "analysis not found"
+LENGTH_REQUIRED_DETAIL = "Content-Length is required"
+TOO_LARGE_DETAIL = "each image must be at most {limit} bytes"
+MISSING_IMAGE_DETAIL = "{name}: an image file is required"
+RATE_LIMITED_DETAIL = "rate limit exceeded"
+QUEUE_FULL_DETAIL = "the analysis queue is full; retry later"
+
+REFUSALS = {
+    status.HTTP_401_UNAUTHORIZED: UNAUTHORIZED_DETAIL,
+    status.HTTP_404_NOT_FOUND: f"{NOT_FOUND_DETAIL} (unknown, expired or another key's)",
+    status.HTTP_411_LENGTH_REQUIRED: LENGTH_REQUIRED_DETAIL,
+    status.HTTP_413_CONTENT_TOO_LARGE: TOO_LARGE_DETAIL.format(limit="<limit>"),
+    status.HTTP_422_UNPROCESSABLE_CONTENT: (
+        f"{MISSING_IMAGE_DETAIL.format(name='<field>')}, or `<field>: <why the image is invalid>`"
+    ),
+    status.HTTP_429_TOO_MANY_REQUESTS: f"{RATE_LIMITED_DETAIL}; see Retry-After",
+    status.HTTP_503_SERVICE_UNAVAILABLE: f"{QUEUE_FULL_DETAIL}; see Retry-After",
+}
+
 api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
 router = APIRouter()
 
@@ -170,11 +240,11 @@ Runtime = Annotated[ApiRuntime, Depends(get_runtime)]
 def authenticate(runtime: Runtime, key: Annotated[str | None, Security(api_key_header)]) -> str:
     """The hash of the caller's key; the digests are compared in constant time."""
     if key is None:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing or invalid API key")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, UNAUTHORIZED_DETAIL)
     candidate = hash_api_key(key)
     matches = [hmac.compare_digest(candidate, known) for known in runtime.settings.key_hashes]
     if not any(matches):
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing or invalid API key")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, UNAUTHORIZED_DETAIL)
     return candidate
 
 
@@ -186,7 +256,7 @@ def limit_rate(runtime: Runtime, owner: Owner) -> str:
         retry_after = str(runtime.settings.api_rate_limit_window_seconds)
         raise HTTPException(
             status.HTTP_429_TOO_MANY_REQUESTS,
-            "rate limit exceeded",
+            RATE_LIMITED_DETAIL,
             headers={"Retry-After": retry_after},
         )
     return owner
@@ -201,7 +271,14 @@ def check_health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.post("/analyses", status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/analyses",
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        status.HTTP_202_ACCEPTED: {"model": AnalysisCreated},
+        **document_problems(401, 411, 413, 422, 429, 503),
+    },
+)
 async def create_analysis(
     request: Request, runtime: Runtime, owner: RateLimitedOwner
 ) -> JSONResponse:
@@ -215,11 +292,15 @@ async def create_analysis(
     return JSONResponse({"id": job.id}, status_code=status.HTTP_202_ACCEPTED)
 
 
-@router.get("/analyses/{job_id}", response_model=None)
+@router.get(
+    "/analyses/{job_id}",
+    response_model=None,
+    responses={status.HTTP_200_OK: {"model": AnalysisBody}, **document_problems(401, 404)},
+)
 def read_analysis(job_id: str, runtime: Runtime, owner: Owner) -> dict[str, object]:
     job = runtime.store.get(job_id, owner)
     if job is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "analysis not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL)
     return describe_job(job)
 
 
@@ -237,10 +318,7 @@ class EventStreamResponse(JSONResponse):
     "/analyses/{job_id}/events",
     response_model=ProgressEvent,
     response_class=EventStreamResponse,
-    responses={
-        401: {"description": "missing or invalid API key"},
-        404: {"description": "not found"},
-    },
+    responses=document_problems(401, 404),
 )
 def stream_analysis_events(
     job_id: str,
@@ -251,7 +329,7 @@ def stream_analysis_events(
 ) -> StreamingResponse:
     """One SSE frame per event from `Last-Event-ID`; the stream closes after the `job` event."""
     if runtime.store.get(job_id, owner) is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "analysis not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND_DETAIL)
     feed = EventFeed(events=runtime.events, job_id=job_id, is_disconnected=request.is_disconnected)
     return StreamingResponse(
         stream_events(feed, last_seq=parse_last_event_id(last_event_id)),
@@ -316,15 +394,13 @@ def reject_unbounded_request(request: Request, limit: int) -> None:
     """Only a declared length bounds what the multipart parser spools, so it is required."""
     declared = request.headers.get("content-length", "")
     if not declared.isdigit():
-        raise HTTPException(status.HTTP_411_LENGTH_REQUIRED, "Content-Length is required")
+        raise HTTPException(status.HTTP_411_LENGTH_REQUIRED, LENGTH_REQUIRED_DETAIL)
     if int(declared) > 2 * limit + MULTIPART_OVERHEAD_BYTES:
         raise payload_too_large(limit)
 
 
 def payload_too_large(limit: int) -> HTTPException:
-    return HTTPException(
-        status.HTTP_413_CONTENT_TOO_LARGE, f"each image must be at most {limit} bytes"
-    )
+    return HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, TOO_LARGE_DETAIL.format(limit=limit))
 
 
 async def read_uploads(form: FormData, limit: int) -> dict[str, bytes]:
@@ -337,7 +413,7 @@ async def read_uploads(form: FormData, limit: int) -> dict[str, bytes]:
     for name in UPLOAD_FIELDS:
         if name not in uploads:
             raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT, f"{name}: an image file is required"
+                status.HTTP_422_UNPROCESSABLE_CONTENT, MISSING_IMAGE_DETAIL.format(name=name)
             )
     return uploads
 
@@ -376,7 +452,7 @@ def enqueue_job(runtime: ApiRuntime, owner: str, uploads: dict[str, bytes]) -> J
         runtime.store.discard(job.id)
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
-            "the analysis queue is full; retry later",
+            QUEUE_FULL_DETAIL,
             headers={"Retry-After": str(QUEUE_RETRY_AFTER_SECONDS)},
         ) from None
     return job

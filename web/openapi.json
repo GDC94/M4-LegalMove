@@ -1,0 +1,647 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LegalMove",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Check Health",
+        "description": "Liveness only: it touches neither Langfuse nor OpenAI.",
+        "operationId": "check_health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Check Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analyses": {
+      "post": {
+        "summary": "Create Analysis",
+        "description": "Checks in order: key, rate limit (both dependencies), length, size, images, queue.",
+        "operationId": "create_analysis_analyses_post",
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisCreated"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "411": {
+            "description": "Content-Length is required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "each image must be at most <limit> bytes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "<field>: an image file is required, or `<field>: <why the image is invalid>`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "rate limit exceeded; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "the analysis queue is full; retry later; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ]
+      }
+    },
+    "/analyses/{job_id}": {
+      "get": {
+        "summary": "Read Analysis",
+        "operationId": "read_analysis_analyses__job_id__get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "analysis not found (unknown, expired or another key's)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/analyses/{job_id}/events": {
+      "get": {
+        "summary": "Stream Analysis Events",
+        "description": "One SSE frame per event from `Last-Event-ID`; the stream closes after the `job` event.",
+        "operationId": "stream_analysis_events_analyses__job_id__events_get",
+        "security": [
+          {
+            "APIKeyHeader": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "last-event-id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Last-Event-Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/StageEvent"
+                    },
+                    {
+                      "$ref": "#/components/schemas/JobFinishedEvent"
+                    }
+                  ],
+                  "discriminator": {
+                    "propertyName": "kind",
+                    "mapping": {
+                      "stage": "#/components/schemas/StageEvent",
+                      "job": "#/components/schemas/JobFinishedEvent"
+                    }
+                  },
+                  "title": "Response Stream Analysis Events Analyses  Job Id  Events Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "missing or invalid API key",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "analysis not found (unknown, expired or another key's)",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiProblem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnalysisBody": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobState"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContractChangeOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorEnvelope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "created_at",
+          "trace_id"
+        ],
+        "title": "AnalysisBody",
+        "description": "`GET /analyses/{id}`: `output` only when `done`, `error` only on the other two ends."
+      },
+      "AnalysisCreated": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "AnalysisCreated",
+        "description": "`202` body of `POST /analyses`."
+      },
+      "ApiProblem": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ApiProblem",
+        "description": "Body of every refusal: one sentence that never quotes a document."
+      },
+      "ContractChangeOutput": {
+        "properties": {
+          "sections_changed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sections Changed",
+            "description": "Canonical Section IDs that changed: original Sections in original order, then new: Sections in amendment order."
+          },
+          "topics_touched": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Topics Touched",
+            "description": "Topic values of the changes, in order of first appearance."
+          },
+          "summary_of_the_change": {
+            "type": "string",
+            "title": "Summary Of The Change",
+            "description": "Detailed description of the changes, in Spanish; exactly 'No se identificaron cambios.' when nothing changed."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "sections_changed",
+          "topics_touched",
+          "summary_of_the_change"
+        ],
+        "title": "ContractChangeOutput",
+        "description": "The public contract of the assignment: the three fields Compliance consumes."
+      },
+      "ErrorEnvelope": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "title": "Error"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "trace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trace Id"
+          },
+          "issues": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ValidationIssue"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issues"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "error",
+          "stage",
+          "message",
+          "run_id",
+          "trace_id"
+        ],
+        "title": "ErrorEnvelope",
+        "description": "The CLI error envelope of plan §4.7; `issues` only on a Human Review."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "JobFinishedEvent": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "kind": {
+            "type": "string",
+            "const": "job",
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "done",
+              "human_review",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At",
+            "description": "UTC time the event was published, with milliseconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seq",
+          "kind",
+          "status",
+          "at"
+        ],
+        "title": "JobFinishedEvent",
+        "description": "The job reached its terminal state; it is always the last event of the stream."
+      },
+      "JobState": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "running",
+          "done",
+          "human_review",
+          "failed"
+        ],
+        "title": "JobState",
+        "description": "Extensible on purpose: 16b adds progress, never cancellation (decision 108)."
+      },
+      "StageEvent": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "kind": {
+            "type": "string",
+            "const": "stage",
+            "title": "Kind"
+          },
+          "stage": {
+            "$ref": "#/components/schemas/StageName"
+          },
+          "status": {
+            "$ref": "#/components/schemas/StageStatus"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At",
+            "description": "UTC time the event was published, with milliseconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seq",
+          "kind",
+          "stage",
+          "status",
+          "at"
+        ],
+        "title": "StageEvent",
+        "description": "A Stage started, finished or failed."
+      },
+      "StageName": {
+        "type": "string",
+        "enum": [
+          "parse_original_contract",
+          "parse_amendment_contract",
+          "contextualization_agent",
+          "extraction_agent",
+          "output_validation"
+        ],
+        "title": "StageName",
+        "description": "Every span name a Stage may open; a literal at a `tracer.stage()` call is a test failure."
+      },
+      "StageStatus": {
+        "type": "string",
+        "enum": [
+          "started",
+          "done",
+          "failed"
+        ],
+        "title": "StageStatus",
+        "description": "No `retrying`: the semantic retry runs inside the same span (decision 111)."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "ValidationIssue": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "path",
+          "message"
+        ],
+        "title": "ValidationIssue",
+        "description": "Public reason for a Human Review: code, path and a message that never quotes documents."
+      }
+    },
+    "securitySchemes": {
+      "APIKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    }
+  }
+}
