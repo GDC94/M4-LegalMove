@@ -98,7 +98,9 @@ Lightweight **Ports & Adapters** (hexagonal) on the flat `src/` layout the assig
 | Adapter | `src/progress_tracer.py` | `ProgressTracer`: decorates the job's tracer and logs a `started`, `done` or `failed` event per stage, leaving the trace untouched |
 | Shared wiring | `src/composition.py` | `build_stages`, `build_container`, `connect_langfuse`, `build_tracer` and the error envelope, used by both roots |
 | Composition root | `src/main.py` | CLI: loads settings, owns the trace lifecycle and turns errors into exit codes |
-| Composition root | `src/api.py` | HTTP API: `ApiSettings`, FastAPI app, auth, rate limit, job polling and the SSE progress stream |
+| Composition root | `src/api.py` | HTTP API: FastAPI app, auth, rate limit, upload checks, job polling and the SSE endpoint; the only caller of `load_api_settings` |
+| API wiring | `src/api_settings.py`, `src/api_runtime.py` | `ApiSettings` and its loader; `ApiRuntime` built from those settings (store, limiter, runner, event log) |
+| API wiring | `src/api_contract.py`, `src/event_stream.py` | Documented response models and refusal details; the SSE generator with keep-alive and `Last-Event-ID` resume |
 | Configuration | `src/config.py` | `Settings` (pydantic-settings, `SecretStr`) and `APP_VERSION` |
 
 The observability port keeps Langfuse out of the business code: agents, the parser and the pipeline receive a `PipelineTracer`; tests swap it for a `RecordingTracer`, so unit tests run with no network and no `.env`.
@@ -157,7 +159,7 @@ Image resolution: OpenAI scales every image to fit 2048×2048 px, so scanning ab
 | `JUDGE_MODEL` | no | `gpt-4.1` | not empty; differs from `EXTRACTION_MODEL` | Evals only (`EvalSettings` in `evals/settings.py`): the Judge of `summary_of_the_change` |
 | `ANTHROPIC_API_KEY` | no | none | optional secret | Evals only: the second eval Judge; without it the evals run with the first Judge only |
 | `CLAUDE_JUDGE_MODEL` | no | `claude-opus-5-5` | not empty | Evals only: the model of the second Judge |
-| `API_KEYS` | API only | — | comma-separated, at least one; kept as `sha256` | Valid `X-API-Key` values (`ApiSettings` in `src/api.py`); the CLI does not read it |
+| `API_KEYS` | API only | — | comma-separated, at least one; kept as `sha256` | Valid `X-API-Key` values (`ApiSettings` in `src/api_settings.py`); the CLI does not read it |
 | `API_MAX_CONCURRENT_JOBS` | no | `2` | ≥ 1 | API only: jobs running at once |
 | `API_MAX_PENDING_JOBS` | no | `10` | ≥ 1 | API only: jobs waiting for a worker; beyond it `POST` answers `503` |
 | `API_RATE_LIMIT_REQUESTS` | no | `10` | ≥ 1 | API only: `POST /analyses` per key per window |

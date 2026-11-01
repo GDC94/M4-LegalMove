@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 
-from api import AnalysisBody, AnalysisCreated, ApiProblem
+from api_contract import AnalysisBody, AnalysisCreated, ApiProblem
 from api_doubles import ISSUE, Harness, make_settings, poll, post
 from errors import InvalidExtractionError, UpstreamError
 

@@ -1,229 +1,42 @@
 """HTTP API (FastAPI), the second composition root: jobs run in the background; poll or stream."""
 
-import asyncio
-import hashlib
 import hmac
-import logging
-import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, Header, HTTPException, Request, Security, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
 from starlette.concurrency import run_in_threadpool
 from starlette.datastructures import FormData, UploadFile
 
-from composition import (
-    assemble_container,
-    build_image_limits,
-    build_tracer,
-    connect_langfuse,
-    flush_client,
+from api_contract import (
+    LENGTH_REQUIRED_DETAIL,
+    MISSING_IMAGE_DETAIL,
+    NOT_FOUND_DETAIL,
+    QUEUE_FULL_DETAIL,
+    RATE_LIMITED_DETAIL,
+    TOO_LARGE_DETAIL,
+    UNAUTHORIZED_DETAIL,
+    AnalysisBody,
+    AnalysisCreated,
+    document_problems,
 )
-from config import Settings, describe_problems
-from errors import ConfigurationError, InvalidImageError, ValidationIssue
+from api_runtime import ApiRuntime, build_api_runtime, expire_jobs
+from api_settings import hash_api_key, load_api_settings
+from composition import build_image_limits
+from errors import InvalidImageError
+from event_stream import EventFeed, parse_last_event_id, stream_events
 from image_parser import ImageLimits, detect_mime_type, inspect_image
-from job_runner import JobServices, ThreadPoolJobRunner, UploadedImages, execute_job
-from jobs import (
-    EventKind,
-    Job,
-    JobEvent,
-    JobEvents,
-    JobRunner,
-    JobState,
-    JobStore,
-    ProgressEvent,
-    QueueFullError,
-    RateLimiter,
-    format_event_time,
-    to_progress_event,
-)
-from jobs_memory import InMemoryJobEvents, InMemoryJobStore, InMemoryRateLimiter
-from models import ContractChangeOutput
-
-logger = logging.getLogger("legalmove")
+from job_runner import UploadedImages, execute_job
+from jobs import Job, JobState, ProgressEvent, QueueFullError, format_event_time
 
 API_KEY_HEADER = "X-API-Key"
 UPLOAD_FIELDS = ("original", "amendment")
 # Multipart framing and the form fields around the two files.
 MULTIPART_OVERHEAD_BYTES = 1_048_576
 QUEUE_RETRY_AFTER_SECONDS = 5
-# No real seq gets near 20 digits; a longer header is noise, and `int()` refuses past 4300.
-MAX_EVENT_ID_DIGITS = 20
-# Proxies and browsers drop an idle connection; a comment every 15 s keeps the stream open.
-KEEP_ALIVE_SECONDS = 15.0
-KEEP_ALIVE_COMMENT = ": keep-alive\n\n"
-
-
-class ApiSettings(Settings):
-    """Runtime Settings plus the API-only knobs; API_KEYS does not exist for the CLI."""
-
-    api_keys: SecretStr
-    api_max_concurrent_jobs: int = Field(default=2, ge=1)
-    api_max_pending_jobs: int = Field(default=10, ge=1)
-    api_rate_limit_requests: int = Field(default=10, ge=1)
-    api_rate_limit_window_seconds: int = Field(default=60, ge=1)
-    api_max_upload_bytes: int | None = Field(default=None, ge=1)
-    api_job_ttl_seconds: int = Field(default=3600, ge=1)
-
-    @field_validator("api_keys")
-    @classmethod
-    def check_there_is_a_key(cls, value: SecretStr) -> SecretStr:
-        if not split_keys(value.get_secret_value()):
-            raise ValueError("API_KEYS must hold at least one key")
-        return value
-
-    @property
-    def key_hashes(self) -> tuple[str, ...]:
-        """Keys are only ever kept as sha256 digests."""
-        return tuple(hash_api_key(key) for key in split_keys(self.api_keys.get_secret_value()))
-
-    @property
-    def max_upload_bytes(self) -> int:
-        """Capped at the image limit, so an oversized image is always a 413, never a 422."""
-        return min(self.api_max_upload_bytes or self.max_image_bytes, self.max_image_bytes)
-
-
-def split_keys(raw: str) -> list[str]:
-    return [key.strip() for key in raw.split(",") if key.strip()]
-
-
-def hash_api_key(key: str) -> str:
-    return hashlib.sha256(key.encode()).hexdigest()
-
-
-def load_api_settings(env_file: Path | None = Path(".env")) -> ApiSettings:
-    """Build ApiSettings or raise ConfigurationError naming only the offending fields."""
-    try:
-        # pyright synthesizes __init__ from the fields and misses pydantic-settings' _env_file.
-        return ApiSettings(_env_file=env_file)  # pyright: ignore[reportCallIssue]
-    except ValidationError as error:
-        # Drop the cause: pydantic errors echo input values, which may be secrets.
-        raise ConfigurationError(f"invalid API settings: {describe_problems(error)}") from None
-
-
-@dataclass(frozen=True)
-class ApiRuntime:
-    """Everything the endpoints use, built once at start-up and closed at shutdown."""
-
-    settings: ApiSettings
-    store: JobStore
-    limiter: RateLimiter
-    runner: JobRunner
-    events: JobEvents
-    services: JobServices
-    clock: Callable[[], float]
-    close: Callable[[], None]
-
-
-def build_api_runtime() -> ApiRuntime:
-    """Fails start-up on bad settings or an unreachable Langfuse; no request ever sees that."""
-    settings = load_api_settings()
-    client = connect_langfuse(settings)
-    store = InMemoryJobStore(ttl_seconds=settings.api_job_ttl_seconds)
-    events = InMemoryJobEvents()
-    runner = ThreadPoolJobRunner(
-        max_workers=settings.api_max_concurrent_jobs, max_pending=settings.api_max_pending_jobs
-    )
-
-    def close() -> None:
-        """Let running jobs finish, then hand the last traces over."""
-        runner.shutdown()
-        flush_client(client)
-
-    return ApiRuntime(
-        settings=settings,
-        store=store,
-        limiter=InMemoryRateLimiter(
-            requests=settings.api_rate_limit_requests,
-            window_seconds=settings.api_rate_limit_window_seconds,
-        ),
-        runner=runner,
-        events=events,
-        services=JobServices(
-            store=store,
-            events=events,
-            build_tracer=lambda: build_tracer(client, settings),
-            build_container=lambda tracer: assemble_container(settings, tracer),
-        ),
-        clock=time.time,
-        close=close,
-    )
-
-
-class AnalysisCreated(BaseModel):
-    """`202` body of `POST /analyses`."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    id: str
-
-
-class ApiProblem(BaseModel):
-    """Body of every refusal: one sentence that never quotes a document."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    detail: str
-
-
-class ErrorEnvelope(BaseModel):
-    """The CLI error envelope of plan §4.7; `issues` only on a Human Review."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    error: str
-    stage: str
-    message: str
-    run_id: str
-    trace_id: str | None
-    issues: list[ValidationIssue] | None = None
-
-
-class AnalysisBody(BaseModel):
-    """`GET /analyses/{id}`: `output` only when `done`, `error` only on the other two ends."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    id: str
-    status: JobState
-    created_at: str = Field(json_schema_extra={"format": "date-time"})
-    trace_id: str | None
-    output: ContractChangeOutput | None = None
-    error: ErrorEnvelope | None = None
-
-
-# Any: FastAPI types `responses` as dict[int | str, dict[str, Any]], and dict is invariant.
-def document_problems(*codes: int) -> dict[int | str, dict[str, Any]]:
-    """Documentation only: each refusal carries an ApiProblem, so the web client can parse it."""
-    return {code: {"model": ApiProblem, "description": REFUSALS[code]} for code in codes}
-
-
-# The runtime `detail` of each refusal; the OpenAPI descriptions are built from the same strings.
-UNAUTHORIZED_DETAIL = "missing or invalid API key"
-NOT_FOUND_DETAIL = "analysis not found"
-LENGTH_REQUIRED_DETAIL = "Content-Length is required"
-TOO_LARGE_DETAIL = "each image must be at most {limit} bytes"
-MISSING_IMAGE_DETAIL = "{name}: an image file is required"
-RATE_LIMITED_DETAIL = "rate limit exceeded"
-QUEUE_FULL_DETAIL = "the analysis queue is full; retry later"
-
-REFUSALS = {
-    status.HTTP_401_UNAUTHORIZED: UNAUTHORIZED_DETAIL,
-    status.HTTP_404_NOT_FOUND: f"{NOT_FOUND_DETAIL} (unknown, expired or another key's)",
-    status.HTTP_411_LENGTH_REQUIRED: LENGTH_REQUIRED_DETAIL,
-    status.HTTP_413_CONTENT_TOO_LARGE: TOO_LARGE_DETAIL.format(limit="<limit>"),
-    status.HTTP_422_UNPROCESSABLE_CONTENT: (
-        f"{MISSING_IMAGE_DETAIL.format(name='<field>')}, or `<field>: <why the image is invalid>`"
-    ),
-    status.HTTP_429_TOO_MANY_REQUESTS: f"{RATE_LIMITED_DETAIL}; see Retry-After",
-    status.HTTP_503_SERVICE_UNAVAILABLE: f"{QUEUE_FULL_DETAIL}; see Retry-After",
-}
 
 api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
 router = APIRouter()
@@ -338,58 +151,6 @@ def stream_analysis_events(
     )
 
 
-def expire_jobs(runtime: ApiRuntime) -> None:
-    """A job's events leave with the job, so the log never outgrows the store."""
-    for job_id in runtime.store.expire():
-        runtime.events.discard(job_id)
-
-
-def parse_last_event_id(value: str | None) -> int:
-    """A missing or unreadable id replays from the start, which never loses an event."""
-    if value is None or len(value) > MAX_EVENT_ID_DIGITS:
-        return 0
-    if not (value.isascii() and value.isdigit()):
-        return 0
-    return int(value)
-
-
-@dataclass(frozen=True)
-class EventFeed:
-    """Where one stream reads from, and how it learns that its client went away."""
-
-    events: JobEvents
-    job_id: str
-    is_disconnected: Callable[[], Awaitable[bool]]
-
-
-async def stream_events(feed: EventFeed, *, last_seq: int) -> AsyncIterator[str]:
-    """Waits run in a worker thread (`asyncio.to_thread`), so the event loop never blocks."""
-    history = await asyncio.to_thread(feed.events.read_since, feed.job_id, 0)
-    if has_ended_by(history, last_seq):
-        return
-    # A cursor past the log would skip the terminal event when it comes; one rule then covers
-    # every path: deliver until the `job` event.
-    seq = min(last_seq, history[-1].seq if history else 0)
-    while not await feed.is_disconnected():
-        batch = await asyncio.to_thread(feed.events.wait_for, feed.job_id, seq, KEEP_ALIVE_SECONDS)
-        if not batch:
-            yield KEEP_ALIVE_COMMENT
-        for event in batch:
-            yield format_event(event)
-            seq = event.seq
-            if event.kind == EventKind.JOB:
-                return
-
-
-def has_ended_by(history: Sequence[JobEvent], seq: int) -> bool:
-    """The client already holds the terminal event, so waiting would only send keep-alives."""
-    return any(event.kind == EventKind.JOB and event.seq <= seq for event in history)
-
-
-def format_event(event: JobEvent) -> str:
-    return f"id: {event.seq}\ndata: {to_progress_event(event).model_dump_json()}\n\n"
-
-
 def reject_unbounded_request(request: Request, limit: int) -> None:
     """Only a declared length bounds what the multipart parser spools, so it is required."""
     declared = request.headers.get("content-length", "")
@@ -472,7 +233,12 @@ def describe_job(job: Job) -> dict[str, object]:
     return body
 
 
-def create_app(build_runtime: Callable[[], ApiRuntime] = build_api_runtime) -> FastAPI:
+def build_default_runtime() -> ApiRuntime:
+    """Fails start-up on bad settings or an unreachable Langfuse; no request ever sees that."""
+    return build_api_runtime(load_api_settings())
+
+
+def create_app(build_runtime: Callable[[], ApiRuntime] = build_default_runtime) -> FastAPI:
     """The runtime is built inside the lifespan, so importing this module reads no settings."""
 
     @asynccontextmanager

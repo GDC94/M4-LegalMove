@@ -11,12 +11,14 @@ import pytest
 from fastapi.testclient import TestClient
 
 import api
-from api import KEEP_ALIVE_SECONDS, EventFeed, create_app, stream_events
+import api_runtime
+from api import create_app
 from api_doubles import KEY, OTHER_KEY, Harness, auth, make_settings, submit
 from budget import CallBudget
 from cli_doubles import RecordingLifecycleTracer
 from composition import Container
 from errors import UpstreamError
+from event_stream import KEEP_ALIVE_COMMENT, KEEP_ALIVE_SECONDS, EventFeed, stream_events
 from jobs import (
     EventKind,
     JobEvent,
@@ -349,9 +351,9 @@ def test_the_default_runtime_streams_the_events_its_jobs_publish(
         return Container(tracer, StubStages(tracer).ports(), CallBudget(300), "development", {})
 
     monkeypatch.setattr(api, "load_api_settings", make_settings)
-    monkeypatch.setattr(api, "connect_langfuse", lambda _: FakeLangfuseClient())
-    monkeypatch.setattr(api, "build_tracer", lambda *_: RecordingLifecycleTracer())
-    monkeypatch.setattr(api, "assemble_container", assemble)
+    monkeypatch.setattr(api_runtime, "connect_langfuse", lambda _: FakeLangfuseClient())
+    monkeypatch.setattr(api_runtime, "build_tracer", lambda *_: RecordingLifecycleTracer())
+    monkeypatch.setattr(api_runtime, "assemble_container", assemble)
 
     with TestClient(create_app()) as client:
         response = stream(client, submit(client))
@@ -424,5 +426,5 @@ def test_a_client_that_leaves_after_a_quiet_wait_stops_the_generator() -> None:
         feed = EventFeed(events=events, job_id="job-1", is_disconnected=disconnected_after_one_wait)
         return [frame async for frame in stream_events(feed, last_seq=0)]
 
-    assert asyncio.run(collect()) == [api.KEEP_ALIVE_COMMENT]
+    assert asyncio.run(collect()) == [KEEP_ALIVE_COMMENT]
     assert events.timeouts == [KEEP_ALIVE_SECONDS]

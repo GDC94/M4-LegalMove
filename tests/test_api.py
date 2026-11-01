@@ -7,7 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 import api
-from api import create_app, hash_api_key
+import api_runtime
+from api import create_app
 from api_doubles import (
     ISSUE,
     KEY,
@@ -21,6 +22,7 @@ from api_doubles import (
     post,
     submit,
 )
+from api_settings import hash_api_key
 from budget import CallBudget
 from cli_doubles import RecordingLifecycleTracer
 from composition import Container
@@ -406,7 +408,7 @@ def test_the_api_does_not_start_when_langfuse_cannot_be_reached(
         raise ObservabilityError("tracer initialisation failed: auth check rejected")
 
     monkeypatch.setattr(api, "load_api_settings", make_settings)
-    monkeypatch.setattr(api, "connect_langfuse", refuse)
+    monkeypatch.setattr(api_runtime, "connect_langfuse", refuse)
 
     with pytest.raises(ObservabilityError, match="auth check rejected"), TestClient(create_app()):
         pass
@@ -425,8 +427,8 @@ def test_the_default_runtime_wires_limits_from_the_settings(
             super().__init__(max_workers=max_workers, max_pending=max_pending)
 
     monkeypatch.setattr(api, "load_api_settings", lambda: settings)
-    monkeypatch.setattr(api, "connect_langfuse", lambda _: client)
-    monkeypatch.setattr(api, "ThreadPoolJobRunner", SpyRunner)
+    monkeypatch.setattr(api_runtime, "connect_langfuse", lambda _: client)
+    monkeypatch.setattr(api_runtime, "ThreadPoolJobRunner", SpyRunner)
 
     with TestClient(create_app()):
         pass
@@ -451,9 +453,9 @@ def test_every_job_gets_its_own_tracer_rooted_in_its_own_session(
         return Container(tracer, StubStages(tracer).ports(), CallBudget(300), "development", {})
 
     monkeypatch.setattr(api, "load_api_settings", lambda: settings)
-    monkeypatch.setattr(api, "connect_langfuse", lambda _: client)
-    monkeypatch.setattr(api, "build_tracer", build_tracer)
-    monkeypatch.setattr(api, "assemble_container", assemble)
+    monkeypatch.setattr(api_runtime, "connect_langfuse", lambda _: client)
+    monkeypatch.setattr(api_runtime, "build_tracer", build_tracer)
+    monkeypatch.setattr(api_runtime, "assemble_container", assemble)
 
     with TestClient(create_app()) as http:
         ids = [submit(http), submit(http)]

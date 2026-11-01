@@ -49,7 +49,11 @@ Los archivos marcados con `*` son los entregables obligatorios. Los demás separ
 ```text
 src/
 ├── main.py                *        CLI + raíz de composición de la CLI (llama a load_settings)
-├── api.py                          API HTTP (FastAPI) + segunda raíz de composición: ApiSettings y load_api_settings (decisión 108)
+├── api.py                          API HTTP (FastAPI) + segunda raíz de composición: router, auth, rate limit, uploads, create_app; único que llama a load_api_settings (decisión 108)
+├── api_settings.py                 ApiSettings, load_api_settings y el hash sha256 de las keys
+├── api_contract.py                 modelos de respuesta documentados, textos de rechazo (REFUSALS) y document_problems
+├── api_runtime.py                  ApiRuntime y build_api_runtime(settings): store, limitador, runner y log de eventos
+├── event_stream.py                 stream SSE de un job: EventFeed, stream_events, keep-alive y Last-Event-ID
 ├── composition.py                  cableado compartido por las dos raíces: build_stages, build_container, connect_langfuse, build_tracer, build_envelope
 ├── stages.py                       StageName: los nombres de las etapas que traza el pipeline
 ├── jobs.py                         dominio de jobs: JobState, Job, JobEvent y los puertos JobStore, JobEvents, JobRunner, RateLimiter
@@ -104,7 +108,7 @@ README.md                  *
 | Dominio | `models.py`, `checks.py`, `section_comparison.py`, `text_normalization.py`, `errors.py`, `prompt_blocks.py`, `budget.py`, `stages.py`, `jobs.py` | Pydantic y lógica determinista. No importan LangChain, OpenAI, Langfuse, FastAPI ni `config.py` |
 | Aplicación | `pipeline.py` (`run_analysis()`) | Orquesta las etapas a través de los puertos. No conoce Langfuse ni la configuración |
 | Puertos | `PipelineTracer` y `StageSpan` (Protocol, sección 5.2); el `chat_model` que recibe cada `build_*` | Los módulos de negocio dependen de la abstracción, nunca del proveedor |
-| Adaptadores | `observability.py` (Langfuse), `image_parser.py`, `budgeted_model.py`, `agents/` (OpenAI vía LangChain), `jobs_memory.py`, `job_runner.py` y `progress_tracer.py` (jobs) | Únicos módulos que tocan infraestructura externa. `fastapi` y `starlette` solo en `api.py`; `langfuse` solo en `composition.py` y `observability.py` |
+| Adaptadores | `observability.py` (Langfuse), `image_parser.py`, `budgeted_model.py`, `agents/` (OpenAI vía LangChain), `jobs_memory.py`, `job_runner.py` y `progress_tracer.py` (jobs); `api_settings.py`, `api_contract.py`, `api_runtime.py` y `event_stream.py` (cableado de la API, sin `fastapi`) | Únicos módulos que tocan infraestructura externa. `fastapi` y `starlette` solo en `api.py`; `langfuse` solo en `composition.py` y `observability.py` |
 | Raíces de composición | `main.py` (CLI) y `api.py` (HTTP) | Únicos que cargan la configuración (`load_settings()`, `load_api_settings()`) y cablean adaptadores con puertos. `composition.py` aloja el cableado que comparten (contenedor `@dataclass(frozen=True)`, `build_stages`, sobre de error); ninguna raíz importa a la otra |
 
 Regla de dependencias: dominio ← aplicación ← adaptadores ← raíces de composición (`main.py`, `api.py`). Las flechas solo apuntan hacia adentro; un módulo nunca importa a uno de una capa más externa. Los tests de arquitectura por AST (sección 6.2) hacen cumplir estas reglas en CI, de modo que la arquitectura es declarada y verificada, no inferida. `CLAUDE.md` repite esta tabla para que cada ticket se implemente contra ella.
@@ -642,7 +646,7 @@ Si una etapa falla, su span queda con `level="ERROR"` y el mensaje de error, y e
 
 ### 5.7 Ciclo de vida
 
-- **Un cliente por proceso.** En la CLI lo crea `main.py` después de generar el `run_id` local, una vez por corrida. En la API lo crea el `lifespan` de `api.py` (`connect_langfuse` con `auth_check()`; si falla, la API no arranca) y se hace un `flush()` final en el shutdown.
+- **Un cliente por proceso.** En la CLI lo crea `main.py` después de generar el `run_id` local, una vez por corrida. En la API lo crea el `lifespan` de `api.py` a través de `build_api_runtime` (`api_runtime.py`; `connect_langfuse` con `auth_check()`; si falla, la API no arranca) y se hace un `flush()` final en el shutdown.
 - **Tracer y raíz por corrida.** `main.py` y `job_runner.py` son los dueños del ciclo de vida: cada uno abre la raíz (`open_root`) y hace `flush()` de su tracer. En la API cada job construye su propio `LangfuseTracer` sobre el cliente del proceso (`build_tracer`), envuelto en `ProgressTracer` para publicar el progreso por etapa, con `session_id` igual al id del job. `pipeline.py` solo abre etapas mediante el puerto.
 - **Éxito fail-closed:** el JSON se bufferiza, `flush()` debe completar y recién después se escribe stdout. Una falla produce `ObservabilityError`.
 - **Error de negocio:** `flush()` corre en un `finally`; si también falla, se preserva el error original y se registra la falla de observabilidad.
@@ -692,7 +696,7 @@ Igual que en `orchestration`, con AST:
 - solo las raíces de composición (`COMPOSITION_ROOTS = {main.py, api.py}`) cargan configuración: `main.py` llama a `load_settings()` y `api.py` a `load_api_settings()`; ninguna importa a la otra y las dos importan `composition.py`;
 - solo `LIFECYCLE_OWNERS = {main.py, job_runner.py}` abren la raíz del trace (`open_root`); `observability.py` y `progress_tracer.py` la implementan (el adaptador y el decorador que la reenvía) y no cuentan como usuarios;
 - `langfuse` solo se importa en `composition.py` y `observability.py`; `fastapi` y `starlette` solo en `api.py`;
-- `jobs.py` y `stages.py` están en `DOMAIN_MODULES`, y el dominio y `pipeline.py` no importan los adaptadores nuevos (`composition`, `jobs_memory`, `job_runner`, `progress_tracer`, `api`); solo `job_runner.py` importa `progress_tracer`;
+- `jobs.py` y `stages.py` están en `DOMAIN_MODULES`, y el dominio y `pipeline.py` no importan los adaptadores nuevos (`composition`, `jobs_memory`, `job_runner`, `progress_tracer`, `api`, `api_settings`, `api_contract`, `api_runtime`, `event_stream`); solo `job_runner.py` importa `progress_tracer`;
 - todo `tracer.stage(...)` de `src/` recibe un `StageName`, nunca un literal;
 - ningún texto de los golden cases aparece dentro de `src/`, para que nadie lo "enseñe" al prompt;
 - `requirements.txt` fija las versiones de las dependencias declaradas;

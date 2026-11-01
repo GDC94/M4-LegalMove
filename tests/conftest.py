@@ -3,7 +3,7 @@
 import pytest
 from pydantic_settings import BaseSettings
 
-from api import ApiSettings
+from api_settings import ApiSettings
 from config import Settings
 from settings import EvalSettings
 

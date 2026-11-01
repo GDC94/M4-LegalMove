@@ -4,7 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
-from api import ApiRuntime, create_app
+from api import create_app
+from api_runtime import ApiRuntime
 
 DEFAULT_OUTPUT = Path(__file__).resolve().parent.parent / "web/openapi.json"
 

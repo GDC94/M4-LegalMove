@@ -8,7 +8,9 @@ from typing import Any
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from api import ApiRuntime, ApiSettings, create_app
+from api import create_app
+from api_runtime import ApiRuntime
+from api_settings import ApiSettings
 from budget import CallBudget
 from cli_doubles import RecordingLifecycleTracer
 from composition import Container

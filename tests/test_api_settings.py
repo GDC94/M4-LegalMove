@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from api import ApiSettings, load_api_settings
+from api_settings import ApiSettings, load_api_settings
 from config import Settings
 from conftest import settings_env_names
 from errors import ConfigurationError

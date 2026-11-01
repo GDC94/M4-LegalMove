@@ -32,7 +32,18 @@ LIFECYCLE_IMPLEMENTERS = {"observability.py"}
 LIFECYCLE_FORWARDERS = {"progress_tracer.py"}
 # Decision 9 allows main.py and job_runner.py too; neither needs it, so the rule is the exact set.
 LANGFUSE_IMPORTERS = {"composition.py", "observability.py"}
-NEW_ADAPTERS = {"composition", "jobs_memory", "job_runner", "progress_tracer", "api"}
+NEW_ADAPTERS = {
+    "composition",
+    "jobs_memory",
+    "job_runner",
+    "progress_tracer",
+    "api",
+    # The API split (settings, contract, runtime, SSE stream) is wiring around the root, not domain.
+    "api_settings",
+    "api_contract",
+    "api_runtime",
+    "event_stream",
+}
 INFRASTRUCTURE = {
     "langchain",
     "langchain_core",

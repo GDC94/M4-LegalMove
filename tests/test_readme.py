@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 import errors
-from api import ApiSettings
+from api_settings import ApiSettings
 from render_results import render_results_table
 from settings import EvalSettings
 from test_layering import DELIVERABLES
