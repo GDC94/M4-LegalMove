@@ -374,7 +374,7 @@ def find_consistency_problems(result: ExtractionResult) -> Iterator[str]:
     for field, listed, backed in pairs:
         missing = [value for value in unique_in_order(backed) if value not in listed]
         unbacked = [value for value in listed if value not in backed]
-        parts = []
+        parts: list[str] = []
         if missing:
             parts.append(f"missing from {field}: {', '.join(missing)}")
         if unbacked:

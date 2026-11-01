@@ -10,7 +10,7 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import NoReturn, TextIO
+from typing import NoReturn, TextIO, override
 
 from langchain_openai import ChatOpenAI
 
@@ -97,6 +97,7 @@ class RunContext:
 class CliArgumentParser(argparse.ArgumentParser):
     """Raises instead of exiting, so a usage error still gets its run_id and envelope."""
 
+    @override
     def error(self, message: str) -> NoReturn:
         raise UsageError(message)
 

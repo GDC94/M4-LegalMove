@@ -89,7 +89,8 @@ def is_public_langfuse_cloud(url: str) -> bool:
 def load_settings(env_file: Path | None = Path(".env")) -> Settings:
     """Build Settings or raise ConfigurationError naming only the offending fields."""
     try:
-        return Settings(_env_file=env_file)
+        # pyright synthesizes __init__ from the fields and misses pydantic-settings' _env_file.
+        return Settings(_env_file=env_file)  # pyright: ignore[reportCallIssue]
     except ValidationError as error:
         # Drop the cause: pydantic errors echo input values, which may be secrets.
         raise ConfigurationError(f"invalid settings: {describe_problems(error)}") from None

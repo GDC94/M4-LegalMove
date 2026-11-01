@@ -1,0 +1,14 @@
+{
+  "pythonVersion": "3.14",
+  "extraPaths": ["src", "tests", "evals"],
+  "venvPath": ".",
+  "venv": ".venv",
+  "reportAny": "none",
+  "reportExplicitAny": "none",
+  "reportUnusedCallResult": "none",
+  "reportImplicitStringConcatenation": "none",
+  "reportUnannotatedClassAttribute": "none",
+  "reportCallInDefaultInitializer": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownArgumentType": "none"
+}

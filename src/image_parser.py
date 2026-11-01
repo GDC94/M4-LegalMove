@@ -255,12 +255,13 @@ def build_openai_chat_model(
 
     The single factory for every model call: vision here, both agents through main.py.
     """
+    # pyright resolves pydantic fields by alias and mypy's pydantic plugin by name; mypy gates.
     return ChatOpenAI(
-        model_name=model,
+        model_name=model,  # pyright: ignore[reportCallIssue]
         temperature=temperature,
-        request_timeout=timeout_seconds,
+        request_timeout=timeout_seconds,  # pyright: ignore[reportCallIssue]
         max_retries=max_retries,
-        openai_api_key=api_key,
+        openai_api_key=api_key,  # pyright: ignore[reportCallIssue]
     )
 
 

@@ -6,7 +6,7 @@ import hashlib
 import io
 import os
 import re
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Generator, Mapping, Sequence
 from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Protocol
@@ -201,7 +201,7 @@ class RecordingTracer:
         name: str,
         input_data: Mapping[str, object],
         metadata: Mapping[str, object] | None = None,
-    ) -> Iterator[StageSpan]:
+    ) -> Generator[StageSpan]:
         recorded = RecordedStage(name=name, input=dict(input_data), metadata=dict(metadata or {}))
         self.stages.append(recorded)
         try:
@@ -251,7 +251,7 @@ class LangfuseTracer:
         name: str,
         input_data: Mapping[str, object],
         metadata: Mapping[str, object] | None = None,
-    ) -> Iterator[StageSpan]:
+    ) -> Generator[StageSpan]:
         with self._client.start_as_current_observation(
             name=name, as_type="span", input=dict(input_data), metadata=dict(metadata or {})
         ) as observation:
@@ -268,7 +268,7 @@ class LangfuseTracer:
         input_data: Mapping[str, object],
         metadata: Mapping[str, object],
         attributes: TraceAttributes,
-    ) -> Iterator[StageSpan]:
+    ) -> Generator[StageSpan]:
         """The root is an ordinary span; propagation inside it reaches every later Stage."""
         with (
             self.stage(TRACE_NAME, input_data, metadata) as root,

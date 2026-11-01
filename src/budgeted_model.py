@@ -2,7 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, override
 
 from langchain_core.runnables import Runnable, RunnableConfig
 
@@ -30,6 +30,7 @@ class BudgetedModel[In, Out](Runnable[In, Out]):
         self._policy = policy
 
     # Any: mirrors Runnable.invoke, whose extra keyword arguments are model-specific.
+    @override
     def invoke(self, input: In, config: RunnableConfig | None = None, **kwargs: Any) -> Out:
         policy = self._policy
         limits = policy.budget.plan_attempt(
